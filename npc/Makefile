@@ -2,6 +2,7 @@ all: default
 
 sim: default
 	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
+	build/$(TOPNAME)
 
 include ../Makefile
 
