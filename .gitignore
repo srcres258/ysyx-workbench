@@ -8,5 +8,6 @@
 !/npc/*
 !Makefile
 !README.md
+!learning_record.md
 !.gitignore
 !init.sh
