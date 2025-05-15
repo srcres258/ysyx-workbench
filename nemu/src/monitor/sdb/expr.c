@@ -21,24 +21,22 @@
 #include <regex.h>
 
 enum {
-  TK_NOTYPE = 256, TK_EQ,
-
-  /* TODO: Add more token types */
-
+  TK_NOTYPE = 256, TK_EQ, TK_NUM
 };
 
 static struct rule {
   const char *regex;
   int token_type;
 } rules[] = {
-
-  /* TODO: Add more rules.
-   * Pay attention to the precedence level of different rules.
-   */
-
   {" +", TK_NOTYPE},    // spaces
   {"\\+", '+'},         // plus
+  {"-", '-'},           // minus
+  {"\\*", '*'},         // multiply
+  {"/", '/'},           // divide
+  {"\\(", '('},         // left parenthesis
+  {"\\)", ')'},         // right parenthesis
   {"==", TK_EQ},        // equal
+  {"[0-9]+", TK_NUM},   // number
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -89,13 +87,18 @@ static bool make_token(char *e) {
 
         position += substr_len;
 
-        /* TODO: Now a new token is recognized with rules[i]. Add codes
-         * to record the token in the array `tokens'. For certain types
-         * of tokens, some extra actions should be performed.
-         */
+        if (nr_token >= 32) {
+          panic("Regex tokens buffer overflow");
+        }
 
         switch (rules[i].token_type) {
-          default: TODO();
+          TK_NOTYPE:
+            break; // Ignore spaces.
+          default:
+            tokens[nr_token].type = rules[i].token_type;
+            strncpy(tokens[nr_token].str, substr_start, substr_len);
+            tokens[nr_token].str[substr_len] = '\0';
+            nr_token++;
         }
 
         break;
@@ -111,15 +114,156 @@ static bool make_token(char *e) {
   return true;
 }
 
+static bool check_parentheses(int p, int q) {
+  if (p >= q) {
+    return false;
+  }
+  if (p < 0 || p >= nr_token) {
+    return false;
+  }
+  if (q < 0 || q >= nr_token) {
+    return false;
+  }
+  return tokens[p].type == '(' && tokens[q].type == ')';
+}
+
+static int find_op_index(int p, int q) { // 寻找主运算符索引
+  /*
+    + - 运算比 * / 运算更低级，所以先考虑 + -，
+    实在没找到再看 * /。
+  */
+  bool found_pm;
+  int i, last_pm, last_td, par_level;
+
+  if (p <= q) {
+    return -1;
+  }
+
+  found_pm = false;
+  last_pm = -1;
+  last_td = -1;
+  par_level = 0;
+  for (i = p; i <= q; i++) {
+    switch (tokens[i].type) {
+      case '(':
+        par_level++;
+        break;
+      case ')':
+        par_level--;
+        break;
+      case '+':
+      case '-':
+        if (par_level == 0) {
+          if (!found_pm) {
+            found_pm = true;
+          }
+          last_pm = i;
+        }
+        break;
+      case '*':
+      case '/':
+        if (par_level == 0) {
+          last_td = i;
+        }
+        break;
+    }
+  }
+  if (last_pm < 0 && last_td < 0) {
+    return -1;
+  }
+
+  return found_pm ? last_pm : last_td;
+}
+
+static word_t eval(int p, int q, bool *success) {
+  bool stat;
+  word_t num, val1, val2;
+  int op;
+
+  if (p > q) {
+    /* Bad expression. */
+
+    *success = false;
+    return 0;
+  } else if (p == q) {
+    /*
+      Single token.
+
+      For now this token should be a number.
+      Return the value of the number.
+    */
+
+    if (tokens[p].type != TK_NUM) {
+      *success = false;
+      return 0;
+    }
+    num = strtoul(tokens[p].str, NULL, 10);
+    *success = true;
+    return num;
+  } else if (check_parentheses(p, q)) {
+    /*
+      The expression is surrounded by a matched pair of parentheses.
+      
+      If that is the case, just throw away the parentheses and
+      evaluate the expression inside them.
+    */
+
+    return eval(p + 1, q - 1, success);
+  } else {
+    op = find_op_index(p, q);
+    if (op < 0) {
+      // No operator found.
+      *success = false;
+      return 0;
+    }
+    val1 = eval(p, op - 1, &stat);
+    if (!stat) {
+      *success = false;
+      return 0;
+    }
+    val2 = eval(op + 1, q, &stat);
+    if (!stat) {
+      *success = false;
+      return 0;
+    }
+
+    switch (tokens[op].type) {
+      case '+':
+        return val1 + val2;
+      case '-':
+        return val1 - val2;
+      case '*':
+        return val1 * val2;
+      case '/':
+        if (val2 == 0) {
+          *success = false;
+          return 0;
+        }
+        return val1 / val2;
+      default:
+        // Found a token that is not of any operator type.
+        *success = false;
+        return 0;
+    }
+  }
+}
 
 word_t expr(char *e, bool *success) {
+  bool stat;
+  word_t result;
+
   if (!make_token(e)) {
     *success = false;
     return 0;
   }
 
-  /* TODO: Insert codes to evaluate the expression. */
-  TODO();
+  result = eval(0, nr_token - 1, &stat);
+  if (!stat) {
+    // Failed to evaluate the expression.
+    *success = false;
+    return 0;
+  }
 
-  return 0;
+  *success = true;
+  return result;
 }
