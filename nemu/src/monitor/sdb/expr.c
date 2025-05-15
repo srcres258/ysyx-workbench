@@ -91,15 +91,12 @@ static bool make_token(char *e) {
           panic("Regex tokens buffer overflow");
         }
 
-        switch (rules[i].token_type) {
-          TK_NOTYPE:
-            break; // Ignore spaces.
-          default:
-            tokens[nr_token].type = rules[i].token_type;
-            strncpy(tokens[nr_token].str, substr_start, substr_len);
-            tokens[nr_token].str[substr_len] = '\0';
-            nr_token++;
+        if (rules[i].token_type != TK_NOTYPE) { // Ignore spaces.
+          tokens[nr_token].type = rules[i].token_type;
+          strncpy(tokens[nr_token].str, substr_start, substr_len);
+          tokens[nr_token].str[substr_len] = '\0';
         }
+        nr_token++;
 
         break;
       }
@@ -183,6 +180,7 @@ static word_t eval(int p, int q, bool *success) {
   if (p > q) {
     /* Bad expression. */
 
+    printf("Bad expression.\n");
     *success = false;
     return 0;
   } else if (p == q) {
@@ -194,6 +192,7 @@ static word_t eval(int p, int q, bool *success) {
     */
 
     if (tokens[p].type != TK_NUM) {
+      printf("Single token is not a number.\n");
       *success = false;
       return 0;
     }
@@ -213,6 +212,7 @@ static word_t eval(int p, int q, bool *success) {
     op = find_op_index(p, q);
     if (op < 0) {
       // No operator found.
+      printf("No operator found.\n");
       *success = false;
       return 0;
     }
@@ -236,12 +236,14 @@ static word_t eval(int p, int q, bool *success) {
         return val1 * val2;
       case '/':
         if (val2 == 0) {
+          printf("Divide by zero.\n");
           *success = false;
           return 0;
         }
         return val1 / val2;
       default:
         // Found a token that is not of any operator type.
+        printf("Found a token that is not of any operator type.\n");
         *success = false;
         return 0;
     }
@@ -260,6 +262,7 @@ word_t expr(char *e, bool *success) {
   result = eval(0, nr_token - 1, &stat);
   if (!stat) {
     // Failed to evaluate the expression.
+    printf("Failed to evaluate the expression.\n");
     *success = false;
     return 0;
   }

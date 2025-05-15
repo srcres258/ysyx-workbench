@@ -14,22 +14,64 @@
 ***************************************************************************************/
 
 #include <common.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 void init_monitor(int, char *[]);
 void am_init_monitor();
 void engine_start();
 int is_exit_status_bad();
 
+void init_regex(); // for test
+word_t expr(char *e, bool *success); // for test
+
 int main(int argc, char *argv[]) {
-  /* Initialize the monitor. */
-#ifdef CONFIG_TARGET_AM
-  am_init_monitor();
-#else
-  init_monitor(argc, argv);
-#endif
+//   /* Initialize the monitor. */
+// #ifdef CONFIG_TARGET_AM
+//   am_init_monitor();
+// #else
+//   init_monitor(argc, argv);
+// #endif
 
-  /* Start engine. */
-  engine_start();
+//   /* Start engine. */
+//   engine_start();
 
-  return is_exit_status_bad();
+//   return is_exit_status_bad();
+
+  FILE *fp;
+  char buffer[1024], *num, *expression;
+  int expect, actual, line;
+  bool success;
+
+  init_regex();
+
+  fp = fopen("/home/srcres/Coding/Learn/ysyx-workbench/nemu/tools/gen-expr/build/input", "r");
+  if (!fp) {
+    perror("Failed to open file");
+    return EXIT_FAILURE;
+  }
+
+  line = 1;
+  while (fgets(buffer, sizeof(buffer), fp)) {
+    num = strtok(buffer, " ");
+    expression = strtok(NULL, " ");
+    expression[strlen(expression) - 1] = '\0';
+    expect = atoi(num);
+    actual = expr(expression, &success);
+    if (!success) {
+      printf("Failed to evaluate expression at line %d:\n", line);
+      printf("%s %s\n", num, expression);
+      break;
+    } else if (actual != expect) {
+      printf("Failed to evaluate expression at line %d:\n", line);
+      printf("%s %s\n", num, expression);
+      printf("Expected: %d, Actual: %d\n", expect, actual);
+      break;
+    }
+    line++;
+  }
+
+  fclose(fp);
+
+  return EXIT_SUCCESS;
 }

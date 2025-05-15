@@ -20,10 +20,6 @@
 #include <assert.h>
 #include <string.h>
 
-// We use C23 standard here, so `bool` type is available.
-#define true ((bool) 1)
-#define false ((bool) 0)
-
 // this should be enough
 static char buf[65536] = {};
 static int buf_len = 0;
@@ -35,86 +31,113 @@ static char *code_format =
 "  printf(\"%%u\", result); "
 "  return 0; "
 "}";
-static int last_result = 0;
 
-static inline uint32_t choose(uint32_t n) {
-  return rand() % n;
-}
+static void append_char(char c);
+static void gen_non_zero_num(void);
+static void gen_num(void);
+static void gen_non_zero_factor(void);
+static void gen_non_zero_term(void);
+static void gen_non_zero_expr(void);
+static void gen_factor(void);
+static void gen_term(void);
+static void gen_expr(void);
+static void gen_rand_expr(void);
 
-static void gen(char c) {
+static void append_char(char c) {
+  if (buf_len >= 65535) {
+    return;
+  }
   buf[buf_len++] = c;
   buf[buf_len] = '\0';
 }
 
-static int gen_num(bool avoid_zero) {
-  int num, i;
-  char num_str[32];
+static void gen_non_zero_num(void) {
+  char c;
+  int count;
 
-  if (avoid_zero) {
-    num = last_result == 0 ? 0 : choose(last_result) + 1;
+  c = '1' + rand() % 9;
+  append_char(c);
+  count = 1;
+  while (rand() % 3 != 0 && count <= 3) {
+    c = '0' + rand() % 10;
+    append_char(c);
+    count++;
+  }
+}
+
+static void gen_num(void) {
+  if (rand() % 10 == 0) {
+    append_char('0');
   } else {
-    num = choose(10);
-  }
-  if (num == last_result) {
-    num = (num + 1) % 10;
-  }
-  if (num == 0 && avoid_zero) {
-    num = 1;
-  }
-  sprintf(num_str, "%d", num);
-  for (i = 0; i < strlen(num_str); i++) {
-    gen(num_str[i]);
-  }
-
-  return num;
-}
-
-static char gen_rand_op(void) {
-  char op;
-
-  switch (choose(4)) {
-    case 0: op = '+'; break;
-    case 1: op = '-'; break;
-    case 2: op = '*'; break;
-    default: op = '/';
-  }
-  gen(op);
-
-  return op;
-}
-
-static int eval(int opn0, char op, int opn1) {
-  switch (op) {
-    case '+': return opn0 + opn1;
-    case '-': return opn0 - opn1;
-    case '*': return opn0 * opn1;
-    case '/': return opn0 / opn1;
-    default: return -1;
+    gen_non_zero_num();
   }
 }
 
-static int gen_rand_expr(bool avoid_zero) { // 生成表达式，同时返回所生成的表达式的求值结果
-  int result, opn0, opn1;
-  char op;
-
-  switch (choose(3)) {
-    case 0:
-      result = gen_num(avoid_zero);
-      break;
-    case 1:
-      gen('(');
-      result = gen_rand_expr(avoid_zero);
-      gen(')');
-      break;
-    default:
-      opn0 = gen_rand_expr(true);
-      op = gen_rand_op();
-      opn1 = gen_rand_expr((op == '*' || op == '/') ? true : avoid_zero);
-      result = eval(opn0, op, opn1);
+static void gen_non_zero_term(void) {
+  gen_non_zero_factor();
+  if (rand() % 10 == 0) {
+    append_char('*');
+    gen_non_zero_term();
   }
-  last_result = result;
+}
 
-  return result;
+static void gen_non_zero_expr(void) {
+  gen_non_zero_term();
+  if (rand() % 10 == 0) {
+    append_char('+');
+    gen_non_zero_expr();
+  }
+}
+
+static void gen_non_zero_factor(void) {
+  if (rand() % 2 == 0) {
+    gen_non_zero_num();
+  } else {
+    append_char('(');
+    gen_non_zero_expr();
+    append_char(')');
+  }
+}
+
+static void gen_factor(void) {
+  if (rand() % 2 == 0) {
+    gen_num();
+  } else {
+    append_char('(');
+    gen_non_zero_expr();
+    append_char(')');
+  }
+}
+
+static void gen_term(void) {
+  gen_factor();
+  while (rand() % 10 == 0) {
+    if (rand() % 2 == 0) {
+      append_char('*');
+      gen_factor();
+    } else {
+      append_char('/');
+      gen_non_zero_factor();
+    }
+  }
+}
+
+static void gen_expr(void) {
+  gen_term();
+  while (rand() % 10 == 0) {
+    if (rand() % 2 == 0) {
+      append_char('+');
+    } else {
+      append_char('-');
+    }
+    gen_term();
+  }
+}
+
+static void gen_rand_expr(void) {
+  buf[0] = '\0';
+  buf_len = 0;
+  gen_expr();
 }
 
 int main(int argc, char *argv[]) {
@@ -126,9 +149,7 @@ int main(int argc, char *argv[]) {
   }
   int i;
   for (i = 0; i < loop; i ++) {
-    buf_len = 0;
-    last_result = 0;
-    gen_rand_expr(false);
+    gen_rand_expr();
 
     sprintf(code_buf, code_format, buf);
 
