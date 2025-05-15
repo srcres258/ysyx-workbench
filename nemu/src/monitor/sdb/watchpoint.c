@@ -16,16 +16,16 @@
 #include "sdb.h"
 
 #define NR_WP 32
+#define NR_EXPR_LEN 1024
 
 typedef struct watchpoint {
   int NO;
   struct watchpoint *next;
-
-  /* TODO: Add more members if necessary */
-
+  char expr[NR_EXPR_LEN];
 } WP;
 
 static WP wp_pool[NR_WP] = {};
+// head: 正在被使用的watchpoint链表头; free_: 空闲的watchpoint链表头
 static WP *head = NULL, *free_ = NULL;
 
 void init_wp_pool() {
@@ -33,11 +33,24 @@ void init_wp_pool() {
   for (i = 0; i < NR_WP; i ++) {
     wp_pool[i].NO = i;
     wp_pool[i].next = (i == NR_WP - 1 ? NULL : &wp_pool[i + 1]);
+    memset(wp_pool[i].expr, 0, NR_EXPR_LEN * sizeof(char));
   }
 
   head = NULL;
   free_ = wp_pool;
 }
 
-/* TODO: Implement the functionality of watchpoint */
+void print_wp_pool(void) {
+  WP *cur;
 
+  cur = head;
+  printf("Watchpoints:\n");
+  if (cur) {
+    while (cur) {
+      printf("Watchpoint %d: %s\n", cur->NO, cur->expr);
+      cur = cur->next;
+    }
+  } else {
+    printf("No watchpoint at present.\n");
+  }
+}

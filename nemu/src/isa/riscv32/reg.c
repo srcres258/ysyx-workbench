@@ -22,10 +22,27 @@ const char *regs[] = {
   "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
   "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
+#define LEN_REGS (sizeof(regs) / sizeof(regs[0]))
 
 void isa_reg_display() {
+  int i;
+
+  printf("Registers:\n");
+  for (i = 0; i < LEN_REGS; i++) {
+    printf("%s: 0x%08x\n", regs[i], gpr(i));
+  }
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {
+  int i;
+
+  for (i = 0; i < LEN_REGS; i++) {
+    if (strcmp(s, reg_name(i)) == 0) {
+      *success = true;
+      return gpr(i);
+    }
+  }
+
+  *success = false;
   return 0;
 }
