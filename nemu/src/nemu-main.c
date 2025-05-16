@@ -54,7 +54,7 @@ int main(int argc, char *argv[]) {
   line = 1;
   while (fgets(buffer, sizeof(buffer), fp)) {
     num = strtok(buffer, " ");
-    expression = strtok(NULL, " ");
+    expression = num + strlen(num) + 1;
     expression[strlen(expression) - 1] = '\0';
     expect = atoi(num);
     actual = expr(expression, &success);
@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
       printf("Expected: %d, Actual: %d\n", expect, actual);
       break;
     }
+    printf("Passed: %s %s\n", num, expression);
     line++;
   }
 

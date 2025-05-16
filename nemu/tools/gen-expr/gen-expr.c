@@ -33,6 +33,7 @@ static char *code_format =
 "}";
 
 static void append_char(char c);
+static void gen_rand_space(void);
 static void gen_non_zero_num(void);
 static void gen_num(void);
 static void gen_non_zero_factor(void);
@@ -51,6 +52,12 @@ static void append_char(char c) {
   buf[buf_len] = '\0';
 }
 
+static void gen_rand_space(void) {
+  if (rand() % 3 == 0) {
+    append_char(' ');
+  }
+}
+
 static void gen_non_zero_num(void) {
   char c;
   int count;
@@ -58,11 +65,12 @@ static void gen_non_zero_num(void) {
   c = '1' + rand() % 9;
   append_char(c);
   count = 1;
-  while (rand() % 3 != 0 && count <= 3) {
+  while (rand() % 3 != 0 && count <= 2) {
     c = '0' + rand() % 10;
     append_char(c);
     count++;
   }
+  gen_rand_space();
 }
 
 static void gen_num(void) {
@@ -94,8 +102,10 @@ static void gen_non_zero_factor(void) {
     gen_non_zero_num();
   } else {
     append_char('(');
+    gen_rand_space();
     gen_non_zero_expr();
     append_char(')');
+    gen_rand_space();
   }
 }
 
@@ -104,8 +114,10 @@ static void gen_factor(void) {
     gen_num();
   } else {
     append_char('(');
+    gen_rand_space();
     gen_non_zero_expr();
     append_char(')');
+    gen_rand_space();
   }
 }
 

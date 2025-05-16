@@ -65,7 +65,9 @@ typedef struct token {
   char str[32];
 } Token;
 
-static Token tokens[32] __attribute__((used)) = {};
+#define LEN_TOKENS 256
+
+static Token tokens[LEN_TOKENS] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
 static bool make_token(char *e) {
@@ -87,7 +89,7 @@ static bool make_token(char *e) {
 
         position += substr_len;
 
-        if (nr_token >= 32) {
+        if (nr_token >= LEN_TOKENS) {
           panic("Regex tokens buffer overflow");
         }
 
@@ -95,8 +97,8 @@ static bool make_token(char *e) {
           tokens[nr_token].type = rules[i].token_type;
           strncpy(tokens[nr_token].str, substr_start, substr_len);
           tokens[nr_token].str[substr_len] = '\0';
+          nr_token++;
         }
-        nr_token++;
 
         break;
       }
@@ -112,6 +114,8 @@ static bool make_token(char *e) {
 }
 
 static bool check_parentheses(int p, int q) {
+  int par_level, i;
+
   if (p >= q) {
     return false;
   }
@@ -121,7 +125,27 @@ static bool check_parentheses(int p, int q) {
   if (q < 0 || q >= nr_token) {
     return false;
   }
-  return tokens[p].type == '(' && tokens[q].type == ')';
+  if (tokens[p].type != '(') {
+    return false;
+  }
+  if (tokens[q].type != ')') {
+    return false;
+  }
+  par_level = 1;
+  for (i = p + 1; i < q; i++) {
+    switch (tokens[i].type) {
+      case '(':
+        par_level++;
+        break;
+      case ')':
+        par_level--;
+        break;
+    }
+    if (par_level <= 0) {
+      return false;
+    }
+  }
+  return par_level == 1;
 }
 
 static int find_op_index(int p, int q) { // 寻找主运算符索引
@@ -130,9 +154,16 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
     实在没找到再看 * /。
   */
   bool found_pm;
-  int i, last_pm, last_td, par_level;
+  int i;
+  int last_pm; // 最后一个 + - 号的索引位置
+  int last_td; // 最后一个 * / 号的索引位置
+  /*
+    当前括号层级（必须当层级为0时才统计上述两种符号的索引，
+    因为括号内的总是优先计算，故不可能在括号内有主运算符）
+  */
+  int par_level;
 
-  if (p <= q) {
+  if (p >= q) {
     return -1;
   }
 
@@ -140,16 +171,18 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
   last_pm = -1;
   last_td = -1;
   par_level = 0;
+  printf("Going to find main operator between %d and %d.\n", p, q);
   for (i = p; i <= q; i++) {
     switch (tokens[i].type) {
       case '(':
+        printf("Met '(', par_level++\n");
         par_level++;
         break;
       case ')':
+        printf("Met ')', par_level--\n");
         par_level--;
         break;
-      case '+':
-      case '-':
+      case '+': case '-':
         if (par_level == 0) {
           if (!found_pm) {
             found_pm = true;
@@ -157,8 +190,7 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
           last_pm = i;
         }
         break;
-      case '*':
-      case '/':
+      case '*': case '/':
         if (par_level == 0) {
           last_td = i;
         }
@@ -166,6 +198,7 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
     }
   }
   if (last_pm < 0 && last_td < 0) {
+    printf("Finding operator index failed between %d and %d.\n", p, q);
     return -1;
   }
 
@@ -212,27 +245,33 @@ static word_t eval(int p, int q, bool *success) {
     op = find_op_index(p, q);
     if (op < 0) {
       // No operator found.
-      printf("No operator found.\n");
+      printf("No operator found between %d and %d.\n", p, q);
       *success = false;
       return 0;
     }
+    printf("Going to evaluate main operator %c at position %d.\n", tokens[op].type, op);
     val1 = eval(p, op - 1, &stat);
     if (!stat) {
+      printf("Evaluation failed for val1. Expression is %d %c %d.\n", p, tokens[op].type, q);
       *success = false;
       return 0;
     }
     val2 = eval(op + 1, q, &stat);
     if (!stat) {
+      printf("Evaluation failed for val2. Expression is %d %c %d.\n", p, tokens[op].type, q);
       *success = false;
       return 0;
     }
 
     switch (tokens[op].type) {
       case '+':
+        *success = true;
         return val1 + val2;
       case '-':
+        *success = true;
         return val1 - val2;
       case '*':
+        *success = true;
         return val1 * val2;
       case '/':
         if (val2 == 0) {
@@ -240,6 +279,7 @@ static word_t eval(int p, int q, bool *success) {
           *success = false;
           return 0;
         }
+        *success = true;
         return val1 / val2;
       default:
         // Found a token that is not of any operator type.
