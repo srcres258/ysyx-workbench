@@ -21,7 +21,10 @@
 #include <regex.h>
 
 enum {
-  TK_NOTYPE = 256, TK_EQ, TK_NUM
+  TK_NOTYPE = 256, TK_EQ, TK_NUM,
+
+  TK_NEG_MUL, // 负数乘法，用于当第二个乘数为负时将负号合并入乘号
+  TK_NEG_DIV  // 负数除法，用于当除数为负时将负号合并入除号
 };
 
 static struct rule {
@@ -36,7 +39,7 @@ static struct rule {
   {"\\(", '('},         // left parenthesis
   {"\\)", ')'},         // right parenthesis
   {"==", TK_EQ},        // equal
-  {"[0-9]+", TK_NUM},   // number
+  {"(0[xX]?)?[0-9]+", TK_NUM},   // number
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -70,6 +73,13 @@ typedef struct token {
 static Token tokens[LEN_TOKENS] __attribute__((used)) = {};
 static int nr_token __attribute__((used))  = 0;
 
+static void record_token(int i, char *substr_start, int substr_len) {
+  tokens[nr_token].type = rules[i].token_type;
+  strncpy(tokens[nr_token].str, substr_start, substr_len);
+  tokens[nr_token].str[substr_len] = '\0';
+  nr_token++;
+}
+
 static bool make_token(char *e) {
   int position = 0;
   int i;
@@ -94,10 +104,34 @@ static bool make_token(char *e) {
         }
 
         if (rules[i].token_type != TK_NOTYPE) { // Ignore spaces.
-          tokens[nr_token].type = rules[i].token_type;
-          strncpy(tokens[nr_token].str, substr_start, substr_len);
-          tokens[nr_token].str[substr_len] = '\0';
-          nr_token++;
+          // 如果这个符号是 + 或 -
+          if (rules[i].token_type == '+' || rules[i].token_type == '-') {
+            // 如果没有前一个符号，或者前一个符号为 ( 左括号
+            if (nr_token == 0 || tokens[nr_token - 1].type == '(') {
+              // 先补充前导0，以形成 0 + ... 或 0 - ... 这种符合运算算法的等价表示形式
+              tokens[nr_token].type = TK_NUM;
+              strcpy(tokens[nr_token].str, "0");
+              nr_token++;
+
+              // 再记录当前符号
+              record_token(i, substr_start, substr_len);
+            // 如果有前一个符号且前一个符号为 * 或 /
+            } else if (nr_token > 0 && (tokens[nr_token - 1].type == '*' || tokens[nr_token - 1].type == '/')) {
+              // 如果当前符号是负号的话，将这个负号与前面的 * 或 / 合并成负数版本（正号的话就不管了）
+              if (rules[i].token_type == '-') {
+                if (tokens[nr_token - 1].type == '*') { // * 号
+                  tokens[nr_token - 1].type = TK_NEG_MUL;
+                } else { // / 号
+                  tokens[nr_token - 1].type = TK_NEG_DIV;
+                }
+              }
+            } else {
+              // 都没问题了，直接记录
+              record_token(i, substr_start, substr_len);
+            }
+          } else {
+            record_token(i, substr_start, substr_len);
+          }
         }
 
         break;
@@ -182,7 +216,8 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
         printf("Met ')', par_level--\n");
         par_level--;
         break;
-      case '+': case '-':
+      case '+':
+      case '-':
         if (par_level == 0) {
           if (!found_pm) {
             found_pm = true;
@@ -190,7 +225,10 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
           last_pm = i;
         }
         break;
-      case '*': case '/':
+      case '*':
+      case '/':
+      case TK_NEG_MUL:
+      case TK_NEG_DIV:
         if (par_level == 0) {
           last_td = i;
         }
@@ -205,15 +243,17 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
   return found_pm ? last_pm : last_td;
 }
 
-static word_t eval(int p, int q, bool *success) {
+// 注意由于求值可能为负数，所以返回值类型得用 int64_t（带符号整数）而非 word_t
+// （原始代码给的类型是 word_t，是不对的）
+static int64_t eval(int p, int q, bool *success) {
   bool stat;
-  word_t num, val1, val2;
+  int64_t num, val1, val2;
   int op;
 
   if (p > q) {
     /* Bad expression. */
 
-    printf("Bad expression.\n");
+    printf("Bad expression, p is %d, q is %d.\n", p, q);
     *success = false;
     return 0;
   } else if (p == q) {
@@ -229,7 +269,7 @@ static word_t eval(int p, int q, bool *success) {
       *success = false;
       return 0;
     }
-    num = strtoul(tokens[p].str, NULL, 10);
+    num = strtoul(tokens[p].str, NULL, 0);
     *success = true;
     return num;
   } else if (check_parentheses(p, q)) {
@@ -252,28 +292,32 @@ static word_t eval(int p, int q, bool *success) {
     printf("Going to evaluate main operator %c at position %d.\n", tokens[op].type, op);
     val1 = eval(p, op - 1, &stat);
     if (!stat) {
-      printf("Evaluation failed for val1. Expression is %d %c %d.\n", p, tokens[op].type, q);
+      printf("Evaluation failed for val1.\n");
       *success = false;
       return 0;
     }
     val2 = eval(op + 1, q, &stat);
     if (!stat) {
-      printf("Evaluation failed for val2. Expression is %d %c %d.\n", p, tokens[op].type, q);
+      printf("Evaluation failed for val2.\n");
       *success = false;
       return 0;
     }
 
     switch (tokens[op].type) {
       case '+':
+        printf("Calculating: %ld + %ld\n", val1, val2);
         *success = true;
         return val1 + val2;
       case '-':
+        printf("Calculating: %ld - %ld\n", val1, val2);
         *success = true;
         return val1 - val2;
       case '*':
+        printf("Calculating: %ld * %ld\n", val1, val2);
         *success = true;
         return val1 * val2;
       case '/':
+        printf("Calculating: %ld / %ld\n", val1, val2);
         if (val2 == 0) {
           printf("Divide by zero.\n");
           *success = false;
@@ -281,6 +325,19 @@ static word_t eval(int p, int q, bool *success) {
         }
         *success = true;
         return val1 / val2;
+      case TK_NEG_MUL:
+        printf("Calculating: -(%ld * %ld)\n", val1, val2);
+        *success = true;
+        return -(val1 * val2);
+      case TK_NEG_DIV:
+        printf("Calculating: -(%ld / %ld)\n", val1, val2);
+        if (val2 == 0) {
+          printf("Divide by zero.\n");
+          *success = false;
+          return 0;
+        }
+        *success = true;
+        return -(val1 / val2);
       default:
         // Found a token that is not of any operator type.
         printf("Found a token that is not of any operator type.\n");
@@ -290,9 +347,9 @@ static word_t eval(int p, int q, bool *success) {
   }
 }
 
-word_t expr(char *e, bool *success) {
+int64_t expr(char *e, bool *success) {
   bool stat;
-  word_t result;
+  int64_t result;
 
   if (!make_token(e)) {
     *success = false;

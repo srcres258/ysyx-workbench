@@ -26,26 +26,22 @@ void init_regex(); // for test
 word_t expr(char *e, bool *success); // for test
 
 int main(int argc, char *argv[]) {
-//   /* Initialize the monitor. */
-// #ifdef CONFIG_TARGET_AM
-//   am_init_monitor();
-// #else
-//   init_monitor(argc, argv);
-// #endif
-
-//   /* Start engine. */
-//   engine_start();
-
-//   return is_exit_status_bad();
+#ifdef TEST_EXPR
 
   FILE *fp;
-  char buffer[1024], *num, *expression;
+  char *env_val, filename[256], buffer[1024], *num, *expression;
   int expect, actual, line;
   bool success;
 
+  env_val = getenv("NEMU_HOME");
+  if (!env_val) {
+    return EXIT_FAILURE;
+  }
+  sprintf(filename, "%s/tools/gen-expr/build/input", env_val);
+
   init_regex();
 
-  fp = fopen("/home/srcres/Coding/Learn/ysyx-workbench/nemu/tools/gen-expr/build/input", "r");
+  fp = fopen(filename, "r");
   if (!fp) {
     perror("Failed to open file");
     return EXIT_FAILURE;
@@ -68,11 +64,27 @@ int main(int argc, char *argv[]) {
       printf("Expected: %d, Actual: %d\n", expect, actual);
       break;
     }
-    printf("Passed: %s %s\n", num, expression);
+    printf("Line %d passed: %s %s\n", line, num, expression);
     line++;
   }
 
   fclose(fp);
 
   return EXIT_SUCCESS;
+
+#else
+
+  /* Initialize the monitor. */
+#ifdef CONFIG_TARGET_AM
+  am_init_monitor();
+#else
+  init_monitor(argc, argv);
+#endif
+
+  /* Start engine. */
+  engine_start();
+
+  return is_exit_status_bad();
+
+#endif
 }

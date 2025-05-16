@@ -62,10 +62,10 @@ static void gen_non_zero_num(void) {
   char c;
   int count;
 
-  c = '1' + rand() % 9;
+  c = '1' + rand() % 2; // 最高位取1-3，减少最终表达式计算时发生溢出的概率
   append_char(c);
   count = 1;
-  while (rand() % 3 != 0 && count <= 2) {
+  while (rand() % 3 != 0 && count <= 1) {
     c = '0' + rand() % 10;
     append_char(c);
     count++;
@@ -179,6 +179,12 @@ int main(int argc, char *argv[]) {
     int result;
     ret = fscanf(fp, "%d", &result);
     pclose(fp);
+
+    if (result < 0) {
+      // 结果为负数表示值溢出了，重新生成表达式
+      i--;
+      continue;
+    }
 
     printf("%u %s\n", result, buf);
   }

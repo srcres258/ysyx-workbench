@@ -23,52 +23,6 @@
 
 static int is_batch_mode = false;
 
-/**
- * @brief 工具函数，将给定的十六进制内存地址字符串（没有`0x`前缀）
- * 转换为数值表示的内存地址。
- * 
- * @param str 十六进制内存地址字符串。
- * @param success 若转换成功，设置该指针为`true`，否则为`false`。
- * @return int 转换后的数字。若转换失败返回`0`。
- */
-static vaddr_t hex_addr_to_num(const char *str, bool *success) {
-  const char *cur;
-  char c;
-  unsigned char uc;
-  vaddr_t result, value;
-
-  if (str == NULL || *str == '\0') {
-    return -1; // 空指针或空字符串，转换失败
-  }
-
-  result = 0;
-  for (cur = str; *cur != '\0'; cur++) {
-    c = *cur;
-    uc = (unsigned char) c;
-    if (!isdigit(uc) && !isalpha(uc)) {
-      // 既不是数字也不是字母，输入非法，转换失败
-      *success = false;
-      return 0;
-    }
-    if (isdigit(uc)) {
-      value = c - '0';
-    } else if (c >= 'A' && c <= 'F') {
-      value = 10 + c - 'A';
-    } else if (c >= 'a' && c <= 'f') {
-      value = 10 + c - 'a';
-    } else {
-      *success = false;
-      return 0; // 遇到非法字符，转换失败
-    }
-
-    result <<= 4;
-    result |= value;
-  }
-
-  *success = true;
-  return result;
-}
-
 static void print_bad_arguments(void) {
   printf("Bad command arguments. Please type 'help' for usage.\n");
 }
@@ -176,20 +130,20 @@ static int cmd_info(char *args) {
  * @return int 
  */
 static int cmd_x(char *args) {
-  char *N_str, *EXPR_str, *hex_str;
+  char *N_str, *EXPR_str;
   vaddr_t addr, cur_addr;
   int N, i;
   uint32_t value;
   bool success;
 
   if (!args) {
+    print_bad_arguments();
     return 0;
   }
 
   N_str = strtok(args, " ");
-  EXPR_str = N_str ? N_str + strlen(N_str) + 1 : NULL;
-  hex_str = EXPR_str + 2; // 去掉前缀"0x"
-  addr = hex_addr_to_num(hex_str, &success);
+  EXPR_str = N_str ? N_str + strlen(N_str) + 1 : NULL; // 去掉前缀"0x"
+  addr = expr(EXPR_str, &success);
   N = atoi(N_str);
 
   if (!success || N <= 0) {
@@ -221,7 +175,20 @@ static int cmd_x(char *args) {
  * @return int 
  */
 static int cmd_p(char *args) {
-  // TODO
+  bool success;
+  int val;
+
+  if (!args) {
+    print_bad_arguments();
+    return 0;
+  }
+
+  val = expr(args, &success);
+  if (success) {
+    printf("求值结果：%d\n", val);
+  } else {
+    printf("求值失败，请检查您输入的表达式是否有误！\n");
+  }
 
   return 0;
 }
