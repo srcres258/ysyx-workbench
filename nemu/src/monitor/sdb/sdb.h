@@ -18,6 +18,20 @@
 
 #include <common.h>
 
+#define NR_EXPR_LEN 1024
+
+typedef struct watchpoint {
+  int NO;
+  struct watchpoint *next;
+
+  char expr[NR_EXPR_LEN];
+  int64_t val;
+  bool evaluated;
+} WP;
+
 word_t expr(char *e, bool *success);
+WP *new_wp(void);
+void free_wp(WP *wp);
+WP *find_wp(int NO);
 
 #endif

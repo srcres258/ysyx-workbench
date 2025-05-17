@@ -73,5 +73,8 @@ uint64_t get_time();
     log_write(__VA_ARGS__); \
   } while (0)
 
+// ----------- monitor -----------
+
+void sdb_eval_and_update_wp(void);
 
 #endif

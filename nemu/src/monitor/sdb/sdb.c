@@ -151,11 +151,11 @@ static int cmd_x(char *args) {
     return 0;
   }
 
-  printf("Memory scan: addr=%08X, N=%d\n", addr, N);
+  printf("Memory scan: addr=0x%08X, N=%d\n", addr, N);
   cur_addr = addr;
   for (i = 0; i < N; i++) {
     value = vaddr_read(cur_addr, 4);
-    printf("%08X: %08X\n", cur_addr, value);
+    printf("0x%08X: %08X\n", cur_addr, value);
     cur_addr += 4;
   }
 
@@ -206,7 +206,24 @@ static int cmd_p(char *args) {
  * @return int 
  */
 static int cmd_w(char *args) {
-  // TODO
+  WP *wp;
+  int64_t val;
+  bool success;
+
+  if (!args) {
+    printf("请给定要进行监视的表达式的内容！\n");
+    return 0;
+  }
+  wp = new_wp();
+  strcpy(wp->expr, args);
+  val = expr(wp->expr, &success);
+  if (success) {
+    wp->val = val;
+    wp->evaluated = true;
+    printf("成功设置监视点%d，内容为：%s，初始值为：%ld\n", wp->NO, wp->expr, wp->val);
+  } else {
+    printf("成功设置监视点%d，内容为：%s，此时无法求值。\n", wp->NO, wp->expr);
+  }
 
   return 0;
 }
@@ -224,7 +241,21 @@ static int cmd_w(char *args) {
  * @return int 
  */
 static int cmd_d(char *args) {
-  // TODO
+  WP *wp;
+  int NO;
+
+  if (!args) {
+    printf("请给定要删除的监视点的序号！\n");
+    return 0;
+  }
+  NO = atoi(args);
+  wp = find_wp(NO);
+  if (wp) {
+    free_wp(wp);
+    printf("监视点%d删除成功！\n", NO);
+  } else {
+    printf("删除失败，监视点%d不存在！\n", NO);
+  }
 
   return 0;
 }

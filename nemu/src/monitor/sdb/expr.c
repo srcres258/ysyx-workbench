@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include <isa.h>
+#include <memory/vaddr.h>
 
 /* We use the POSIX regex functions to process regular expressions.
  * Type 'man regex' for more information about POSIX regex functions.
@@ -21,25 +22,27 @@
 #include <regex.h>
 
 enum {
-  TK_NOTYPE = 256, TK_EQ, TK_NUM,
+  TK_NOTYPE = 256, TK_EQ, TK_NUM, TK_REG,
 
   TK_NEG_MUL, // 负数乘法，用于当第二个乘数为负时将负号合并入乘号
-  TK_NEG_DIV  // 负数除法，用于当除数为负时将负号合并入除号
+  TK_NEG_DIV, // 负数除法，用于当除数为负时将负号合并入除号
+  TK_DEREF    // 解引用运算，用于取后面一个数字所指向的内存地址的值
 };
 
 static struct rule {
   const char *regex;
   int token_type;
 } rules[] = {
-  {" +", TK_NOTYPE},    // spaces
-  {"\\+", '+'},         // plus
-  {"-", '-'},           // minus
-  {"\\*", '*'},         // multiply
-  {"/", '/'},           // divide
-  {"\\(", '('},         // left parenthesis
-  {"\\)", ')'},         // right parenthesis
-  {"==", TK_EQ},        // equal
-  {"(0[xX]?)?[0-9]+", TK_NUM},   // number
+  { " +", TK_NOTYPE },                      // spaces
+  { "\\+", '+' },                           // plus
+  { "-", '-' },                             // minus
+  { "\\*", '*' },                           // multiply
+  { "/", '/' },                             // divide
+  { "\\(", '(' },                           // left parenthesis
+  { "\\)", ')' },                           // right parenthesis
+  { "==", TK_EQ },                          // equal
+  { "(0[xX]?)?[0-9]+", TK_NUM },            // number
+  { "\\$.+", TK_REG }  // register
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -126,7 +129,24 @@ static bool make_token(char *e) {
                 }
               }
             } else {
-              // 都没问题了，直接记录
+              // 都没问题了，是常规情况，正常记录
+              record_token(i, substr_start, substr_len);
+            }
+          // 如果这个符号是 *
+          } else if (rules[i].token_type == '*') {
+            // 如果没有前一个符号，或者前一个符号为非数字或非寄存器
+            if (
+              nr_token == 0 ||
+              rules[nr_token - 1].token_type != TK_NUM ||
+              rules[nr_token - 1].token_type != TK_REG
+            ) {
+              // 说明这个 * 号应当被理解为解引用运算（取后面一个数字所指向的内存地址的值）
+              // 记录这个 * 号为解引用运算符
+              tokens[nr_token].type = TK_DEREF;
+              strcpy(tokens[nr_token].str, "*");
+              nr_token++;
+            } else {
+              // 都没问题了，是常规情况，正常记录
               record_token(i, substr_start, substr_len);
             }
           } else {
@@ -249,6 +269,8 @@ static int64_t eval(int p, int q, bool *success) {
   bool stat;
   int64_t num, val1, val2;
   int op;
+  char *reg_name;
+  vaddr_t mem_addr;
 
   if (p > q) {
     /* Bad expression. */
@@ -260,16 +282,37 @@ static int64_t eval(int p, int q, bool *success) {
     /*
       Single token.
 
-      For now this token should be a number.
-      Return the value of the number.
+      For now this token should be a number or a register name.
+      Return the value of the number or register.
     */
 
-    if (tokens[p].type != TK_NUM) {
+    if (tokens[p].type == TK_NUM) {
+      num = strtoul(tokens[p].str, NULL, 0);
+      *success = true;
+      return num;
+    } else if (tokens[p].type == TK_REG) {
+      reg_name = tokens[p].str + 1; // 去掉名称前面的 $
+      num = isa_reg_str2val(reg_name, &stat);
+      if (!stat) {
+        printf("Failed to get the value of register %s.\n", tokens[p].str);
+        *success = false;
+        return 0;
+      }
+      *success = true;
+      return num;
+    } else {
       printf("Single token is not a number.\n");
       *success = false;
       return 0;
     }
-    num = strtoul(tokens[p].str, NULL, 0);
+  } else if (tokens[p].type == TK_DEREF) {
+    mem_addr = eval(p + 1, q, &stat);
+    if (!stat) {
+      printf("Failed to evaluate memory address for dereference.\n");
+      *success = false;
+      return 0;
+    }
+    num = vaddr_read(mem_addr, 4);
     *success = true;
     return num;
   } else if (check_parentheses(p, q)) {
