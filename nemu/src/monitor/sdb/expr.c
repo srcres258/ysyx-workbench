@@ -42,7 +42,7 @@ static struct rule {
   { "\\)", ')' },                           // right parenthesis
   { "==", TK_EQ },                          // equal
   { "(0[xX]?)?[0-9]+", TK_NUM },            // number
-  { "\\$.+", TK_REG }  // register
+  { "\\$[0-9a-zA-Z]+", TK_REG },                  // register
 };
 
 #define NR_REGEX ARRLEN(rules)
@@ -134,11 +134,12 @@ static bool make_token(char *e) {
             }
           // 如果这个符号是 *
           } else if (rules[i].token_type == '*') {
-            // 如果没有前一个符号，或者前一个符号为非数字或非寄存器
+            // 如果没有前一个符号，或者前一个符号既不是数字也不是非寄存器、也不是右括号
             if (
               nr_token == 0 ||
-              rules[nr_token - 1].token_type != TK_NUM ||
-              rules[nr_token - 1].token_type != TK_REG
+              (tokens[nr_token - 1].type != TK_NUM &&
+              tokens[nr_token - 1].type != TK_REG &&
+              tokens[nr_token - 1].type != ')')
             ) {
               // 说明这个 * 号应当被理解为解引用运算（取后面一个数字所指向的内存地址的值）
               // 记录这个 * 号为解引用运算符
@@ -227,6 +228,11 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
   par_level = 0;
   printf("Going to find main operator between %d and %d.\n", p, q);
   for (i = p; i <= q; i++) {
+    printf("i=%d\n", i);
+    printf("Token %d is %d\n", i, tokens[i].type);
+    if (tokens[i].type >= 0 && tokens[i].type <= 255) {
+      printf("Token %d is %c\n", i, tokens[i].type);
+    }
     switch (tokens[i].type) {
       case '(':
         printf("Met '(', par_level++\n");
@@ -253,6 +259,7 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
           last_td = i;
         }
         break;
+      default:
     }
   }
   if (last_pm < 0 && last_td < 0) {
