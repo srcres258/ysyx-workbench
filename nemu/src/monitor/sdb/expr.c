@@ -21,6 +21,8 @@
  */
 #include <regex.h>
 
+#include <ctype.h>
+
 enum {
   TK_NOTYPE = 256, TK_EQ, TK_NUM, TK_REG,
 
@@ -205,12 +207,12 @@ static bool check_parentheses(int p, int q) {
 
 static int find_op_index(int p, int q) { // 寻找主运算符索引
   /*
-    + - 运算比 * / 运算更低级，所以先考虑 + -，
+    + - == 运算比 * / 运算更低级，所以先考虑 + -，
     实在没找到再看 * /。
   */
   bool found_pm;
   int i;
-  int last_pm; // 最后一个 + - 号的索引位置
+  int last_pm; // 最后一个 + - == 号的索引位置
   int last_td; // 最后一个 * / 号的索引位置
   /*
     当前括号层级（必须当层级为0时才统计上述两种符号的索引，
@@ -244,6 +246,7 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
         break;
       case '+':
       case '-':
+      case TK_EQ:
         if (par_level == 0) {
           if (!found_pm) {
             found_pm = true;
@@ -268,6 +271,43 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
   }
 
   return found_pm ? last_pm : last_td;
+}
+
+//去除尾部空白字符 包括\t \n \r  
+/*
+标准的空白字符包括：
+' '     (0x20)    space (SPC) 空格符
+'\t'    (0x09)    horizontal tab (TAB) 水平制表符    
+'\n'    (0x0a)    newline (LF) 换行符
+'\v'    (0x0b)    vertical tab (VT) 垂直制表符
+'\f'    (0x0c)    feed (FF) 换页符
+'\r'    (0x0d)    carriage return (CR) 回车符
+//windows \r\n linux \n mac \r
+*/ 
+static char *rtrim(char *str) { 
+  if (str == NULL || *str == '\0') { 
+        return str; 
+  } 
+  int len = strlen(str); 
+  char *p = str + len - 1; 
+  while (p >= str && isspace(*p)) { 
+    *p = '\0'; --p; 
+  } 
+  return str; 
+} 
+
+static int64_t reg_str2val(const char *reg_name, bool *success) {
+  char regn[1024];
+
+  strcpy(regn, reg_name);
+  rtrim(regn); // 去掉尾部空白字符
+  printf("regn: %s, %ld\n", regn, strlen(regn));
+  if (strcmp(regn, "pc") == 0) { // 如果是pc
+    *success = true;
+    return cpu.pc; // 直接从CPU数据结构读取pc值
+  } else {
+    return isa_reg_str2val(regn, success); // 从ISA特定数据结构读取寄存器值
+  }
 }
 
 // 注意由于求值可能为负数，所以返回值类型得用 int64_t（带符号整数）而非 word_t
@@ -299,7 +339,7 @@ static int64_t eval(int p, int q, bool *success) {
       return num;
     } else if (tokens[p].type == TK_REG) {
       reg_name = tokens[p].str + 1; // 去掉名称前面的 $
-      num = isa_reg_str2val(reg_name, &stat);
+      num = reg_str2val(reg_name, &stat);
       if (!stat) {
         printf("Failed to get the value of register %s.\n", tokens[p].str);
         *success = false;
@@ -388,6 +428,10 @@ static int64_t eval(int p, int q, bool *success) {
         }
         *success = true;
         return -(val1 / val2);
+      case TK_EQ:
+        printf("Calculating: %ld == %ld\n", val1, val2);
+        *success = true;
+        return (val1 == val2) ? 1 : 0;
       default:
         // Found a token that is not of any operator type.
         printf("Found a token that is not of any operator type.\n");
