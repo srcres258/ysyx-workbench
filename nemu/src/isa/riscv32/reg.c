@@ -31,6 +31,8 @@ void isa_reg_display() {
   for (i = 0; i < LEN_REGS; i++) {
     printf("%s: 0x%08x\n", regs[i], gpr(i));
   }
+
+  printf("PC is currently at 0x%08x\n", cpu.pc);
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {

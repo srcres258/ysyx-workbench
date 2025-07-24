@@ -43,7 +43,7 @@ static struct rule {
   { "\\(", '(' },                           // left parenthesis
   { "\\)", ')' },                           // right parenthesis
   { "==", TK_EQ },                          // equal
-  { "(0[xX]?)?[0-9]+", TK_NUM },            // number
+  { "(0[xX]?)?[0-9a-zA-Z]+", TK_NUM },            // number
   { "\\$[0-9a-zA-Z]+", TK_REG },                  // register
 };
 
