@@ -42,7 +42,7 @@ char *strcat(char *dst, const char *src) {
   const char *srcp;
 
   for (
-    dstlen = strlen(dst), srclen = strlen(dst),
+    dstlen = strlen(dst), srclen = strlen(src),
     dstp = dst + dstlen, srcp = src,
     c = 0;
 
@@ -119,17 +119,23 @@ void *memcpy(void *out, const void *in, size_t n) {
 
 int memcmp(const void *s1, const void *s2, size_t n) {
   const unsigned char *s1p, *s2p;
+  int res;
 
   for (
     s1p = (const unsigned char *) s1,
-    s2p = (const unsigned char *) s2;
+    s2p = (const unsigned char *) s2,
+    res = 0;
+    
+    n > 0;
+    
+    s1p++, s2p++, n--
+  ) {
+    if ((res = *s1p - *s2p) != 0) {
+      break;
+    }
+  }
 
-    *s1p && (*s1p == *s2p);
-
-    s1p++, s2p++
-  );
-
-  return ((int) *s1p) - ((int) *s2p);
+  return res;
 }
 
 #endif
