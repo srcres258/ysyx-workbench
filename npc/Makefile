@@ -6,8 +6,8 @@ sim: default
 
 include ../Makefile
 
-TOPNAME = top
-NXDC_FILES = constr/top.nxdc
+TOPNAME = ProcessorCore
+NXDC_FILES = constr/ProcessorCore.nxdc
 INC_PATH ?=
 
 VERILATOR = verilator
@@ -29,7 +29,7 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 auto_bind: $(SRC_AUTO_BIND)
 
 # project source
-VSRCS = $(shell find $(abspath ./vsrc) -name "*.v")
+VSRCS = $(shell find $(abspath ./vsrc) -name "*.v" -or -name "*.sv")
 CSRCS = $(shell find $(abspath ./csrc) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 CSRCS += $(SRC_AUTO_BIND)
 
@@ -39,14 +39,15 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 
 # rules for verilator
 INCFLAGS = $(addprefix -I, $(INC_PATH))
-CXXFLAGS += $(INCFLAGS) -DTOP_NAME="\"V$(TOPNAME)\""
+CXXFLAGS += $(INCFLAGS)
 
 $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 	@rm -rf $(OBJ_DIR)
 	$(VERILATOR) $(VERILATOR_CFLAGS) \
 		--top-module $(TOPNAME) $^ \
 		$(addprefix -CFLAGS , $(CXXFLAGS)) $(addprefix -LDFLAGS , $(LDFLAGS)) \
-		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN))
+		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN)) \
+		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
 
 run: $(BIN)
 	@$^
@@ -54,4 +55,9 @@ run: $(BIN)
 clean:
 	rm -rf $(BUILD_DIR)
 
-.PHONY: default all clean run sim auto_bind
+# 生成 C++ 头文件，以便编写基于 Verilator 的 C++ Testbench
+gen_header:
+	$(VERILATOR) --top-module $(TOPNAME) --Mdir $(OBJ_DIR) --cc $(VSRCS) \
+		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
+
+.PHONY: default all clean run sim auto_bind gen_header
