@@ -18,6 +18,8 @@
 #include <cpu/ifetch.h>
 #include <cpu/decode.h>
 
+#include <utils.h>
+
 #define R(i) gpr(i)
 #define Mr vaddr_read
 #define Mw vaddr_write
@@ -52,6 +54,7 @@ enum {
 
 static void decode_operand(
   Decode *s, int *rd,
+  int *rs1p, int *rs2p,
   word_t *src1, word_t *src2,
   int *ssrc1, int *ssrc2,
   word_t *src2m,
@@ -63,6 +66,8 @@ static void decode_operand(
   int rs1 = BITS(i, 19, 15);
   int rs2 = BITS(i, 24, 20);
   *rd     = BITS(i, 11, 7);
+  *rs1p   = rs1;
+  *rs2p   = rs2;
   switch (type) {
     case TYPE_R: src1R(); src2R();         break;
     case TYPE_I: src1R();          immI(); break;
@@ -153,15 +158,100 @@ static inline word_t inst_remu(word_t rs1, word_t rs2) {
   return rs1 % rs2;
 }
 
+static bool is_addr_func_sym_start(word_t addr) {
+  size_t i;
+  Symbol *sym;
+
+  for (i = 0; i < nemu_state.ftrace_func_syms_size; i++) {
+    sym = &nemu_state.ftrace_func_syms[i];
+    if (addr == sym->addr) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static void handle_ftrace_inst_jalr(Decode *s, int rd, int rs1, int src1, int imm) {
+  word_t dest_addr;
+
+  dest_addr = (word_t) (src1 + imm);
+
+  if (is_addr_func_sym_start(dest_addr) || (rd == 1 && rs1 == 1)) {
+    // 情况：1. 目的地址是函数起始地址 
+    //    或2. rd 为 x1， rs1 为 x1
+    // 推测：该 jalr 指令可能来源于 call 伪指令
+    Log_info("Detected call from jalr at pc = " FMT_PADDR ", dest_addr = " FMT_PADDR, s->pc, dest_addr);
+    if (nemu_ftrace_record_and_log(CALL_TYPE_CALL, s->pc, dest_addr)) {
+      Log_info("Detect succeeded.");
+    } else {
+      Log_info("Detect failed.");
+    }
+    return;
+  }
+
+  if (rd == 0 && rs1 == 1) {
+    // 情况：rd 为 x0， rs1 为 x1
+    // 推测：该 jalr 指令可能来源于 ret 伪指令
+    Log_info("Detected ret from jalr at pc = " FMT_PADDR ", dest_addr = " FMT_PADDR, s->pc, dest_addr);
+    if (nemu_ftrace_record_and_log(CALL_TYPE_RET, s->pc, dest_addr)) {
+      Log_info("Detect succeeded.");
+    } else {
+      Log_info("Detect failed.");
+    }
+    return;
+  }
+
+  if (rd == 1 && (rs1 == 6 || rs1 == 7)) {
+    // 情况：rd 为 x1， rs1 为 x6 或 x7
+    // 推测：该 jalr 指令可能来源于 tail 伪指令
+    Log_warn("!!! tail call !!!"); // TODO
+    return;
+  }
+}
+
+static void handle_ftrace_inst_jal(Decode *s, int rd, int imm) {
+  word_t dest_addr;
+
+  dest_addr = (word_t) ((int) s->pc + imm);
+
+  if (rd == 1) {
+    // 情况：rd 为 x1
+    // 推测：该 jal 指令可能来源于 call 伪指令
+    Log_info("Detected call from jal at pc = " FMT_PADDR ", dest_addr = " FMT_PADDR, s->pc, dest_addr);
+    if (nemu_ftrace_record_and_log(CALL_TYPE_CALL, s->pc, dest_addr)) {
+      Log_info("Detect succeeded.");
+    } else {
+      Log_info("Detect failed.");
+    }
+    return;
+  }
+
+  // if (rd == 0) {
+  //   // 情况：rd 为 x0
+  //   // 推测：该 jal 指令可能来源于 ret 伪指令
+  //   Log_info("Detected ret from jal at pc = " FMT_PADDR ", dest_addr = " FMT_PADDR, s->pc, dest_addr);
+  //   if (nemu_ftrace_record_and_log(CALL_TYPE_CALL, s->pc, dest_addr)) {
+  //     Log_info("Detect succeeded.");
+  //   } else {
+  //     Log_info("Detect failed.");
+  //   }
+  //   return;
+  // }
+}
+
+static void handle_ftrace(Decode *s);
+
 static int decode_exec(Decode *s) {
   s->dnpc = s->snpc;
 
 #define INSTPAT_INST(s) ((s)->isa.inst)
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */ ) { \
-  int rd = 0; \
+  int rd = 0; int rs1 = 0; int rs2 = 0; \
   word_t src1 = 0, src2 = 0, imm = 0, src2m = 0, immm = 0; \
   int ssrc1 = 0, ssrc2 = 0, simm = 0; \
   decode_operand(s, &rd, \
+    &rs1, &rs2, \
     &src1, &src2, \
     &ssrc1, &ssrc2, \
     &src2m, \
@@ -244,10 +334,42 @@ static int decode_exec(Decode *s) {
 
   INSTPAT_END();
 
+#ifdef CONFIG_FTRACE
+
+  handle_ftrace(s);
+
+#endif
+
   R(0) = 0; // reset $zero to 0
 
   return 0;
 }
+
+#ifdef CONFIG_FTRACE
+
+static void handle_ftrace(Decode *s) {
+  /*
+  如若开启了 ftrace 功能，还要记录函数调用栈信息，
+  （识别到函数的调用 call 以及从函数的返回 ret）
+
+  这里比较烦人的一点是，RV指令集因为过于精简，把 call 和 ret 之类的函数调用指令
+  全部编成 pseudoinstruction 了，实际经过汇编器都转为 jal 或者 jalr，如果我们
+  在此分析的话要从 jal 和 jalr 反推 call 和 ret，从而识别出哪一条jal 或者 jalr
+  隐含着调用函数或者从函数返回的含义。
+  */
+
+  INSTPAT_START();
+
+  // 幸运的是 RV 指令集中 call、ret、tail（尾调用） 等伪指令最后都归结于
+  // jalr 或者 jal 这两条实际指令完成，而三者在这两条指令的使用上各不相同，
+  // 据此可以将三者辨析开来。
+  INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr    , I, handle_ftrace_inst_jalr(s, rd, rs1, src1, imm));
+  INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal     , J, handle_ftrace_inst_jal(s, rd, imm));
+
+  INSTPAT_END();
+}
+
+#endif
 
 int isa_exec_once(Decode *s) {
   s->isa.inst = inst_fetch(&s->snpc, 4);

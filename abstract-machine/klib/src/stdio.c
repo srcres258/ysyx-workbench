@@ -5,6 +5,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define PRINTF_DISABLE_SUPPORT_FLOAT
+
 #if !defined(__ISA_NATIVE__) || defined(__NATIVE_USE_KLIB__)
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -642,6 +644,8 @@ static size_t _etoa(
 
 #endif  // PRINTF_SUPPORT_EXPONENTIAL
 
+#endif  // PRINTF_SUPPORT_FLOAT
+
 /**
  * @brief internal vsnprintf
  */
@@ -917,8 +921,6 @@ static int _vsnprintf(
   // return written chars without terminating \0
   return ((int) idx);
 }
-
-#endif  // PRINTF_SUPPORT_FLOAT
 
 ///////////////////////////////////////////////////////////////////////////////
 

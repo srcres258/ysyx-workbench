@@ -16,19 +16,51 @@
 #ifndef __UTILS_H__
 #define __UTILS_H__
 
+#include <stdbool.h>
+#include <stdint.h>
 #include <common.h>
+#include <utils/ringbuffer.h>
+#include <utils/symbol.h>
+#include <utils/call_stack.h>
 
 // ----------- state -----------
 
 enum { NEMU_RUNNING, NEMU_STOP, NEMU_END, NEMU_ABORT, NEMU_QUIT };
 
+#define CALL_STACK_MAX_DEPTH 1024
+
 typedef struct {
   int state;
   vaddr_t halt_pc;
   uint32_t halt_ret;
+  RingBuffer *iringbuf;
+  IFDEF(CONFIG_MTRACE, bool mtrace_available);
+  IFDEF(CONFIG_MTRACE, char mtrace_logbuf[4096]);
+  IFDEF(CONFIG_FTRACE, Symbol ftrace_func_syms[1024]);
+  IFDEF(CONFIG_FTRACE, size_t ftrace_func_syms_size);
+  IFDEF(CONFIG_FTRACE, CallStackInfo ftrace_call_stack[CALL_STACK_MAX_DEPTH]);
+  IFDEF(CONFIG_FTRACE, size_t ftrace_call_stack_top);
+  IFDEF(CONFIG_FTRACE, char ftrace_logbuf[4096]);
+  IFDEF(CONFIG_MTRACE, bool ftrace_available);
 } NEMUState;
 
 extern NEMUState nemu_state;
+
+#define NEMU_IRINGBUF_SIZE 1024
+
+bool nemu_iringbuf_init(void);
+
+void nemu_iringbuf_destroy(void);
+
+void nemu_iringbuf_dump(void);
+
+#define nemu_iringbuf (nemu_state.iringbuf)
+
+#ifdef CONFIG_FTRACE
+
+bool nemu_ftrace_record_and_log(CallType type, word_t src_addr, word_t addr);
+
+#endif
 
 // ----------- timer -----------
 

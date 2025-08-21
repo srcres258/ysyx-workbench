@@ -17,6 +17,7 @@
 #include <memory/paddr.h>
 #include <device/mmio.h>
 #include <isa.h>
+#include <utils.h>
 
 #if   defined(CONFIG_PMEM_MALLOC)
 static uint8_t *pmem = NULL;
@@ -37,6 +38,7 @@ static void pmem_write(paddr_t addr, int len, word_t data) {
 }
 
 static void out_of_bound(paddr_t addr) {
+  nemu_iringbuf_dump();
   panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
       addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
 }
@@ -50,14 +52,51 @@ void init_mem() {
   Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
 }
 
+static void mtrace_record(
+  paddr_t addr, int len,
+  word_t data, const char *type
+) {
+#ifdef CONFIG_MTRACE
+  size_t offset;
+
+  nemu_state.mtrace_available = true;
+  offset = strlen(nemu_state.mtrace_logbuf);
+  snprintf(
+    nemu_state.mtrace_logbuf + offset,
+    sizeof(nemu_state.mtrace_logbuf) - offset,
+    "Memory %s at " FMT_PADDR ", len %d, data 0x%08x\n",
+    type, addr, len, data
+  );
+
+#else
+
+  (void)addr;
+  (void)len;
+  (void)data;
+  (void)type;
+
+#endif
+}
+
 word_t paddr_read(paddr_t addr, int len) {
-  if (likely(in_pmem(addr))) return pmem_read(addr, len);
-  IFDEF(CONFIG_DEVICE, return mmio_read(addr, len));
+  word_t res;
+
+  if (likely(in_pmem(addr))) {
+    res = pmem_read(addr, len);
+    IFDEF(CONFIG_MTRACE, mtrace_record(addr, len, res, "read"));
+    return res;
+  }
+#ifdef CONFIG_DEVICE
+  res = mmio_read(addr, len);
+  IFDEF(CONFIG_MTRACE, mtrace_record(addr, len, res, "read"));
+  return res;
+#endif
   out_of_bound(addr);
   return 0;
 }
 
 void paddr_write(paddr_t addr, int len, word_t data) {
+  IFDEF(CONFIG_MTRACE, mtrace_record(addr, len, data, "write"));
   if (likely(in_pmem(addr))) { pmem_write(addr, len, data); return; }
   IFDEF(CONFIG_DEVICE, mmio_write(addr, len, data); return);
   out_of_bound(addr);

@@ -17,6 +17,7 @@
 #include <cpu/decode.h>
 #include <cpu/difftest.h>
 #include <locale.h>
+#include <utils.h>
 
 /* The assembly code of instructions executed is only output to the screen
  * when the number of instructions executed is less than this value.
@@ -34,7 +35,23 @@ void device_update();
 
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #ifdef CONFIG_ITRACE_COND
-  if (ITRACE_COND) { log_write("%s\n", _this->logbuf); }
+  if (ITRACE_COND) {
+    log_write("%s\n", _this->logbuf);
+  }
+#endif
+#ifdef CONFIG_MTRACE_COND
+  if (MTRACE_COND && nemu_state.mtrace_available) {
+    // newline character is not needed since it is already
+    // included in the logbuf
+    log_write("%s", nemu_state.mtrace_logbuf);
+  }
+#endif
+#ifdef CONFIG_MTRACE_COND
+  if (nemu_state.ftrace_available) {
+    // newline character is not needed since it is already
+    // included in the logbuf
+    log_write("%s", nemu_state.ftrace_logbuf);
+  }
 #endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
   IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc));
@@ -43,13 +60,25 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 }
 
 static void exec_once(Decode *s, vaddr_t pc) {
+#ifdef CONFIG_MTRACE
+  nemu_state.mtrace_available = false;
+  memset(nemu_state.mtrace_logbuf, 0, sizeof(nemu_state.mtrace_logbuf));
+#endif
+#ifdef CONFIG_FTRACE
+  nemu_state.ftrace_available = false;
+  memset(nemu_state.ftrace_logbuf, 0, sizeof(nemu_state.ftrace_logbuf));
+#endif
+
   s->pc = pc;
   s->snpc = pc;
   isa_exec_once(s);
   cpu.pc = s->dnpc;
-#ifdef CONFIG_ITRACE
-  char *p = s->logbuf;
-  p += snprintf(p, sizeof(s->logbuf), FMT_WORD ":", s->pc);
+  
+  void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
+
+  char pbuf[128];
+  char *p = pbuf;
+  p += snprintf(p, sizeof(pbuf), FMT_WORD ":", s->pc);
   int ilen = s->snpc - s->pc;
   int i;
   uint8_t *inst = (uint8_t *)&s->isa.inst;
@@ -67,21 +96,45 @@ static void exec_once(Decode *s, vaddr_t pc) {
   memset(p, ' ', space_len);
   p += space_len;
 
-  void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
-  disassemble(p, s->logbuf + sizeof(s->logbuf) - p,
+  disassemble(p, pbuf + sizeof(pbuf) - p,
       MUXDEF(CONFIG_ISA_x86, s->snpc, s->pc), (uint8_t *)&s->isa.inst, ilen);
+
+  char cbuf[256];
+  bstring bbuf;
+  bool success;
+
+  snprintf(cbuf, sizeof(cbuf), "%s\n", pbuf);
+  bbuf = bfromcstr(cbuf);
+  if (blength(bbuf) > RingBuffer_available_space(nemu_iringbuf)) {
+    RingBuffer_discard(nemu_iringbuf, blength(bbuf));
+  }
+  for (;;) {
+    RingBuffer_puts(nemu_iringbuf, bbuf, &success);
+    if (success) {
+      break;
+    }
+    RingBuffer_discard(nemu_iringbuf, blength(bbuf));
+  }
+  bdestroy(bbuf);
+
+#ifdef CONFIG_ITRACE
+  memset(s->logbuf, 0, sizeof(s->logbuf));
+  strcpy(s->logbuf, pbuf);
 #endif
 }
 
 static void execute(uint64_t n) {
   Decode s;
   for (;n > 0; n --) {
+    printf("PC is at 0x%08x\n", cpu.pc);
     exec_once(&s, cpu.pc);
     g_nr_guest_inst ++;
     trace_and_difftest(&s, cpu.pc);
     if (nemu_state.state != NEMU_RUNNING) break;
     IFDEF(CONFIG_DEVICE, device_update());
   }
+
+  nemu_iringbuf_dump();
 }
 
 static void statistic() {

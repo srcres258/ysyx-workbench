@@ -16,6 +16,7 @@
 #include <common.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <utils.h>
 
 void init_monitor(int, char *[]);
 void am_init_monitor();
@@ -80,6 +81,11 @@ int main(int argc, char *argv[]) {
 #else
   init_monitor(argc, argv);
 #endif
+
+  if (!nemu_iringbuf_init()) {
+    Log_err("Failed to initialize iringbuf! exiting...");
+    return EXIT_FAILURE;
+  }
 
   /* Start engine. */
   engine_start();
