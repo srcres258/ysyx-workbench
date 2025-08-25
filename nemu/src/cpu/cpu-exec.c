@@ -46,7 +46,7 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
     log_write("%s", nemu_state.mtrace_logbuf);
   }
 #endif
-#ifdef CONFIG_MTRACE_COND
+#ifdef CONFIG_FTRACE
   if (nemu_state.ftrace_available) {
     // newline character is not needed since it is already
     // included in the logbuf
