@@ -226,18 +226,6 @@ static void handle_ftrace_inst_jal(Decode *s, int rd, int imm) {
     }
     return;
   }
-
-  // if (rd == 0) {
-  //   // 情况：rd 为 x0
-  //   // 推测：该 jal 指令可能来源于 ret 伪指令
-  //   Log_info("Detected ret from jal at pc = " FMT_PADDR ", dest_addr = " FMT_PADDR, s->pc, dest_addr);
-  //   if (nemu_ftrace_record_and_log(CALL_TYPE_CALL, s->pc, dest_addr)) {
-  //     Log_info("Detect succeeded.");
-  //   } else {
-  //     Log_info("Detect failed.");
-  //   }
-  //   return;
-  // }
 }
 
 static void handle_ftrace(Decode *s);
