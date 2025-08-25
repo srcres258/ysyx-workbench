@@ -33,7 +33,7 @@ BUILD_DIR = ./build
 $(shell mkdir -p $(BUILD_DIR))
 
 inc_dependencies = fesvr riscv disasm customext fdt softfloat spike_main spike_dasm build
-INC_PATH  = -I$(REPO_PATH) $(addprefix -I$(REPO_PATH)/, $(inc_dependencies))
+INC_PATH  = -Iinclude/ -I$(REPO_PATH) $(addprefix -I$(REPO_PATH)/, $(inc_dependencies))
 INC_PATH += -I$(NEMU_HOME)/include
 lib_dependencies = libspike_main.a libriscv.a libdisasm.a libsoftfloat.a libfesvr.a libfdt.a
 INC_LIBS  = $(addprefix $(REPO_PATH)/build/, $(lib_dependencies))
@@ -43,6 +43,9 @@ BINARY = $(BUILD_DIR)/$(NAME)
 SRCS = difftest.cc
 
 $(BINARY): $(SPIKE) $(SRCS)
+	echo "----------"
+	echo $(INC_PATH)
+	echo "----------"
 	g++ -std=c++17 -O2 -shared -fPIC -fvisibility=hidden $(INC_PATH) $(SRCS) $(INC_LIBS) -o $@
 
 clean:

@@ -170,6 +170,10 @@ config NDEBUG
   bool "Disable debugging log output"
   default n
 
+config PC_OUTPUT
+  bool "Enable output for PC (Program Counter) before each instruction"
+  default n
+
 
 config DIFFTEST
   depends on TARGET_NATIVE_ELF
