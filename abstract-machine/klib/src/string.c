@@ -23,6 +23,8 @@ char *strcpy(char *dst, const char *src) {
     dst[i] = src[i];
   }
 
+  dst[i] = '\0';
+
   return dst;
 }
 
@@ -33,26 +35,19 @@ char *strncpy(char *dst, const char *src, size_t n) {
     dst[i] = src[i];
   }
 
+  for (; i < n; i++) {
+    dst[i] = '\0';
+  }
+
   return dst;
 }
 
 char *strcat(char *dst, const char *src) {
-  size_t dstlen, srclen, c;
   char *dstp;
-  const char *srcp;
 
-  for (
-    dstlen = strlen(dst), srclen = strlen(src),
-    dstp = dst + dstlen, srcp = src,
-    c = 0;
-
-    c < srclen;
-
-    dstp++, srcp++, c++
-  ) {
-    *dstp = *srcp;
-  }
-  *dstp = '\0';
+  dstp = dst;
+  while (*dstp) dstp++;       // 找到末尾
+  while ((*dstp++ = *src++)); // 拼接并拷贝结束符
 
   return dst;
 }
@@ -68,17 +63,15 @@ int strcmp(const char *s1, const char *s2) {
 }
 
 int strncmp(const char *s1, const char *s2, size_t n) {
-  const char *s1p, *s2p;
-  size_t c;
+  size_t i;
 
-  for (
-    s1p = s1, s2p = s2, c = 0;
-    c < n && *s1p && (*s1p == *s2p);
-    s1p++, s2p++, c++
-  );
+  for (i = 0; i < n; i++) {
+    if (s1[i] != s2[i] || s1[i] == '\0' || s2[i] == '\0') {
+      return ((unsigned char) s1[i]) - ((unsigned char) s2[i]);
+    }
+  }
 
-  return ((int) *((const unsigned char *) s1p)) -
-    ((int) *((const unsigned char *) s2p));
+  return 0;
 }
 
 void *memset(void *s, int c, size_t n) {
@@ -93,20 +86,19 @@ void *memset(void *s, int c, size_t n) {
 }
 
 void *memmove(void *dst, const void *src, size_t n) {
-  unsigned char *dstp;
-  const unsigned char *srcp;
-  size_t c;
-
-  for (
-    dstp = (unsigned char *) dst,
-    srcp = (const unsigned char *) src,
-    c = 0;
-
-    c < n;
-
-    dstp++, srcp++, c++
-  ) {
-    *dstp = *srcp;
+  unsigned char *d;
+  const unsigned char *s;
+  
+  d = dst;
+  s = src;
+  if (d < s) {
+    for (size_t i = 0; i < n; i++) {
+      d[i] = s[i];
+    }
+  } else if (d > s) {
+    for (size_t i = n; i > 0; i--) {
+      d[i - 1] = s[i - 1];
+    }
   }
 
   return dst;
