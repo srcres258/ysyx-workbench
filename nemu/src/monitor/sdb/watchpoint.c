@@ -62,6 +62,7 @@ WP *new_wp(void) {
   result = free_;
   free_ = free_->next;
   result->next = NULL;
+  result->evaluated = false;
   if (head) {
     for (cur = head; cur->next; cur = cur->next);
     cur->next = result;
@@ -75,6 +76,9 @@ WP *new_wp(void) {
 void free_wp(WP *wp) {
   WP *cur, *prev;
 
+  if (!wp) {
+    return;
+  }
   if (!head) {
     return;
   }

@@ -441,9 +441,9 @@ static int64_t eval(int p, int q, bool *success) {
   }
 }
 
-int64_t expr(char *e, bool *success) {
+word_t expr(char *e, bool *success) {
   bool stat;
-  int64_t result;
+  word_t result;
 
   if (!make_token(e)) {
     *success = false;
