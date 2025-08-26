@@ -13,3 +13,4 @@
 build/
 !include/*.h
 !include/*.hpp
+vsrc/generated/
