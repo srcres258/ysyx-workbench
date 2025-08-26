@@ -11,3 +11,5 @@
 !.gitignore
 !README.md
 build/
+!include/*.h
+!include/*.hpp

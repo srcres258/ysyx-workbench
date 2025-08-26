@@ -15,6 +15,11 @@ void putch(char ch) {
 }
 
 void halt(int code) {
+  // GCC/Clang 内嵌汇编语法：asm 或 __asm__
+  // 后面可加 volatile 或 __volatile__ 关键字，表示该语句不应被优化，保留原样
+  asm volatile("mv a0, %0" : : "r" (code));
+  asm volatile("ebreak");
+
   while (1);
 }
 

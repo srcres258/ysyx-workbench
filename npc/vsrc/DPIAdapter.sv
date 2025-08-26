@@ -2,9 +2,15 @@ module DPIAdapter (
     input logic         halt,
     input logic [31:0]  address
 );
+    /**
+     * 终止仿真
+     */
     import "DPI-C" function void dpi_halt(
         input logic halt
     );
+    /**
+     * 更新访存地址，以同步获取地址对应的主存内容
+     */
     import "DPI-C" function void dpi_onAddressUpdate(
         input logic [31:0]  address
     );

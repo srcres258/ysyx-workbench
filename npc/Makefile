@@ -8,7 +8,7 @@ include ../Makefile
 
 TOPNAME = ProcessorCore
 NXDC_FILES = constr/ProcessorCore.nxdc
-INC_PATH ?=
+INC_PATH ?= $(abspath ./include/)
 
 VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD --build -cc  \
@@ -41,6 +41,8 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 INCFLAGS = $(addprefix -I, $(INC_PATH))
 CXXFLAGS += $(INCFLAGS)
 
+IMG ?= build/program.bin
+
 $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 	@rm -rf $(OBJ_DIR)
 	$(VERILATOR) $(VERILATOR_CFLAGS) \
@@ -50,7 +52,7 @@ $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
 
 run: $(BIN)
-	@$^
+	NPC_BIN_PATH=$(IMG) NPC_SDB_ENABLED=true $^
 
 clean:
 	rm -rf $(BUILD_DIR)
