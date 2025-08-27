@@ -29,6 +29,23 @@ static void loadConfig() {
         std::cout << "[config] ftrace 已启用" << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_DIFFTEST");
+    sim_config.config_difftest = env && strcmp(env, "on") == 0;
+    if (sim_config.config_difftest) {
+        std::cout << "[config] DiffTest 已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_DIFFTEST_PORT");
+    try {
+        sim_config.config_difftestPort = env ? std::stoi(env) : 0;
+        std::cout << "[config] DiffTest 端口已指定为 " <<
+            std::dec << sim_config.config_difftestPort << std::endl;
+    } catch (const std::exception &e) {
+        std::cout << "[config] DiffTest 端口设置失败！将使用默认端口 " <<
+            std::dec << DEFAULT_DIFFTEST_PORT << std::endl;
+        sim_config.config_difftestPort = DEFAULT_DIFFTEST_PORT;
+    }
+
     env = std::getenv("NPC_CONFIG_ITRACE_OUT_FILE_PATH");
     if (env) {
         sim_config.config_itraceOutFilePath =
@@ -60,6 +77,14 @@ static void loadConfig() {
         std::cout << "[config] 二进制文件路径已指定为: " <<
             sim_config.config_elfFilePath << std::endl;
     }
+    
+    env = std::getenv("NPC_CONFIG_DIFFTEST_SO_FILE_PATH");
+    if (env) {
+        sim_config.config_difftestSoFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] DiffTest 动态链接库文件路径已指定为: " <<
+            sim_config.config_difftestSoFilePath << std::endl;
+    }
 }
 
 /**
@@ -76,6 +101,8 @@ static bool checkRequiredConfig() {
 
     return true;
 }
+
+size_t binFileSize = 0;
 
 /**
  * @brief 程序的入口函数。
@@ -109,10 +136,12 @@ int main(int argc, const char *argv[]) {
     }
 
     std::cout << "正在加载二进制文件到主存..." << std::endl;
-    if (!initMemory(binPath)) {
+    if (!initMemory(binPath, &binFileSize)) {
         std::cerr << "二进制文件加载失败，退出..." << std::endl;
         return EXIT_FAILURE;
     }
+    std::cout << "二进制文件加载成功，大小为 " <<
+        std::dec << binFileSize << " 字节" << std::endl;
 
     return simulate(sdb) ? EXIT_SUCCESS : EXIT_FAILURE;
 }

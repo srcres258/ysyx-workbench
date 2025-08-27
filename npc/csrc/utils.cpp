@@ -12,6 +12,9 @@ SimConfig sim_config = {
     .config_itrace = false,
     .config_mtrace = false,
     .config_ftrace = false,
+    .config_difftest = false,
+
+    .config_difftestPort = DEFAULT_DIFFTEST_PORT,
 
     .config_itraceOutFilePath =
         std::move(std::string(DEFAULT_ITRACE_OUT_FILE_PATH)),
@@ -20,11 +23,14 @@ SimConfig sim_config = {
     .config_ftraceOutFilePath =
         std::move(std::string(DEFAULT_FTRACE_OUT_FILE_PATH)),
     .config_elfFilePath =
-        std::move(std::string(DEFAULT_ELF_FILE_PATH))
+        std::move(std::string(DEFAULT_ELF_FILE_PATH)),
+    .config_difftestSoFilePath =
+        std::move(std::string(DEFAULT_DIFFTEST_SO_FILE_PATH))
 };
 
 SimState sim_state = {
     .state = SIM_RUNNING,
+    .haltPC = 0,
 
     .itrace_iringbuf = nullptr
 };

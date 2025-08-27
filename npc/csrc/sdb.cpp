@@ -539,7 +539,7 @@ static int cmd_x(char *args) {
 
     N_str = strtok(args, " ");
     EXPR_str = N_str ? N_str + strlen(N_str) + 1 : nullptr; // 去掉前缀"0x"
-    parser.expr(EXPR_str, success);
+    addr = parser.expr(EXPR_str, success);
     N = std::stoi(N_str);
 
     if (!success || N <= 0) {
@@ -547,7 +547,7 @@ static int cmd_x(char *args) {
         return 0;
     }
 
-    printf("Memory scan: addr=0x%08X, N=%d\n", addr, N);
+    printf("Memory scan: addr=0x%08x, N=%d\n", addr, N);
     cur_addr = addr;
     for (i = 0; i < N; i++) {
         value = readMemory(cur_addr);

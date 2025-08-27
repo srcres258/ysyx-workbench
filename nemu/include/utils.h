@@ -33,7 +33,7 @@ typedef struct {
   int state;
   vaddr_t halt_pc;
   uint32_t halt_ret;
-  RingBuffer *iringbuf;
+  IFDEF(CONFIG_ITRACE, RingBuffer *iringbuf);
   IFDEF(CONFIG_MTRACE, bool mtrace_available);
   IFDEF(CONFIG_MTRACE, char mtrace_logbuf[4096]);
   IFDEF(CONFIG_FTRACE, Symbol ftrace_func_syms[1024]);
@@ -46,6 +46,8 @@ typedef struct {
 
 extern NEMUState nemu_state;
 
+#ifdef CONFIG_ITRACE
+
 #define NEMU_IRINGBUF_SIZE 1024
 
 bool nemu_iringbuf_init(void);
@@ -55,6 +57,8 @@ void nemu_iringbuf_destroy(void);
 void nemu_iringbuf_dump(void);
 
 #define nemu_iringbuf (nemu_state.iringbuf)
+
+#endif
 
 #ifdef CONFIG_FTRACE
 

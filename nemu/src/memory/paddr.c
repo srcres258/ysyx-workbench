@@ -38,7 +38,9 @@ static void pmem_write(paddr_t addr, int len, word_t data) {
 }
 
 static void out_of_bound(paddr_t addr) {
+#ifdef CONFIG_ITRACE
   nemu_iringbuf_dump();
+#endif
   panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
       addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
 }
@@ -52,11 +54,11 @@ void init_mem() {
   Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
 }
 
+#ifdef CONFIG_MTRACE
 static void mtrace_record(
   paddr_t addr, int len,
   word_t data, const char *type
 ) {
-#ifdef CONFIG_MTRACE
   size_t offset;
 
   nemu_state.mtrace_available = true;
@@ -67,16 +69,8 @@ static void mtrace_record(
     "Memory %s at " FMT_PADDR ", len %d, data 0x%08x\n",
     type, addr, len, data
   );
-
-#else
-
-  (void)addr;
-  (void)len;
-  (void)data;
-  (void)type;
-
-#endif
 }
+#endif
 
 word_t paddr_read(paddr_t addr, int len) {
   word_t res;

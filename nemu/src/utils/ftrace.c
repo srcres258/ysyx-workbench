@@ -1,6 +1,8 @@
 #include <common.h>
 #include <utils.h>
 
+#ifdef CONFIG_FTRACE
+
 static bool query_name_through_symbol_table(char *dest, word_t addr) {
     size_t i;
     Symbol *sym;
@@ -15,8 +17,6 @@ static bool query_name_through_symbol_table(char *dest, word_t addr) {
 
     return false;
 }
-
-#ifdef CONFIG_FTRACE
 
 bool nemu_ftrace_record_and_log(CallType type, word_t src_addr, word_t addr) {
     CallStackInfo *stack_top;

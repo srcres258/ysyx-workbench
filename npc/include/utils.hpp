@@ -19,24 +19,31 @@ enum SimStateEnum { SIM_RUNNING, SIM_STOP, SIM_END, SIM_ABORT, SIM_QUIT };
 
 #define ITRACE_IRINGBUF_SIZE 1024
 
+#define DEFAULT_DIFFTEST_PORT 12345
 #define DEFAULT_ITRACE_OUT_FILE_PATH "build/itrace.log"
 #define DEFAULT_MTRACE_OUT_FILE_PATH "build/mtrace.log"
 #define DEFAULT_FTRACE_OUT_FILE_PATH "build/ftrace.log"
 #define DEFAULT_ELF_FILE_PATH "build/program.elf"
+#define DEFAULT_DIFFTEST_SO_FILE_PATH "build/riscv32-nemu-interpreter-so"
 
 struct SimConfig {
     bool config_itrace;
     bool config_mtrace;
     bool config_ftrace;
+    bool config_difftest;
+
+    int config_difftestPort;
 
     std::string config_itraceOutFilePath;
     std::string config_mtraceOutFilePath;
     std::string config_ftraceOutFilePath;
     std::string config_elfFilePath;
+    std::string config_difftestSoFilePath;
 };
 
 struct SimState {
     SimStateEnum state;
+    addr_t haltPC;
 
     RingBuffer *itrace_iringbuf;
     std::vector<Symbol> ftrace_funcSyms;
@@ -152,5 +159,14 @@ bool ftrace_queryNameThroughSymbolTable(std::string &dest, addr_t addr);
  * @return false 记录失败（未找到目标函数信息，无法记录）
  */
 bool ftrace_tryRecord(CallType type, addr_t srcAddr, addr_t addr);
+
+// ----------- panic -----------
+
+#define panic(...) do {                  \
+	fprintf(stderr, "panic: %s:%u: %s:", \
+		__FILE__, __LINE__, __func__);   \
+	fprintf(stderr, " " __VA_ARGS__);	 \
+	abort();                             \
+} while (0)
 
 #endif /* __UTILS_HPP__ */

@@ -1,5 +1,5 @@
-#ifndef __UTILS_SYMBOL_HPP__
-#define __UTILS_SYMBOL_HPP__ 1
+#ifndef __UTILS__SYMBOL_HPP__
+#define __UTILS__SYMBOL_HPP__ 1
 
 #include <libelf.h>
 #include <cstdint>
@@ -25,4 +25,4 @@ struct Symbol {
  */
 size_t loadFunctionSymbolsFromElf(std::vector<Symbol> *dest, Elf *elf);
 
-#endif /* __UTILS_SYMBOL_HPP__ */
+#endif /* __UTILS__SYMBOL_HPP__ */

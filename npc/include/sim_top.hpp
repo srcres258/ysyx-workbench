@@ -1,9 +1,23 @@
-#ifndef __SIM_HPP__
-#define __SIM_HPP__ 1
+#ifndef __SIM_TOP_HPP__
+#define __SIM_TOP_HPP__ 1
 
 #include <verilated.h>
+#include <common.hpp>
 
 #include "VProcessorCore.h"
+
+/**
+ * @brief 仿真环境执行一条指令的信息。
+ */
+struct ExecInfo {
+    addr_t pc;
+    word_t inst;
+};
+
+/**
+ * @brief 记录仿真环境最近执行的一条指令的信息。
+ */
+extern ExecInfo simExecInfo;
 
 extern VProcessorCore *top;
 extern bool sim_halt;
@@ -43,4 +57,4 @@ void simExec(uint64_t n);
  */
 bool simulate(bool sdbEnabled);
 
-#endif /* __SIM_HPP__ */
+#endif /* __SIM_TOP_HPP__ */

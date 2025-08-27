@@ -1,5 +1,7 @@
 #include <utils.h>
 
+#ifdef CONFIG_ITRACE
+
 bool nemu_iringbuf_init(void) {
     bool success;
 
@@ -27,3 +29,5 @@ void nemu_iringbuf_dump(void) {
         printf("failed to get iringbuf data\n");
     }
 }
+
+#endif

@@ -15,16 +15,17 @@ const uint32_t MEMORY_SIZE = 1024 * 64;
 /**
  * 模拟计算机主存，内含一段 RV32I 指令集的机器码，以小端序存放。
  */
-static uint8_t memory[MEMORY_SIZE];
+extern uint8_t memory[MEMORY_SIZE];
 
 /**
  * @brief 从给定二进制文件（bin）加载内容到主存中。
  * 
  * @param filename 文件名
+ * @param fileSize 文件大小缓冲区，用以保存读取到的文件大小数据
  * @return true 成功
  * @return false 失败
  */
-bool initMemory(const char *filename);
+bool initMemory(const char *filename, size_t *fileSize);
 
 /**
  * @brief 从主存中读取内容。

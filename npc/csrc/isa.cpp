@@ -113,3 +113,32 @@ void isaRegDisplay() {
     std::cout << "PC is currently at 0x" << std::setfill('0') <<
         std::setw(8) << std::hex << top->ioDPI_pc << std::dec << std::endl;
 }
+
+/**
+ * @brief ISA：检查目的处理器状态中的寄存器状态
+ * 是否与当前仿真环境中的处理器的寄存器状态一致。
+ * 
+ * @param state 目的处理器状态
+ * @return true 状态一致
+ * @return false 状态不一致
+ */
+bool isaCheckRegisters(ProcessorState *state) {
+    size_t i, count;
+
+    if (!state) {
+        return false;
+    }
+
+    ProcessorState thisState = getProcessorState();
+    count = sizeof(thisState.gpr) / sizeof(thisState.gpr[0]);
+    for (i = 0; i < count; i++) {
+        if (thisState.gpr[i] != state->gpr[i]) {
+            return false;
+        }
+    }
+    if (thisState.pc != state->pc) {
+        return false;
+    }
+
+    return true;
+}

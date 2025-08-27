@@ -40,7 +40,7 @@ size_t loadFunctionSymbolsFromElf(
                     char buf[256];
                     strcpy(buf, elf_strptr(elf, shdr.sh_link, sym.st_name));
                     Symbol symObj = {
-                        .addr = sym.st_value,
+                        .addr = (addr_t) sym.st_value,
                         .name = std::move(std::string(buf)),
                         .size = sym.st_size
                     };

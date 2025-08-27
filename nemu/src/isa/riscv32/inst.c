@@ -158,6 +158,7 @@ static inline word_t inst_remu(word_t rs1, word_t rs2) {
   return rs1 % rs2;
 }
 
+#ifdef CONFIG_FTRACE
 static bool is_addr_func_sym_start(word_t addr) {
   size_t i;
   Symbol *sym;
@@ -234,6 +235,7 @@ static void handle_ftrace_inst_jal(Decode *s, int rd, int imm) {
 }
 
 static void handle_ftrace(Decode *s);
+#endif
 
 static int decode_exec(Decode *s) {
   s->dnpc = s->snpc;

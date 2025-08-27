@@ -70,6 +70,7 @@ static long load_img() {
   return size;
 }
 
+#ifdef CONFIG_FTRACE
 static size_t load_elf(void) {
   int fd;
   Elf *elf;
@@ -106,6 +107,7 @@ static size_t load_elf(void) {
   close(fd);
   return size;
 }
+#endif
 
 static int parse_args(int argc, char *argv[]) {
   printf("argc = %d\n", argc);
@@ -168,9 +170,11 @@ void init_monitor(int argc, char *argv[]) {
   /* Load the image to memory. This will overwrite the built-in image. */
   long img_size = load_img();
 
+#ifdef CONFIG_FTRACE
   /* Load function symbols from ELF file. */
   nemu_state.ftrace_func_syms_size = load_elf();
   Log_info("Loaded %lu function symbols from ELF file.", nemu_state.ftrace_func_syms_size);
+#endif
 
   /* Initialize differential testing. */
   init_difftest(diff_so_file, img_size, difftest_port);

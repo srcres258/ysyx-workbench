@@ -82,15 +82,19 @@ int main(int argc, char *argv[]) {
   init_monitor(argc, argv);
 #endif
 
+#ifdef CONFIG_ITRACE
   if (!nemu_iringbuf_init()) {
     Log_err("Failed to initialize iringbuf! exiting...");
     return EXIT_FAILURE;
   }
+#endif
 
   /* Start engine. */
   engine_start();
 
+#ifdef CONFIG_ITRACE
   nemu_iringbuf_destroy();
+#endif
 
   return is_exit_status_bad();
 

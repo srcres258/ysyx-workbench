@@ -8,6 +8,12 @@
 #include <utils.hpp>
 #include <memory.hpp>
 #include <sdb.hpp>
+#include <difftest/dut.hpp>
+
+ExecInfo simExecInfo = {
+    .pc = 0x00000000,
+    .inst = 0
+};
 
 VProcessorCore *top = nullptr;
 bool sim_halt = false;
@@ -41,17 +47,17 @@ void simReset(int n) {
  * @brief 执行一个时钟周期的仿真。
  */
 bool simExecOnce() {
-    addr_t addr, thisPC;
-    word_t data, thisInst;
+    addr_t addr;
+    word_t data;
 
     std::cout << "处理器第 " << std::dec << execCount << " 次执行 (从 0 开始算)..." << std::endl;
 
-    thisPC = top->ioDPI_pc;
+    simExecInfo.pc = top->ioDPI_pc;
     std::cout << "当前PC: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << thisPC << std::endl;
+        std::setw(8) << std::hex << simExecInfo.pc << std::endl;
 
     // 从内存中读指令
-    thisInst = 0x00000000;
+    simExecInfo.inst = 0x00000000;
     std::cout << "正在从内存中读指令..." << std::endl;
     addr = top->io_instAddr;
     if (addr >= MEMORY_OFFSET) {
@@ -61,7 +67,7 @@ bool simExecOnce() {
             ", 指令: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << data << std::endl;
         top->io_instData = data;
-        thisInst = data;
+        simExecInfo.inst = data;
     } else {
         std::cerr << "地址尚未初始化，仿真无法继续，只能异常退出！" << std::endl;
         return false;
@@ -94,10 +100,10 @@ bool simExecOnce() {
     if (sim_config.config_itrace) {
         char pbuf[128];
         char *p = pbuf;
-        p += snprintf(p, sizeof(pbuf), FMT_WORD ":", thisPC);
+        p += snprintf(p, sizeof(pbuf), FMT_WORD ":", simExecInfo.pc);
         int ilen = 4; // TODO: 等实现 RV32C 指令集后需修改此处（RV32C单条指令长度为2）
         int i;
-        uint8_t *inst = (uint8_t *) &thisInst;
+        uint8_t *inst = (uint8_t *) &simExecInfo.inst;
         for (i = ilen - 1; i >= 0; i--) {
             p += snprintf(p, 4, " %02x", inst[i]);
         }
@@ -107,7 +113,7 @@ bool simExecOnce() {
         space_len = space_len * 3 + 1;
         memset(p, ' ', space_len);
         p += space_len;
-        disasm_disassemble(p, pbuf + sizeof(pbuf) - p, thisPC, inst, ilen);
+        disasm_disassemble(p, pbuf + sizeof(pbuf) - p, simExecInfo.pc, inst, ilen);
 
         std::string str(pbuf);
         str += "\n";
@@ -131,6 +137,9 @@ bool simExecOnce() {
  * @brief （每执行一步后）进行 trace 和 difftest 。
  */
 static void traceAndDiffTest() {
+    if (sim_config.config_difftest) {
+        difftest_dut_step(simExecInfo.pc, top->ioDPI_pc);
+    }
     sdb_evalAndUpdateWP();
 }
 
@@ -149,6 +158,7 @@ static void execute(uint64_t n) {
         }
         if (sim_halt) {
             sim_state.state = SIM_END;
+            sim_state.haltPC = top->ioDPI_pc;
         }
         traceAndDiffTest();
         if (sim_state.state != SIM_RUNNING) {
@@ -193,10 +203,12 @@ void simExec(uint64_t n) {
                     ANSI_FMT("ABORT", ANSI_FG_RED) :
                     ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
                 " at pc = 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << top->ioDPI_pc << std::dec <<
+                std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
                 ", 结果: " << halt_ret << std::endl;
     }
 }
+
+extern size_t binFileSize;
 
 /**
  * @brief 开始仿真主流程。
@@ -213,14 +225,26 @@ bool simulate(bool sdbEnabled) {
         sim_state_itrace_iringbuf_init();
     }
     if (sim_config.config_ftrace) {
-        sim_state_ftrace_funcSyms_init();
+        if (!sim_state_ftrace_funcSyms_init()) {
+            std::cerr << "函数符号表加载失败，请确保 ELF 文件路径正确！" << std::endl;
+            return false;
+        }
     }
     sim_state_ofstream_init();
 
     top = new VProcessorCore;
 
-    std::cout << "正在重置..." << std::endl;
+    std::cout << "正在重置处理器..." << std::endl;
     simReset(1);
+
+    if (sim_config.config_difftest) {
+        std::cout << "正在加载 DiffTest..." << std::endl;
+        difftest_dut_init(
+            sim_config.config_difftestSoFilePath.c_str(),
+            binFileSize,
+            sim_config.config_difftestPort
+        );
+    }
 
     std::cout << "正在启动仿真..." << std::endl;
     if (sdbEnabled) {

@@ -74,6 +74,7 @@ static void exec_once(Decode *s, vaddr_t pc) {
   isa_exec_once(s);
   cpu.pc = s->dnpc;
   
+#ifdef CONFIG_ITRACE
   void disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
 
   char pbuf[128];
@@ -117,7 +118,6 @@ static void exec_once(Decode *s, vaddr_t pc) {
   }
   bdestroy(bbuf);
 
-#ifdef CONFIG_ITRACE
   memset(s->logbuf, 0, sizeof(s->logbuf));
   strcpy(s->logbuf, pbuf);
 #endif
@@ -134,7 +134,9 @@ static void execute(uint64_t n) {
     IFDEF(CONFIG_DEVICE, device_update());
   }
 
+#ifdef CONFIG_ITRACE
   nemu_iringbuf_dump();
+#endif
 }
 
 static void statistic() {

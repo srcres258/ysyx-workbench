@@ -2,14 +2,17 @@
 #include <fstream>
 #include <memory.hpp>
 
+uint8_t memory[MEMORY_SIZE] = { 0 };
+
 /**
  * @brief 从给定二进制文件（bin）加载内容到主存中。
  * 
  * @param filename 文件名
+ * @param fileSize 文件大小缓冲区，用以保存读取到的文件大小数据
  * @return true 成功
  * @return false 失败
  */
-bool initMemory(const char *filename) {
+bool initMemory(const char *filename, size_t *fileSize) {
     size_t size;
 
     std::ifstream f(filename, std::ios::binary | std::ios::ate);
@@ -28,6 +31,9 @@ bool initMemory(const char *filename) {
         return false;
     }
 
+    if (fileSize) {
+        *fileSize = size;
+    }
     return true;
 }
 

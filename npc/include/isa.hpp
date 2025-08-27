@@ -2,6 +2,7 @@
 #define __ISA_HPP__ 1
 
 #include <common.hpp>
+#include <processor.hpp>
 
 /**
  * @brief 根据寄存器索引，读取寄存器的值。
@@ -32,5 +33,15 @@ word_t isaRegStr2Val(const char *s, bool *success);
  * @brief ISA：将所有寄存器中的值打印到标准输出。
  */
 void isaRegDisplay();
+
+/**
+ * @brief ISA：检查目的处理器状态中的寄存器状态
+ * 是否与当前仿真环境中的处理器的寄存器状态一致。
+ * 
+ * @param state 目的处理器状态
+ * @return true 状态一致
+ * @return false 状态不一致
+ */
+bool isaCheckRegisters(ProcessorState *state);
 
 #endif /* __ISA_HPP__ */
