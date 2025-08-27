@@ -45,10 +45,6 @@ bool ftrace_tryRecord(
             return false;
         }
 
-        CallStackInfo info;
-        info.addr = addr;
-        info.name = funcName;
-
         // 记录入栈信息：调用至目的函数
         message = std::format("0x{:08x}: ", srcAddr);
         for (i = 0; i < sim_state.ftrace_callStack.size(); i++) {
@@ -64,6 +60,53 @@ bool ftrace_tryRecord(
         std::cout << "[sim] ftrace: " << message << std::endl;
 
         // 将该函数入栈
+        CallStackInfo info;
+        info.addr = addr;
+        info.name = funcName;
+        sim_state.ftrace_callStack.push(std::move(info));
+
+        return true;
+    }
+
+    if (type == CALL_TYPE_TAIL) {
+        /* tail 从当前函数进行尾调用到另一个函数 */
+        if (!ftrace_queryNameThroughSymbolTable(funcName, srcAddr)) {
+            return false;
+        }
+        if (!ftrace_queryNameThroughSymbolTable(destFuncName, addr)) {
+            return false;
+        }
+
+        // 先将当前函数出栈
+        // 【注意】由于编译器/汇编器可能进行尾调用消除优化，出栈时要出到目标函数层级
+        // （可能需要出不止一层栈）
+        for (;;) {
+            const auto &info = sim_state.ftrace_callStack.top();
+            if (info.name == destFuncName) {
+                break;
+            }
+            // 没到达目标层级，则继续出栈
+            sim_state.ftrace_callStack.pop();
+        }
+
+        // 记录信息：尾调用至另一个函数
+        message = std::format("0x{:08x}: ", srcAddr);
+        for (i = 0; i < sim_state.ftrace_callStack.size(); i++) {
+            message += "  ";
+        }
+        tmpStr = std::format(
+            "tail from [{}@0x{:08x}] to [{}@0x{:08x}]",
+            funcName, srcAddr, destFuncName, addr
+        );
+        message += tmpStr;
+        sim_state.ftrace_ofs << message << std::endl;
+        std::flush(sim_state.ftrace_ofs);
+        std::cout << "[sim] ftrace: " << message << std::endl;
+
+        // 再将目的函数入栈
+        CallStackInfo info;
+        info.addr = addr;
+        info.name = destFuncName;
         sim_state.ftrace_callStack.push(std::move(info));
 
         return true;

@@ -198,6 +198,11 @@ extern "C" void dpi_onInst_jalr(bool _trig) {
     } else if (rd == 1 && (rs1 == 6 || rs1 == 7)) {
         // 情况：rd 为 x1， rs1 为 x6 或 x7
         // 推测：该 jalr 指令可能来源于 tail 伪指令
-        // TODO: 记录 tail 伪指令的 ftrace
+        std::println(
+            "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, "
+                "dest_addr = {:#08x}",
+            pc, destAddr
+        );
+        tryRecord(CALL_TYPE_TAIL, pc, destAddr);
     }
 }
