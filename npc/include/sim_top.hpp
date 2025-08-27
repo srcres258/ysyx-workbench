@@ -43,9 +43,4 @@ void simExec(uint64_t n);
  */
 bool simulate(bool sdbEnabled);
 
-/**
- * @brief 打印寄存器信息。
- */
-void simDumpRegisters();
-
 #endif /* __SIM_HPP__ */

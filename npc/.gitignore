@@ -11,6 +11,6 @@
 !.gitignore
 !README.md
 build/
-!include/*.h
-!include/*.hpp
+!include/**/*.h
+!include/**/*.hpp
 vsrc/generated/

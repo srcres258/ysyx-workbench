@@ -530,7 +530,8 @@ static int cmd_x(char *args) {
  */
 static int cmd_p(char *args) {
     bool success;
-    int val;
+    int64_t val;
+    uint64_t uVal;
     ExprParser parser;
 
     if (!args) {
@@ -540,7 +541,10 @@ static int cmd_p(char *args) {
 
     val = parser.expr(args, success);
     if (success) {
-        std::cout << "求值结果：" << val << std::endl;
+        uVal = (uint64_t) val;
+        std::cout << "求值结果：" << std::dec << val << " (0x" <<
+            std::setfill('0') << std::setw(16) << std::hex <<
+            uVal << std::dec << ")" << std::endl;
     } else {
         std::cout << "求值失败，请检查您输入的表达式是否有误！" << std::endl;
     }
@@ -811,6 +815,7 @@ void sdb_evalAndUpdateWP() {
  * @brief SDB：初始化。执行主循环前必须调用一次此函数！
  */
 void sdb_init() {
+    // 初始化监视点池
     initWPPool();
 }
 

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iomanip>
+#include <cmath>
 #include <sim_top.hpp>
 #include <utils.hpp>
 #include <memory.hpp>
@@ -37,91 +38,20 @@ void simReset(int n) {
 }
 
 /**
- * @brief 打印寄存器信息。
- */
-void simDumpRegisters() {
-    std::cout << "寄存器信息:" << std::endl;
-    std::cout << "zero: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_0 << std::endl;
-    std::cout << "  ra: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_1 << std::endl;
-    std::cout << "  sp: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_2 << std::endl;
-    std::cout << "  gp: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_3 << std::endl;
-    std::cout << "  tp: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_4 << std::endl;
-    std::cout << "  t0: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_5 << std::endl;
-    std::cout << "  t1: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_6 << std::endl;
-    std::cout << "  t2: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_7 << std::endl;
-    std::cout << "  fp: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_8 << std::endl;
-    std::cout << "  s1: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_9 << std::endl;
-    std::cout << "  a0: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_10 << std::endl;
-    std::cout << "  a1: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_11 << std::endl;
-    std::cout << "  a2: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_12 << std::endl;
-    std::cout << "  a3: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_13 << std::endl;
-    std::cout << "  a4: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_14 << std::endl;
-    std::cout << "  a5: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_15 << std::endl;
-    std::cout << "  a6: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_16 << std::endl;
-    std::cout << "  a7: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_17 << std::endl;
-    std::cout << "  s2: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_18 << std::endl;
-    std::cout << "  s3: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_19 << std::endl;
-    std::cout << "  s4: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_20 << std::endl;
-    std::cout << "  s5: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_21 << std::endl;
-    std::cout << "  s6: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_22 << std::endl;
-    std::cout << "  s7: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_23 << std::endl;
-    std::cout << "  s8: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_24 << std::endl;
-    std::cout << "  s9: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_25 << std::endl;
-    std::cout << " s10: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_26 << std::endl;
-    std::cout << " s11: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_27 << std::endl;
-    std::cout << "  t3: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_28 << std::endl;
-    std::cout << "  t4: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_29 << std::endl;
-    std::cout << "  t5: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_30 << std::endl;
-    std::cout << "  t6: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_registers_31 << std::endl;
-    std::cout << "  pc: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_pc << std::endl;
-}
-
-/**
  * @brief 执行一个时钟周期的仿真。
  */
 bool simExecOnce() {
-    addr_t addr;
-    word_t data;
+    addr_t addr, thisPC;
+    word_t data, thisInst;
 
     std::cout << "处理器第 " << std::dec << execCount << " 次执行 (从 0 开始算)..." << std::endl;
 
+    thisPC = top->ioDPI_pc;
     std::cout << "当前PC: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_pc << std::endl;
+        std::setw(8) << std::hex << thisPC << std::endl;
 
     // 从内存中读指令
+    thisInst = 0x00000000;
     std::cout << "正在从内存中读指令..." << std::endl;
     addr = top->io_instAddr;
     if (addr >= MEMORY_OFFSET) {
@@ -131,6 +61,7 @@ bool simExecOnce() {
             ", 指令: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << data << std::endl;
         top->io_instData = data;
+        thisInst = data;
     } else {
         std::cerr << "地址尚未初始化，仿真无法继续，只能异常退出！" << std::endl;
         return false;
@@ -159,6 +90,39 @@ bool simExecOnce() {
     }
 
     execCount++;
+
+    if (sim_config.config_itrace) {
+        char pbuf[128];
+        char *p = pbuf;
+        p += snprintf(p, sizeof(pbuf), FMT_WORD ":", thisPC);
+        int ilen = 4; // TODO: 等实现 RV32C 指令集后需修改此处（RV32C单条指令长度为2）
+        int i;
+        uint8_t *inst = (uint8_t *) &thisInst;
+        for (i = ilen - 1; i >= 0; i--) {
+            p += snprintf(p, 4, " %02x", inst[i]);
+        }
+        int ilen_max = 4;
+        int space_len = ilen_max - ilen;
+        space_len = std::max(space_len, 0);
+        space_len = space_len * 3 + 1;
+        memset(p, ' ', space_len);
+        p += space_len;
+        disasm_disassemble(p, pbuf + sizeof(pbuf) - p, thisPC, inst, ilen);
+
+        std::string str(pbuf);
+        str += "\n";
+        auto *iringbuf = sim_state.itrace_iringbuf;
+        if (str.length() > iringbuf->availableSpace()) {
+            iringbuf->discard(str.length(), true);
+        }
+        iringbuf->write(str);
+
+        sim_state.itrace_ofs << str;
+        std::flush(sim_state.itrace_ofs);
+
+        std::cout << str;
+        std::flush(std::cout);
+    }
 
     return true;
 }
@@ -191,6 +155,10 @@ static void execute(uint64_t n) {
             break;
         }
     }
+
+    if (sim_config.config_itrace) {
+        sim_state_itrace_iringbuf_dump();
+    }
 }
 
 /**
@@ -219,13 +187,13 @@ void simExec(uint64_t n) {
             break;
         case SIM_END:
         case SIM_ABORT:
-            halt_ret = top->io_registers_0;
+            halt_ret = top->ioDPI_registers_0;
             std::cout << "仿真: " <<
                 (sim_state.state == SIM_ABORT ?
                     ANSI_FMT("ABORT", ANSI_FG_RED) :
                     ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
                 " at pc = 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << top->io_pc << std::dec <<
+                std::setw(8) << std::hex << top->ioDPI_pc << std::dec <<
                 ", 结果: " << halt_ret << std::endl;
     }
 }
@@ -240,6 +208,15 @@ void simExec(uint64_t n) {
 bool simulate(bool sdbEnabled) {
     word_t halt_ret;
 
+    disasm_init();
+    if (sim_config.config_itrace) {
+        sim_state_itrace_iringbuf_init();
+    }
+    if (sim_config.config_ftrace) {
+        sim_state_ftrace_funcSyms_init();
+    }
+    sim_state_ofstream_init();
+
     top = new VProcessorCore;
 
     std::cout << "正在重置..." << std::endl;
@@ -247,14 +224,21 @@ bool simulate(bool sdbEnabled) {
 
     std::cout << "正在启动仿真..." << std::endl;
     if (sdbEnabled) {
+        sdb_init();
         sdb_mainLoop();
     } else {
         simExec(-1);
     }
 
     std::cout << "仿真结束." << std::endl;
-    halt_ret = top->io_registers_0;
+    halt_ret = top->ioDPI_registers_0;
     delete top;
+
+    if (sim_config.config_itrace) {
+        sim_state_itrace_iringbuf_destroy();
+    }
+
+    sim_state_ofstream_finalise();
 
     return halt_ret == 0;
 }

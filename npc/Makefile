@@ -1,8 +1,18 @@
 all: default
 
+SIM_ARGS = NPC_BIN_PATH=$(IMG) \
+	NPC_SDB_ENABLED=true \
+	NPC_CONFIG_ITRACE=on \
+	NPC_CONFIG_MTRACE=on \
+	NPC_CONFIG_FTRACE=on \
+	NPC_CONFIG_ITRACE_OUT_FILE_PATH=build/itrace.log \
+	NPC_CONFIG_MTRACE_OUT_FILE_PATH=build/mtrace.log \
+	NPC_CONFIG_FTRACE_OUT_FILE_PATH=build/ftrace.log \
+	NPC_CONFIG_ELF_FILE_PATH=build/program.elf
+
 sim: default
 	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
-	build/$(TOPNAME)
+	$(SIM_ARGS) build/$(TOPNAME)
 
 include ../Makefile
 
@@ -11,8 +21,11 @@ NXDC_FILES = constr/ProcessorCore.nxdc
 INC_PATH ?= $(abspath ./include/)
 
 VERILATOR = verilator
-VERILATOR_CFLAGS += -MMD --build -cc  \
-				-O3 --x-assign fast --x-initial fast --noassert
+VERILATOR_CFLAGS += -MMD --build -cc \
+					-O3 --x-assign fast \
+					--x-initial fast --noassert \
+					-CFLAGS -std=c++26 \
+					-LDFLAGS -lelf
 
 BUILD_DIR = ./build
 OBJ_DIR = $(BUILD_DIR)/obj_dir
@@ -51,8 +64,27 @@ $(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
 		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN)) \
 		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
 
+RUN_SDB_ENABLED ?= false
+RUN_CONFIG_ITRACE ?= off
+RUN_CONFIG_MTRACE ?= off
+RUN_CONFIG_FTRACE ?= off
+RUN_CONFIG_ITRACE_OUT_FILE_PATH ?= build/itrace.log
+RUN_CONFIG_MTRACE_OUT_FILE_PATH ?= build/mtrace.log
+RUN_CONFIG_FTRACE_OUT_FILE_PATH ?= build/ftrace.log
+RUN_CONFIG_ELF_FILE_PATH ?= build/program.elf
+
+RUN_ARGS = NPC_BIN_PATH=$(IMG) \
+	NPC_SDB_ENABLED=$(RUN_SDB_ENABLED) \
+	NPC_CONFIG_ITRACE=$(RUN_CONFIG_ITRACE) \
+	NPC_CONFIG_MTRACE=$(RUN_CONFIG_MTRACE) \
+	NPC_CONFIG_FTRACE=$(RUN_CONFIG_FTRACE) \
+	NPC_CONFIG_ITRACE_OUT_FILE_PATH=$(RUN_CONFIG_ITRACE_OUT_FILE_PATH) \
+	NPC_CONFIG_MTRACE_OUT_FILE_PATH=$(RUN_CONFIG_MTRACE_OUT_FILE_PATH) \
+	NPC_CONFIG_FTRACE_OUT_FILE_PATH=$(RUN_CONFIG_FTRACE_OUT_FILE_PATH) \
+	NPC_CONFIG_ELF_FILE_PATH=$(RUN_CONFIG_ELF_FILE_PATH)
+
 run: $(BIN)
-	NPC_BIN_PATH=$(IMG) NPC_SDB_ENABLED=true $^
+	$(RUN_ARGS) $^
 
 clean:
 	rm -rf $(BUILD_DIR)
