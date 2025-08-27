@@ -176,7 +176,8 @@ static int cmd_x(char *args) {
  */
 static int cmd_p(char *args) {
   bool success;
-  int val;
+  int64_t val;
+  uint64_t uVal;
 
   if (!args) {
     print_bad_arguments();
@@ -185,7 +186,8 @@ static int cmd_p(char *args) {
 
   val = expr(args, &success);
   if (success) {
-    printf("求值结果：%d\n", val);
+    uVal = (uint64_t) val;
+    printf("求值结果：%d (%016X)\n", val, uVal);
   } else {
     printf("求值失败，请检查您输入的表达式是否有误！\n");
   }

@@ -95,7 +95,7 @@ static size_t load_elf(void) {
     Log_info("Failed to load ELF file '%s'!", elf_file);
     return 0;
   }
-  // 确定是文件类型是否是ELF文件
+  // 确定文件类型是否是ELF文件
   if (elf_kind(elf) != ELF_K_ELF) {
     Log_info("'%s' is not an ELF executable file!", elf_file);
     elf_end(elf);
