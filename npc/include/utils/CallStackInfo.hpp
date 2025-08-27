@@ -1,5 +1,5 @@
 #ifndef __UTILS_CALL_STACK_HPP__
-#define __UTILS_CALL_STACK_HPP__
+#define __UTILS_CALL_STACK_HPP__ 1
 
 #include <string>
 #include <common.hpp>

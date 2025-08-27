@@ -62,6 +62,12 @@ static void loadConfig() {
     }
 }
 
+/**
+ * @brief 检查必需的配置选项是否均已设置。
+ * 
+ * @return true 必需的配置选项已设置
+ * @return false 存在未设置的必需配置选项
+ */
 static bool checkRequiredConfig() {
     if (sim_config.config_elfFilePath.empty()) {
         std::cerr << "未指定 NPC_CONFIG_ELF_FILE_PATH 环境变量, 请指定二进制文件路径!" << std::endl;
@@ -71,6 +77,13 @@ static bool checkRequiredConfig() {
     return true;
 }
 
+/**
+ * @brief 程序的入口函数。
+ * 
+ * @param argc 程序参数数量
+ * @param argv 程序参数
+ * @return int 程序退出状态码
+ */
 int main(int argc, const char *argv[]) {
     const char *binPath, *sdbEnabled;
     bool sdb;

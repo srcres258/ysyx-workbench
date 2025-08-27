@@ -250,18 +250,38 @@ public:
                 return 0;
             }
             switch (tokens[op].type) {
-                case '+': success = true; return val1 + val2;
-                case '-': success = true; return val1 - val2;
-                case '*': success = true; return val1 * val2;
+                case '+':
+                    success = true;
+                    return val1 + val2;
+                case '-':
+                    success = true;
+                    return val1 - val2;
+                case '*':
+                    success = true;
+                    return val1 * val2;
                 case '/':
-                    if (val2 == 0) { success = false; return 0; }
-                    success = true; return val1 / val2;
-                case TK_NEG_MUL: success = true; return -(val1 * val2);
+                    if (val2 == 0) {
+                        success = false;
+                        return 0;
+                    }
+                    success = true;
+                    return val1 / val2;
+                case TK_NEG_MUL:
+                    success = true;
+                    return -(val1 * val2);
                 case TK_NEG_DIV:
-                    if (val2 == 0) { success = false; return 0; }
-                    success = true; return -(val1 / val2);
-                case TK_EQ: success = true; return (val1 == val2) ? 1 : 0;
-                default: success = false; return 0;
+                    if (val2 == 0) {
+                        success = false;
+                        return 0;
+                    }
+                    success = true;
+                    return -(val1 / val2);
+                case TK_EQ:
+                    success = true;
+                    return (val1 == val2) ? 1 : 0;
+                default:
+                    success = false;
+                    return 0;
             }
         }
     }
@@ -331,9 +351,14 @@ private:
         }
         int par_level = 1;
         for (int i = p + 1; i < q; ++i) {
-            if (tokens[i].type == '(') ++par_level;
-            else if (tokens[i].type == ')') --par_level;
-            if (par_level <= 0) return false;
+            if (tokens[i].type == '(') {
+                ++par_level;
+            } else if (tokens[i].type == ')') {
+                --par_level;
+            }
+            if (par_level <= 0) {
+                return false;
+            }
         }
         return par_level == 1;
     }
@@ -350,18 +375,35 @@ private:
         bool found_pm = false;
         for (int i = p; i <= q; ++i) {
             switch (tokens[i].type) {
-                case '(': ++par_level; break;
-                case ')': --par_level; break;
-                case '+': case '-': case TK_EQ:
-                    if (par_level == 0) { found_pm = true; last_pm = i; }
+                case '(':
+                    ++par_level;
                     break;
-                case '*': case '/': case TK_NEG_MUL: case TK_NEG_DIV:
-                    if (par_level == 0) last_td = i;
+                case ')':
+                    --par_level;
                     break;
-                default: break;
+                case '+':
+                case '-':
+                case TK_EQ:
+                    if (par_level == 0) {
+                        found_pm = true;
+                        last_pm = i;
+                    }
+                    break;
+                case '*':
+                case '/':
+                case TK_NEG_MUL:
+                case TK_NEG_DIV:
+                    if (par_level == 0) {
+                        last_td = i;
+                    }
+                    break;
+                default:
+                    break;
             }
         }
-        if (last_pm < 0 && last_td < 0) return -1;
+        if (last_pm < 0 && last_td < 0) {
+            return -1;
+        }
         return found_pm ? last_pm : last_td;
     }
 
