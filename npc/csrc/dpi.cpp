@@ -94,8 +94,8 @@ extern "C" void dpi_onLSTypeUpdate(uint8_t _lsType) {
             data = readMemory(addr);
         }
         mtraceContent = std::format(
-            "Memory {} at 0x{:08x}, len {}, data 0x{:08x}, PC 0x{:08x}",
-            lsTypeStr, addr, len, data, top->ioDPI_pc
+            "0x{:08x}: Memory {} at 0x{:08x}, len {}, data 0x{:08x}",
+            top->ioDPI_pc, lsTypeStr, addr, len, data
         );
 
         if (sim_config.config_mtrace) {
