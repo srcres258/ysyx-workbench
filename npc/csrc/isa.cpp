@@ -4,12 +4,19 @@
 #include <sim_top.hpp>
 #include <isa.hpp>
 
+#ifdef CONFIG_RVE
 static const char *regs[] = {
     "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
     "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5",
     "a6", "a7", "s2", "s3", "s4", "s5", "s6", "s7",
     "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
 };
+#else
+static const char *regs[] = {
+    "$0", "ra", "sp", "gp", "tp", "t0", "t1", "t2",
+    "s0", "s1", "a0", "a1", "a2", "a3", "a4", "a5"
+};
+#endif
 #define LEN_REGS (sizeof(regs) / sizeof(regs[0]))
 
 /**
@@ -40,6 +47,7 @@ word_t isaRegVal(size_t idx) {
         case 13: return top->ioDPI_registers_13;
         case 14: return top->ioDPI_registers_14;
         case 15: return top->ioDPI_registers_15;
+#ifndef CONFIG_RVE
         case 16: return top->ioDPI_registers_16;
         case 17: return top->ioDPI_registers_17;
         case 18: return top->ioDPI_registers_18;
@@ -56,6 +64,7 @@ word_t isaRegVal(size_t idx) {
         case 29: return top->ioDPI_registers_29;
         case 30: return top->ioDPI_registers_30;
         case 31: return top->ioDPI_registers_31;
+#endif
     }
 
     return 0; // never reach here
