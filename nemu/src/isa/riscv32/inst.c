@@ -205,7 +205,12 @@ static void handle_ftrace_inst_jalr(Decode *s, int rd, int rs1, int src1, int im
   if (rd == 1 && (rs1 == 6 || rs1 == 7)) {
     // 情况：rd 为 x1， rs1 为 x6 或 x7
     // 推测：该 jalr 指令可能来源于 tail 伪指令
-    Log_warn("!!! tail call !!!"); // TODO
+    Log_info("Detected tail from jalr at pc = " FMT_PADDR ", dest_addr = " FMT_PADDR, s->pc, dest_addr);
+    if (nemu_ftrace_record_and_log(CALL_TYPE_TAIL, s->pc, dest_addr)) {
+      Log_info("Detect succeeded.");
+    } else {
+      Log_info("Detect failed.");
+    }
     return;
   }
 }

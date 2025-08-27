@@ -5,6 +5,7 @@
 
 typedef enum {
     CALL_TYPE_CALL,
+    CALL_TYPE_TAIL,
     CALL_TYPE_RET
 } CallType;
 

@@ -187,7 +187,7 @@ static int cmd_p(char *args) {
   val = expr(args, &success);
   if (success) {
     uVal = (uint64_t) val;
-    printf("求值结果：%d (%016X)\n", val, uVal);
+    printf("求值结果：%ld (%016lX)\n", val, uVal);
   } else {
     printf("求值失败，请检查您输入的表达式是否有误！\n");
   }
