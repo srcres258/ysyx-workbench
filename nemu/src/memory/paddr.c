@@ -66,8 +66,8 @@ static void mtrace_record(
   snprintf(
     nemu_state.mtrace_logbuf + offset,
     sizeof(nemu_state.mtrace_logbuf) - offset,
-    "Memory %s at " FMT_PADDR ", len %d, data 0x%08x\n",
-    type, addr, len, data
+    "[mtrace] " FMT_PADDR ": Memory %s at " FMT_PADDR ", len %d, data 0x%08x\n",
+    cpu.pc, type, addr, len, data
   );
 }
 #endif

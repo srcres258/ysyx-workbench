@@ -15,15 +15,15 @@
 
 #include <cpu/cpu.h>
 
-#define CONFIG_TARGET_AM
-
 void sdb_mainloop();
 
 void engine_start() {
-#ifdef CONFIG_TARGET_AM
+// #ifdef CONFIG_TARGET_AM
+//   cpu_exec(-1);
+// #else
+//   /* Receive commands from user. */
+//   sdb_mainloop();
+// #endif
+
   cpu_exec(-1);
-#else
-  /* Receive commands from user. */
-  sdb_mainloop();
-#endif
 }

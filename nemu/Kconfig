@@ -166,6 +166,11 @@ config FTRACE
   bool "Enable function tracer"
   default y
 
+config DTRACE
+  depends on TRACE && TARGET_NATIVE_ELF && ENGINE_INTERPRETER
+  bool "Enable device tracer"
+  default y
+
 config NDEBUG
   bool "Disable debugging log output"
   default n

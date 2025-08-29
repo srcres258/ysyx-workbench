@@ -99,9 +99,6 @@ static bool make_token(char *e) {
         char *substr_start = e + position;
         int substr_len = pmatch.rm_eo;
 
-        Log("match rules[%d] = \"%s\" at position %d with len %d: %.*s",
-            i, rules[i].regex, position, substr_len, substr_len, substr_start);
-
         position += substr_len;
 
         if (nr_token >= LEN_TOKENS) {
@@ -162,7 +159,6 @@ static bool make_token(char *e) {
     }
 
     if (i == NR_REGEX) {
-      printf("no match at position %d\n%s\n%*.s^\n", position, e, position, "");
       return false;
     }
   }
@@ -228,20 +224,14 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
   last_pm = -1;
   last_td = -1;
   par_level = 0;
-  printf("Going to find main operator between %d and %d.\n", p, q);
   for (i = p; i <= q; i++) {
-    printf("i=%d\n", i);
-    printf("Token %d is %d\n", i, tokens[i].type);
     if (tokens[i].type >= 0 && tokens[i].type <= 255) {
-      printf("Token %d is %c\n", i, tokens[i].type);
     }
     switch (tokens[i].type) {
       case '(':
-        printf("Met '(', par_level++\n");
         par_level++;
         break;
       case ')':
-        printf("Met ')', par_level--\n");
         par_level--;
         break;
       case '+':
@@ -266,7 +256,6 @@ static int find_op_index(int p, int q) { // 寻找主运算符索引
     }
   }
   if (last_pm < 0 && last_td < 0) {
-    printf("Finding operator index failed between %d and %d.\n", p, q);
     return -1;
   }
 
@@ -301,7 +290,6 @@ static int64_t reg_str2val(const char *reg_name, bool *success) {
 
   strcpy(regn, reg_name);
   rtrim(regn); // 去掉尾部空白字符
-  printf("regn: %s, %ld\n", regn, strlen(regn));
   if (strcmp(regn, "pc") == 0) { // 如果是pc
     *success = true;
     return cpu.pc; // 直接从CPU数据结构读取pc值
@@ -322,7 +310,6 @@ static int64_t eval(int p, int q, bool *success) {
   if (p > q) {
     /* Bad expression. */
 
-    printf("Bad expression, p is %d, q is %d.\n", p, q);
     *success = false;
     return 0;
   } else if (p == q) {
@@ -341,21 +328,18 @@ static int64_t eval(int p, int q, bool *success) {
       reg_name = tokens[p].str + 1; // 去掉名称前面的 $
       num = reg_str2val(reg_name, &stat);
       if (!stat) {
-        printf("Failed to get the value of register %s.\n", tokens[p].str);
         *success = false;
         return 0;
       }
       *success = true;
       return num;
     } else {
-      printf("Single token is not a number.\n");
       *success = false;
       return 0;
     }
   } else if (tokens[p].type == TK_DEREF) {
     mem_addr = eval(p + 1, q, &stat);
     if (!stat) {
-      printf("Failed to evaluate memory address for dereference.\n");
       *success = false;
       return 0;
     }
@@ -375,66 +359,52 @@ static int64_t eval(int p, int q, bool *success) {
     op = find_op_index(p, q);
     if (op < 0) {
       // No operator found.
-      printf("No operator found between %d and %d.\n", p, q);
       *success = false;
       return 0;
     }
-    printf("Going to evaluate main operator %c at position %d.\n", tokens[op].type, op);
     val1 = eval(p, op - 1, &stat);
     if (!stat) {
-      printf("Evaluation failed for val1.\n");
       *success = false;
       return 0;
     }
     val2 = eval(op + 1, q, &stat);
     if (!stat) {
-      printf("Evaluation failed for val2.\n");
       *success = false;
       return 0;
     }
 
     switch (tokens[op].type) {
       case '+':
-        printf("Calculating: %ld + %ld\n", val1, val2);
         *success = true;
         return val1 + val2;
       case '-':
-        printf("Calculating: %ld - %ld\n", val1, val2);
         *success = true;
         return val1 - val2;
       case '*':
-        printf("Calculating: %ld * %ld\n", val1, val2);
         *success = true;
         return val1 * val2;
       case '/':
-        printf("Calculating: %ld / %ld\n", val1, val2);
         if (val2 == 0) {
-          printf("Divide by zero.\n");
           *success = false;
           return 0;
         }
         *success = true;
         return val1 / val2;
       case TK_NEG_MUL:
-        printf("Calculating: -(%ld * %ld)\n", val1, val2);
         *success = true;
         return -(val1 * val2);
       case TK_NEG_DIV:
-        printf("Calculating: -(%ld / %ld)\n", val1, val2);
         if (val2 == 0) {
-          printf("Divide by zero.\n");
           *success = false;
           return 0;
         }
         *success = true;
         return -(val1 / val2);
       case TK_EQ:
-        printf("Calculating: %ld == %ld\n", val1, val2);
         *success = true;
         return (val1 == val2) ? 1 : 0;
       default:
         // Found a token that is not of any operator type.
-        printf("Found a token that is not of any operator type.\n");
         *success = false;
         return 0;
     }
@@ -453,7 +423,6 @@ word_t expr(char *e, bool *success) {
   result = eval(0, nr_token - 1, &stat);
   if (!stat) {
     // Failed to evaluate the expression.
-    printf("Failed to evaluate the expression.\n");
     *success = false;
     return 0;
   }

@@ -71,9 +71,21 @@ static inline void update_screen() {
 #endif
 #endif
 
+static bool read_sync_stat() {
+  return *(vgactl_port_base + 1);
+}
+
+static void reset_sync_stat() {
+  *(vgactl_port_base + 1) = 0;
+}
+
 void vga_update_screen() {
   // TODO: call `update_screen()` when the sync register is non-zero,
   // then zero out the sync register
+  if (read_sync_stat()) {
+    update_screen();
+    reset_sync_stat();
+  }
 }
 
 void init_vga() {

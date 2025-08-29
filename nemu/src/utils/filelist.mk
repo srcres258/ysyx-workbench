@@ -22,3 +22,4 @@ src/utils/disasm.c: $(LIBCAPSTONE)
 $(LIBCAPSTONE):
 	$(MAKE) -C tools/capstone
 endif
+INC_PATH += $(NEMU_HOME)/tools/elf

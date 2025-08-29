@@ -53,10 +53,19 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
     log_write("%s", nemu_state.ftrace_logbuf);
   }
 #endif
+#ifdef CONFIG_DTRACE
+  if (nemu_state.dtrace_available) {
+    // newline character is not needed since it is already
+    // included in the logbuf
+    log_write("%s", nemu_state.dtrace_logbuf);
+  }
+#endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
   IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc));
 
+#ifndef CONFIG_TARGET_AM
   sdb_eval_and_update_wp();
+#endif
 }
 
 static void exec_once(Decode *s, vaddr_t pc) {
@@ -79,7 +88,7 @@ static void exec_once(Decode *s, vaddr_t pc) {
 
   char pbuf[128];
   char *p = pbuf;
-  p += snprintf(p, sizeof(pbuf), FMT_WORD ":", s->pc);
+  p += snprintf(p, sizeof(pbuf), "[itrace] " FMT_WORD ":", s->pc);
   int ilen = s->snpc - s->pc;
   int i;
   uint8_t *inst = (uint8_t *)&s->isa.inst;
