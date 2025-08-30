@@ -18,7 +18,7 @@ static const uint32_t MEMORY_SIZE = 1 * 1024 * 1024 * 1024; // 1GB
 /**
  * @brief 模拟计算机物理主存大小，单位为字节。
  */
-static const uint32_t PHYS_MEMORY_SIZE = 1024 * 64;
+static const uint32_t PHYS_MEMORY_SIZE = 1024 * 1024 * 64; // 64MB
 
 /**
  * 模拟计算机主存，内含一段 RV32I 指令集的机器码，以小端序存放。

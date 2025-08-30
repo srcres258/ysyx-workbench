@@ -25,6 +25,7 @@ bool initMemory(const char *filename, size_t *fileSize) {
     }
     std::cout << "正在加载文件: " << filename << std::endl;
     size = f.tellg();
+    std::cout << "文件大小: " << std::dec << size << std::endl;
     f.seekg(0, std::ios::beg);
     if (f.read((char *) memory, size)) {
         std::cout << "文件加载成功." << std::endl;
