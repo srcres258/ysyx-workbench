@@ -87,6 +87,7 @@ void difftest_dut_init(const char *refSoFile, size_t imgSize, int port) {
 
 static void checkregs(ProcessorState *refState, addr_t pc) {
     if (!isaCheckRegisters(refState)) {
+        std::println("[difftest] 检测到 DUT 与 REF 的处理器状态不一致! 正在中止...");
         sim_state.state = SIM_ABORT;
         sim_state.haltPC = pc;
         isaRegDisplay();

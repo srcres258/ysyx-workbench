@@ -1,3 +1,4 @@
+#include <verilated_fst_c.h>
 #include <iostream>
 #include <fstream>
 #include <cstdint>
@@ -9,6 +10,8 @@
 #include <memory.hpp>
 #include <sdb.hpp>
 #include <difftest/dut.hpp>
+#include <device.hpp>
+#include <utils/Stage.hpp>
 
 ExecInfo simExecInfo = {
     .pc = 0x00000000,
@@ -16,6 +19,7 @@ ExecInfo simExecInfo = {
 };
 
 VProcessorCore *top = nullptr;
+static VerilatedFstC *tfp = nullptr;
 bool sim_halt = false;
 
 static uint32_t execCount = 0;
@@ -24,10 +28,20 @@ static uint32_t execCount = 0;
  * @brief 执行一步仿真，执行一个时钟周期。
  */
 void simStep() {
-    top->clock = 0;
-    top->eval();
-    top->clock = 1;
-    top->eval();
+    do {
+        top->clock = 0;
+        top->eval();
+        if (tfp) {
+            verContext->timeInc(1);
+            tfp->dump(verContext->time());
+        }
+        top->clock = 1;
+        top->eval();
+        if (tfp) {
+            verContext->timeInc(1);
+            tfp->dump(verContext->time());
+        }
+    } while (top->ioDPI_stage != STAGE_IF);
 }
 
 /**
@@ -52,16 +66,16 @@ bool simExecOnce() {
 
     std::cout << "处理器第 " << std::dec << execCount << " 次执行 (从 0 开始算)..." << std::endl;
 
-    simExecInfo.pc = top->ioDPI_pc;
+    simExecInfo.pc = top->io_pc;
     std::cout << "当前PC: 0x" << std::setfill('0') <<
         std::setw(8) << std::hex << simExecInfo.pc << std::endl;
 
     // 从内存中读指令
     simExecInfo.inst = 0x00000000;
     std::cout << "正在从内存中读指令..." << std::endl;
-    addr = top->io_instAddr;
+    addr = top->io_pc;
     if (addr >= MEMORY_OFFSET) {
-        data = readMemory(addr);
+        data = readMemory(addr, sizeof(word_t));
         std::cout << "地址: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << addr <<
             ", 指令: 0x" << std::setfill('0') <<
@@ -76,24 +90,6 @@ bool simExecOnce() {
     // 解析指令
     std::cout << "正在解析该条指令..." << std::endl;
     simStep();
-
-    // 若数据写使能激活，向内存中写数据
-    if (top->io_writeEnable) {
-        std::cout << "写使能激活，正在向内存中写数据..." << std::endl;
-        addr = top->io_address;
-        if (addr >= MEMORY_OFFSET) {
-            data = top->io_writeData;
-            std::cout << "地址: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << addr <<
-                ", 数据: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << data << std::endl;
-            writeMemory(addr, data);
-        } else {
-            std::cerr << "地址尚未初始化，跳过..." << std::endl;
-        }
-    } else {
-        std::cout << "写使能未激活." << std::endl;
-    }
 
     execCount++;
 
@@ -138,7 +134,7 @@ bool simExecOnce() {
  */
 static void traceAndDiffTest() {
     if (sim_config.config_difftest) {
-        difftest_dut_step(simExecInfo.pc, top->ioDPI_pc);
+        difftest_dut_step(simExecInfo.pc, top->io_pc);
     }
     sdb_evalAndUpdateWP();
 }
@@ -158,7 +154,7 @@ static void execute(uint64_t n) {
         }
         if (sim_halt) {
             sim_state.state = SIM_END;
-            sim_state.haltPC = top->ioDPI_pc;
+            sim_state.haltPC = top->io_pc;
         }
         traceAndDiffTest();
         if (sim_state.state != SIM_RUNNING) {
@@ -232,7 +228,14 @@ bool simulate(bool sdbEnabled) {
     }
     sim_state_ofstream_init();
 
-    top = new VProcessorCore;
+    top = new VProcessorCore(verContext);
+
+    if (sim_config.config_wave) {
+        tfp = new VerilatedFstC;
+        verContext->traceEverOn(true);
+        top->trace(tfp, 0);
+        tfp->open(sim_config.config_waveFilePath.c_str());
+    }
 
     std::cout << "正在重置处理器..." << std::endl;
     simReset(1);
@@ -244,6 +247,11 @@ bool simulate(bool sdbEnabled) {
             binFileSize,
             sim_config.config_difftestPort
         );
+    }
+
+    if (sim_config.config_device) {
+        std::cout << "正在加载外部设备..." << std::endl;
+        device_init();
     }
 
     std::cout << "正在启动仿真..." << std::endl;
@@ -263,6 +271,10 @@ bool simulate(bool sdbEnabled) {
     }
 
     sim_state_ofstream_finalise();
+
+    if (tfp) {
+        delete tfp;
+    }
 
     return halt_ret == 0;
 }

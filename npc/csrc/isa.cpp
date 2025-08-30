@@ -95,6 +95,11 @@ word_t isaRegStr2Val(const char *s, bool *success) {
     int i;
     std::string str(s);
 
+    if (str == "pc") {
+        *success = true;
+        return top->io_pc;
+    }
+
     for (i = 0; i < LEN_REGS; i++) {
         if (str.compare(regs[i]) == 0) {
             *success = true;
@@ -120,7 +125,7 @@ void isaRegDisplay() {
     }
 
     std::cout << "PC is currently at 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->ioDPI_pc << std::dec << std::endl;
+        std::setw(8) << std::hex << top->io_pc << std::dec << std::endl;
 }
 
 /**

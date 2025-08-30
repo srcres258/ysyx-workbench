@@ -45,7 +45,7 @@ ProcessorState getProcessorState() {
             top->ioDPI_registers_31
 #endif
         },
-        .pc = top->ioDPI_pc
+        .pc = top->io_pc
     };
     return std::move(state);
 };

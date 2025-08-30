@@ -5,6 +5,8 @@
 #include <memory.hpp>
 #include <utils.hpp>
 
+VerilatedContext *verContext = nullptr;
+
 /**
  * @brief 从环境变量读取配置并加载进来。
  */
@@ -33,6 +35,18 @@ static void loadConfig() {
     sim_config.config_difftest = env && strcmp(env, "on") == 0;
     if (sim_config.config_difftest) {
         std::cout << "[config] DiffTest 已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_DEVICE");
+    sim_config.config_device = env && strcmp(env, "on") == 0;
+    if (sim_config.config_device) {
+        std::cout << "[config] 外部设备已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_WAVE");
+    sim_config.config_wave = env && strcmp(env, "on") == 0;
+    if (sim_config.config_wave) {
+        std::cout << "[config] 波形文件输出已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_PORT");
@@ -85,6 +99,14 @@ static void loadConfig() {
         std::cout << "[config] DiffTest 动态链接库文件路径已指定为: " <<
             sim_config.config_difftestSoFilePath << std::endl;
     }
+    
+    env = std::getenv("NPC_CONFIG_WAVE_FILE_PATH");
+    if (env) {
+        sim_config.config_waveFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] 波形文件输出路径已指定为: " <<
+            sim_config.config_waveFilePath << std::endl;
+    }
 }
 
 /**
@@ -113,9 +135,12 @@ size_t binFileSize = 0;
  */
 int main(int argc, const char *argv[]) {
     const char *binPath, *sdbEnabled;
-    bool sdb;
+    bool sdb, result;
 
     Verilated::commandArgs(argc, argv);
+
+    verContext = new VerilatedContext;
+    verContext->commandArgs(argc, argv);
     
     std::cout << "正在加载配置选项..." << std::endl;
     binPath = std::getenv("NPC_BIN_PATH");
@@ -143,5 +168,9 @@ int main(int argc, const char *argv[]) {
     std::cout << "二进制文件加载成功，大小为 " <<
         std::dec << binFileSize << " 字节" << std::endl;
 
-    return simulate(sdb) ? EXIT_SUCCESS : EXIT_FAILURE;
+    result = simulate(sdb);
+
+    delete verContext;
+
+    return result ? EXIT_SUCCESS : EXIT_FAILURE;
 }

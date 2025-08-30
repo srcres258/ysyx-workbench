@@ -25,11 +25,13 @@ image: image-dep
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
-SDB_ENABLED ?= true
+CONFIG_SDB_ENABLED ?= true
 CONFIG_ITRACE ?= on
 CONFIG_MTRACE ?= on
 CONFIG_FTRACE ?= on
 CONFIG_DIFFTEST ?= on
+CONFIG_DEVICE ?= on
+CONFIG_WAVE ?= on
 CONFIG_DIFFTEST_PORT ?= 12345
 
 TRACE_LOG_DIR = $(abspath ./build/trace-logs)
@@ -39,16 +41,19 @@ run: insert-arg
 	/bin/sh -c "if [ ! -d $(TRACE_LOG_DIR) ]; then mkdir -p $(TRACE_LOG_DIR); fi"
 	$(MAKE) -C $(NPC_HOME) run \
 	IMG=$(abspath $(IMAGE).bin) \
-	RUN_SDB_ENABLED=$(SDB_ENABLED) \
+	RUN_SDB_ENABLED=$(CONFIG_SDB_ENABLED) \
 	RUN_CONFIG_ITRACE=$(CONFIG_ITRACE) \
 	RUN_CONFIG_MTRACE=$(CONFIG_MTRACE) \
 	RUN_CONFIG_FTRACE=$(CONFIG_FTRACE) \
 	RUN_CONFIG_DIFFTEST=$(CONFIG_DIFFTEST) \
+	RUN_CONFIG_DEVICE=$(CONFIG_DEVICE) \
+	RUN_CONFIG_WAVE=$(CONFIG_WAVE) \
 	RUN_CONFIG_DIFFTEST_PORT=$(CONFIG_DIFFTEST_PORT) \
 	RUN_CONFIG_ITRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/itrace.log) \
 	RUN_CONFIG_MTRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/mtrace.log) \
 	RUN_CONFIG_FTRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/ftrace.log) \
 	RUN_CONFIG_ELF_FILE_PATH=$(abspath $(IMAGE).elf) \
-	RUN_CONFIG_DIFFTEST_SO_FILE_PATH=$(abspath $(NEMU_HOME)/build/riscv32-nemu-interpreter-so)
+	RUN_CONFIG_DIFFTEST_SO_FILE_PATH=$(abspath $(NEMU_HOME)/build/riscv32-nemu-interpreter-so) \
+	RUN_CONFIG_WAVE_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/sim.fst)
 
 .PHONY: insert-arg

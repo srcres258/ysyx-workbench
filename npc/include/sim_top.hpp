@@ -19,6 +19,7 @@ struct ExecInfo {
  */
 extern ExecInfo simExecInfo;
 
+extern VerilatedContext *verContext;
 extern VProcessorCore *top;
 extern bool sim_halt;
 

@@ -13,4 +13,6 @@
 #define RISCV_GPR_NUM 32
 #endif
 
+#define SERIAL_MMIO_ADDR 0xa00003f8
+
 #endif /* __MACRO_DEF_HPP__ */

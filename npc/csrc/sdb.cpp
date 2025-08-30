@@ -231,7 +231,7 @@ public:
                 success = false;
                 return 0;
             }
-            int64_t val = readMemory((addr_t) mem_addr);
+            int64_t val = readMemory((addr_t) mem_addr, sizeof(word_t));
             success = true;
             return val;
         } else if (checkParentheses(p, q)) {
@@ -550,7 +550,7 @@ static int cmd_x(char *args) {
     printf("Memory scan: addr=0x%08x, N=%d\n", addr, N);
     cur_addr = addr;
     for (i = 0; i < N; i++) {
-        value = readMemory(cur_addr);
+        value = readMemory(cur_addr, sizeof(word_t));
         printf("0x%08X: %08X\n", cur_addr, value);
         cur_addr += 4;
     }

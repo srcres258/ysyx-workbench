@@ -31,6 +31,8 @@ struct SimConfig {
     bool config_mtrace;
     bool config_ftrace;
     bool config_difftest;
+    bool config_device;
+    bool config_wave;
 
     int config_difftestPort;
 
@@ -39,6 +41,7 @@ struct SimConfig {
     std::string config_ftraceOutFilePath;
     std::string config_elfFilePath;
     std::string config_difftestSoFilePath;
+    std::string config_waveFilePath;
 };
 
 struct SimState {
@@ -168,5 +171,19 @@ bool ftrace_tryRecord(CallType type, addr_t srcAddr, addr_t addr);
 	fprintf(stderr, " " __VA_ARGS__);	 \
 	abort();                             \
 } while (0)
+
+// ----------- assert -----------
+
+#define Assert(cond, ...) do {                              \
+    if (!(cond)) {                                          \
+        panic("assertion failed: " #cond "\n" __VA_ARGS__); \
+    }                                                       \
+} while (0)
+
+// ----------- memory -----------
+
+word_t memoryHostRead(const void *addr, int len);
+
+void memoryHostWrite(void *addr, int len, word_t data);
 
 #endif /* __UTILS_HPP__ */

@@ -1,8 +1,10 @@
 #include <iostream>
 #include <fstream>
+#include <utils.hpp>
+#include <device/mmio.hpp>
 #include <memory.hpp>
 
-uint8_t memory[MEMORY_SIZE] = { 0 };
+uint8_t memory[PHYS_MEMORY_SIZE] = { 0 };
 
 /**
  * @brief 从给定二进制文件（bin）加载内容到主存中。
@@ -41,16 +43,29 @@ bool initMemory(const char *filename, size_t *fileSize) {
  * @brief 从主存中读取内容。
  * 
  * @param addr 主存地址（包含了内存地址偏移的）
- * @return uint32_t 读取到的内容
+ * @param len 读取长度（单位为字节）
+ * @return word_t 读取到的内容
  */
-word_t readMemory(addr_t addr) {
+word_t readMemory(addr_t addr, int len) {
     uint32_t result;
 
-    result = memory[addr - MEMORY_OFFSET];
-    result |= memory[addr - MEMORY_OFFSET + 1] << 8;
-    result |= memory[addr - MEMORY_OFFSET + 2] << 16;
-    result |= memory[addr - MEMORY_OFFSET + 3] << 24;
+    result = 0;
 
+    if (isPhysMemoryAddr(addr)) {
+        Assert(len == 1 || len == 2 || len == 4, "Invalid memory read length");
+
+        result |= memory[addr - MEMORY_OFFSET];
+        if (len >= 2) {
+            result |= memory[addr - MEMORY_OFFSET + 1] << 8;
+        }
+        if (len >= 4) {
+            result |= memory[addr - MEMORY_OFFSET + 2] << 16;
+            result |= memory[addr - MEMORY_OFFSET + 3] << 24;
+        }
+        return result;
+    }
+
+    result = device_mmio_read(addr, len);
     return result;
 }
 
@@ -58,17 +73,22 @@ word_t readMemory(addr_t addr) {
  * @brief 向主存中写入内容。
  * 
  * @param addr 主存地址（包含了内存地址偏移的）
+ * @param len 写入长度（单位为字节）
  * @param data 将要写入的内容
  */
-void writeMemory(addr_t addr, word_t data) {
-    uint32_t val;
+void writeMemory(addr_t addr, int len, word_t data) {
+    word_t val;
+    size_t i;
 
     val = data;
-    memory[addr - MEMORY_OFFSET] = val & 0xFF;
-    val >>= 8;
-    memory[addr - MEMORY_OFFSET + 1] = val & 0xFF;
-    val >>= 8;
-    memory[addr - MEMORY_OFFSET + 2] = val & 0xFF;
-    val >>= 8;
-    memory[addr - MEMORY_OFFSET + 3] = val;
+
+    if (isPhysMemoryAddr(addr)) {
+        for (i = 0; i < len; i++) {
+            memory[addr - MEMORY_OFFSET + i] = val & 0xFF;
+            val >>= 8;
+        }
+        return;
+    }
+    
+    device_mmio_write(addr, len, val);
 }

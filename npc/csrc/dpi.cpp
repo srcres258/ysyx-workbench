@@ -5,105 +5,14 @@
 #include <print>
 #include <sim_top.hpp>
 #include <memory.hpp>
-#include <dpi.hpp>
 #include <utils.hpp>
+#include <utils/Stage.hpp>
 
 extern "C" void dpi_halt(bool halt) {
     sim_halt = halt;
 
     if (sim_halt) {
         std::cout << "[sim] 仿真环境置仿真终止信号，处理器下一次执行前将结束仿真！" << std::endl;
-    }
-}
-
-extern "C" void dpi_onAddressUpdate(uint32_t _address) {
-    uint32_t addr, data;
-
-    std::cout << "[sim] 仿真环境检测到处理器寻址地址发生改变，正在从内存中读数据并提供给处理器..." << std::endl;
-
-    addr = top->io_address;
-    std::cout << "[sim] 地址: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << addr << std::endl;
-    if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
-        data = readMemory(addr);
-        std::cout << "[sim] 数据: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << data << std::endl;
-        top->io_readData = data;
-    } else {
-        std::cerr << "[sim] 地址尚未初始化，置缺省值..." << std::endl;
-        top->io_readData = 0;
-    }
-}
-
-extern "C" void dpi_onLSTypeUpdate(uint8_t _lsType) {
-    uint8_t lsType;
-    bool memoryAccessed;
-    std::string lsTypeStr, mtraceContent;
-
-    std::cout << "[sim] 仿真环境检测到处理器访存类型发生改变，将记录 mtrace ..." << std::endl;
-    lsType = top->ioDPI_lsType;
-
-    switch (lsType) {
-        case LS_L_W:
-        case LS_L_H:
-        case LS_L_HU:
-        case LS_L_B:
-        case LS_L_BU:
-            lsTypeStr = "load";
-            memoryAccessed = true;
-            break;
-        case LS_S_W:
-        case LS_S_H:
-        case LS_S_B:
-            lsTypeStr = "store";
-            memoryAccessed = true;
-            break;
-        default:
-            memoryAccessed = false;
-    }
-
-    if (memoryAccessed) {
-        size_t len;
-        /*
-        B: 字节 (1 byte )
-        H: 半字 (2 bytes)
-        W：字   (4 bytes)
-        */
-        len = 0;
-        switch (lsType) {
-            case LS_L_B:
-            case LS_L_BU:
-            case LS_S_B:
-                len = 1;
-                break;
-            case LS_L_H:
-            case LS_L_HU:
-            case LS_S_H:
-                len = 2;
-                break;
-            case LS_L_W:
-            case LS_S_W:
-                len = 4;
-        }
-
-        addr_t addr = top->io_address;
-        word_t data;
-        if (lsTypeStr == "store") {
-            data = top->io_writeData;
-        } else {
-            data = readMemory(addr);
-        }
-        mtraceContent = std::format(
-            "0x{:08x}: Memory {} at 0x{:08x}, len {}, data 0x{:08x}",
-            top->ioDPI_pc, lsTypeStr, addr, len, data
-        );
-
-        if (sim_config.config_mtrace) {
-            sim_state.mtrace_ofs << mtraceContent << std::endl;
-            std::flush(sim_state.mtrace_ofs);
-        }
-
-        std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
     }
 }
 
@@ -142,7 +51,7 @@ extern "C" void dpi_onInst_jal(bool _trig) {
     addr_t pc, destAddr;
     imm = top->ioDPI_imm;
     rd = top->ioDPI_rd;
-    pc = top->ioDPI_pc;
+    pc = top->io_pc;
     destAddr = pc + imm;
 
     if (rd == 1) {
@@ -171,7 +80,7 @@ extern "C" void dpi_onInst_jalr(bool _trig) {
     imm = top->ioDPI_imm;
     rd = top->ioDPI_rd;
     rs1 = top->ioDPI_rs1;
-    pc = top->ioDPI_pc;
+    pc = top->io_pc;
     destAddr = src1 + imm;
 
     if (isAddrFuncSymStart(destAddr) || (rd == 1 && rs1 == 1)) {
@@ -204,5 +113,122 @@ extern "C" void dpi_onInst_jalr(bool _trig) {
             pc, destAddr
         );
         tryRecord(CALL_TYPE_TAIL, pc, destAddr);
+    }
+}
+
+static size_t dataStrobeToSize(uint8_t dataStrobe) {
+    switch (dataStrobe & 0b1111) {
+        case 0b0001:
+            return 1;
+        case 0b0011:
+            return 2;
+        case 0b1111:
+            return 4;
+    }
+
+    return 0;
+}
+
+extern "C" void dpi_onMemWriteEnable(bool _memWriteEnable) {
+    addr_t addr;
+    word_t data;
+
+    bool memWriteEnable = top->io_writeEnable;
+    if (!memWriteEnable) {
+        return;
+    }
+
+    std::cout << "[sim] 处理器置写使能，将向主存写入数据..." << std::endl;
+
+    addr = top->io_address;
+    if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
+        data = top->io_writeData;
+        std::cout << "地址: 0x" << std::setfill('0') <<
+            std::setw(8) << std::hex << addr <<
+            ", 数据: 0x" << std::setfill('0') <<
+            std::setw(8) << std::hex << data << std::endl;
+        size_t len = dataStrobeToSize(top->io_dataStrobe);
+        std::cout << "[sim] 长度: " << std::dec << len << std::endl;
+        writeMemory(addr, len, data);
+
+        if (sim_config.config_mtrace) {
+            std::string mtraceContent = std::format(
+                "0x{:08x}: Memory write at 0x{:08x}, len {}, data 0x{:08x}",
+                top->io_pc, addr, len, data
+            );
+            sim_state.mtrace_ofs << mtraceContent << std::endl;
+            std::flush(sim_state.mtrace_ofs);
+            std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
+        }
+    } else {
+        std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
+            << addr << " 尚未初始化，跳过..." << std::endl;
+    }
+}
+
+extern "C" void dpi_onMemReadEnable(bool _memReadEnable) {
+    addr_t addr;
+    word_t data;
+    
+    bool memReadEnable = top->io_readEnable;
+
+    if (!memReadEnable) {
+        return;
+    }
+
+    std::cout << "[sim] 处理器置读使能，将从主存读取数据..." << std::endl;
+
+    addr = top->io_address;
+    std::cout << "[sim] 地址: 0x" << std::setfill('0') <<
+            std::setw(8) << std::hex << addr << std::endl;
+    if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
+        size_t len = dataStrobeToSize(top->io_dataStrobe);
+        data = readMemory(addr, len);
+        std::cout << "[sim] 数据: 0x" << std::setfill('0') <<
+            std::setw(8) << std::hex << data << std::endl;
+        std::cout << "[sim] 长度: " << std::dec << len << std::endl;
+        top->io_readData = data;
+
+        if (sim_config.config_mtrace) {
+            std::string mtraceContent = std::format(
+                "0x{:08x}: Memory read at 0x{:08x}, len {}, data 0x{:08x}",
+                top->io_pc, addr, len, data
+            );
+            sim_state.mtrace_ofs << mtraceContent << std::endl;
+            std::flush(sim_state.mtrace_ofs);
+            std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
+        }
+    } else {
+        std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
+            << addr << " 尚未初始化，跳过..." << std::endl;
+        top->io_readData = 0;
+    }
+}
+
+extern "C" void dpi_onStage(uint8_t _stage) {
+    uint8_t stage = top->ioDPI_stage;
+
+    std::cout << "[sim] 处理器当前阶段: ";
+    switch (stage & 0b111) {
+        case STAGE_IF:
+            std::cout << "IF" << std::endl;
+            break;
+        case STAGE_ID:
+            std::cout << "ID" << std::endl;
+            break;
+        case STAGE_EX:
+            std::cout << "EX" << std::endl;
+            break;
+        case STAGE_MA:
+            std::cout << "MA" << std::endl;
+            break;
+        case STAGE_WB:
+            std::cout << "WB" << std::endl;
+            break;
+        case STAGE_UPC:
+            std::cout << "UPC" << std::endl;
+            break;
+        default:
+            std::cout << "Unknown" << std::endl;
     }
 }
