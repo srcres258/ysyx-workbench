@@ -343,7 +343,7 @@ static int64_t eval(int p, int q, bool *success) {
       *success = false;
       return 0;
     }
-    num = vaddr_read(mem_addr, 4);
+    num = vaddr_read_mtrace(mem_addr, 4, false);
     *success = true;
     return num;
   } else if (check_parentheses(p, q)) {

@@ -15,15 +15,24 @@
 
 #include <isa.h>
 #include <memory/paddr.h>
+#include <memory/vaddr.h>
 
 word_t vaddr_ifetch(vaddr_t addr, int len) {
-  return paddr_read(addr, len);
+  return paddr_read_mtrace(addr, len, false);
 }
 
 word_t vaddr_read(vaddr_t addr, int len) {
-  return paddr_read(addr, len);
+  return vaddr_read_mtrace(addr, len, true);
+}
+
+word_t vaddr_read_mtrace(vaddr_t addr, int len, bool mtrace_on) {
+  return paddr_read_mtrace(addr, len, mtrace_on);
 }
 
 void vaddr_write(vaddr_t addr, int len, word_t data) {
-  paddr_write(addr, len, data);
+  return vaddr_write_mtrace(addr, len, data, true);
+}
+
+void vaddr_write_mtrace(vaddr_t addr, int len, word_t data, bool mtrace_on) {
+  paddr_write_mtrace(addr, len, data, mtrace_on);
 }

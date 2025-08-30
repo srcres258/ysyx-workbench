@@ -20,7 +20,9 @@
 
 word_t vaddr_ifetch(vaddr_t addr, int len);
 word_t vaddr_read(vaddr_t addr, int len);
+word_t vaddr_read_mtrace(vaddr_t addr, int len, bool mtrace_on);
 void vaddr_write(vaddr_t addr, int len, word_t data);
+void vaddr_write_mtrace(vaddr_t addr, int len, word_t data, bool mtrace_on);
 
 #define PAGE_SHIFT        12
 #define PAGE_SIZE         (1ul << PAGE_SHIFT)

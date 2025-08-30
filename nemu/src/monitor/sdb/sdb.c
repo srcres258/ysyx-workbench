@@ -154,7 +154,7 @@ static int cmd_x(char *args) {
   printf("Memory scan: addr=0x%08X, N=%d\n", addr, N);
   cur_addr = addr;
   for (i = 0; i < N; i++) {
-    value = vaddr_read(cur_addr, 4);
+    value = vaddr_read_mtrace(cur_addr, 4, false);
     printf("0x%08X: %08X\n", cur_addr, value);
     cur_addr += 4;
   }
