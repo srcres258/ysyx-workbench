@@ -54,6 +54,19 @@ static void invokeCallback(io_callback_t c, addr_t offset, int len, bool isWrite
     }
 }
 
+static void dtraceRecord(
+    addr_t addr,int len, word_t data,
+    const IOMap *map, std::string type
+) {
+    auto content = std::format(
+        "0x{:08x}: Device {}: {} at 0x{:08x}, len {}, data 0x{:08x}",
+        top->io_pc, map->name, type, addr, len, data
+    );
+    sim_state.dtrace_ofs << content << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "[sim] dtrace: " << content << std::endl;
+}
+
 bool IOMap::isInside(addr_t addr) const {
     return addr >= low && addr <= high;
 }
@@ -64,7 +77,9 @@ word_t IOMap::read(addr_t addr, int len) const {
     addr_t offset = addr - low;
     invokeCallback(callback, offset, len, false);
     word_t ret = memoryHostRead(space + offset, len);
-    // TODO: dtrace
+    if (sim_config.config_dtrace) {
+        dtraceRecord(addr, len, ret, this, "read");
+    }
     return ret;
 }
 
@@ -74,7 +89,9 @@ void IOMap::write(addr_t addr, int len, word_t data) const {
     addr_t offset = addr - low;
     memoryHostWrite(space + offset, len, data);
     invokeCallback(callback, offset, len, true);
-    // TODO: dtrace
+    if (sim_config.config_dtrace) {
+        dtraceRecord(addr, len, data, this, "write");
+    }
 }
 
 void device_map_init() {

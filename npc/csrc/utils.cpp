@@ -12,8 +12,11 @@ SimConfig sim_config = {
     .config_itrace = false,
     .config_mtrace = false,
     .config_ftrace = false,
+    .config_dtrace = false,
     .config_difftest = false,
     .config_device = false,
+    .config_wave = false,
+    .config_debugOutput = false,
 
     .config_difftestPort = DEFAULT_DIFFTEST_PORT,
 
@@ -23,10 +26,14 @@ SimConfig sim_config = {
         std::move(std::string(DEFAULT_MTRACE_OUT_FILE_PATH)),
     .config_ftraceOutFilePath =
         std::move(std::string(DEFAULT_FTRACE_OUT_FILE_PATH)),
+    .config_dtraceOutFilePath =
+        std::move(std::string(DEFAULT_DTRACE_OUT_FILE_PATH)),
     .config_elfFilePath =
         std::move(std::string(DEFAULT_ELF_FILE_PATH)),
     .config_difftestSoFilePath =
-        std::move(std::string(DEFAULT_DIFFTEST_SO_FILE_PATH))
+        std::move(std::string(DEFAULT_DIFFTEST_SO_FILE_PATH)),
+    .config_waveFilePath =
+        std::move(std::string(DEFAULT_WAVE_FILE_PATH))
 };
 
 SimState sim_state = {
@@ -80,6 +87,9 @@ void sim_state_ofstream_init() {
     if (sim_config.config_ftrace) {
         sim_state.ftrace_ofs.open(sim_config.config_ftraceOutFilePath);
     }
+    if (sim_config.config_dtrace) {
+        sim_state.dtrace_ofs.open(sim_config.config_dtraceOutFilePath);
+    }
 }
 
 /**
@@ -94,6 +104,9 @@ void sim_state_ofstream_finalise() {
     }
     if (sim_config.config_ftrace) {
         sim_state.ftrace_ofs.flush();
+    }
+    if (sim_config.config_dtrace) {
+        sim_state.dtrace_ofs.flush();
     }
 }
 

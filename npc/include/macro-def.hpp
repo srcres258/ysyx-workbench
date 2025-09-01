@@ -13,6 +13,15 @@
 #define RISCV_GPR_NUM 32
 #endif
 
-#define SERIAL_MMIO_ADDR 0xa00003f8
+#define SERIAL_MMIO_ADDR    0xa00003f8
+#define RTC_MMIO_ADDR       0xa0000048
+#define VGA_CTL_MMIO_ADDR   0xa0000100
+#define VGA_FB_MMIO_ADDR    0xa1000000
+#define KEYBOARD_MMIO_ADDR  0xa0000060
+
+#define TIMER_HZ 60
+
+#define VGA_SCREEN_W 400
+#define VGA_SCREEN_H 300
 
 #endif /* __MACRO_DEF_HPP__ */

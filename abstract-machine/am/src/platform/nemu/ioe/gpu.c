@@ -29,7 +29,7 @@ static void read_gpu_config(AM_GPU_CONFIG_T *cfg) {
 
 void __am_gpu_init() {
   int i, w, h;
-  uint32_t *fb;
+  volatile uint32_t *fb;
 
   read_gpu_config(NULL);
   w = cached_gpu_config.width;
@@ -48,7 +48,7 @@ void __am_gpu_config(AM_GPU_CONFIG_T *cfg) {
 void __am_gpu_fbdraw(AM_GPU_FBDRAW_T *ctl) {
   size_t offset, cur_x, cur_y;
   uintptr_t cur_addr;
-  uint32_t *cur_src_addr;
+  volatile uint32_t *cur_src_addr;
 
   if (!cached_gpu_config_available) {
     return;

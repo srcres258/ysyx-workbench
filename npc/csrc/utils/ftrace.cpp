@@ -57,7 +57,8 @@ bool ftrace_tryRecord(
         message += tmpStr;
         sim_state.ftrace_ofs << message << std::endl;
         std::flush(sim_state.ftrace_ofs);
-        std::cout << "[sim] ftrace: " << message << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "[sim] ftrace: " << message << std::endl;
 
         // 将该函数入栈
         CallStackInfo info;
@@ -80,7 +81,7 @@ bool ftrace_tryRecord(
         // 先将当前函数出栈
         // 【注意】由于编译器/汇编器可能进行尾调用消除优化，出栈时要出到目标函数层级
         // （可能需要出不止一层栈）
-        for (;;) {
+        while (sim_state.ftrace_callStack.size() > 0) {
             const auto &info = sim_state.ftrace_callStack.top();
             if (info.name == destFuncName) {
                 break;
@@ -127,7 +128,7 @@ bool ftrace_tryRecord(
         if (destFuncName == "<unknown>") {
             sim_state.ftrace_callStack.pop();
         } else {
-            for (;;) {
+            while (sim_state.ftrace_callStack.size() > 0) {
                 const auto &info = sim_state.ftrace_callStack.top();
                 if (info.name == destFuncName) {
                     break;

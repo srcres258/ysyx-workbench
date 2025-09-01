@@ -31,6 +31,12 @@ static void loadConfig() {
         std::cout << "[config] ftrace 已启用" << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_DTRACE");
+    sim_config.config_dtrace = env && strcmp(env, "on") == 0;
+    if (sim_config.config_dtrace) {
+        std::cout << "[config] dtrace 已启用" << std::endl;
+    }
+
     env = std::getenv("NPC_CONFIG_DIFFTEST");
     sim_config.config_difftest = env && strcmp(env, "on") == 0;
     if (sim_config.config_difftest) {
@@ -47,6 +53,12 @@ static void loadConfig() {
     sim_config.config_wave = env && strcmp(env, "on") == 0;
     if (sim_config.config_wave) {
         std::cout << "[config] 波形文件输出已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_DEBUG_OUTPUT");
+    sim_config.config_debugOutput = env && strcmp(env, "on") == 0;
+    if (sim_config.config_debugOutput) {
+        std::cout << "[config] 调试信息输出已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_PORT");
@@ -82,6 +94,14 @@ static void loadConfig() {
             std::move(std::string(env));
         std::cout << "[config] ftrace 输出路径已指定为: " <<
             sim_config.config_ftraceOutFilePath << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_DTRACE_OUT_FILE_PATH");
+    if (env) {
+        sim_config.config_dtraceOutFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] dtrace 输出路径已指定为: " <<
+            sim_config.config_dtraceOutFilePath << std::endl;
     }
     
     env = std::getenv("NPC_CONFIG_ELF_FILE_PATH");

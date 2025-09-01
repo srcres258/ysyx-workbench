@@ -1,6 +1,24 @@
+#include <iostream>
+#include <iomanip>
+#include <format>
 #include <utility>
 #include <sim_top.hpp>
 #include <processor.hpp>
+
+void ProcessorState::dump() {
+    int i;
+
+    std::cout << "Registers:" << std::endl;
+    for (i = 0; i < RISCV_GPR_NUM; i++) {
+        auto regName = std::format("x{}", i);
+        std::cout << std::setfill(' ') << std::setw(4) << regName <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << gpr[i] << std::dec << std::endl;
+    }
+
+    std::cout << "PC is currently at 0x" << std::setfill('0') <<
+        std::setw(8) << std::hex << pc << std::dec << std::endl;
+}
 
 /**
  * @brief 获取当前仿真环境的处理器状态。

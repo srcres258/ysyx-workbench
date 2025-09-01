@@ -23,22 +23,27 @@ enum SimStateEnum { SIM_RUNNING, SIM_STOP, SIM_END, SIM_ABORT, SIM_QUIT };
 #define DEFAULT_ITRACE_OUT_FILE_PATH "build/itrace.log"
 #define DEFAULT_MTRACE_OUT_FILE_PATH "build/mtrace.log"
 #define DEFAULT_FTRACE_OUT_FILE_PATH "build/ftrace.log"
+#define DEFAULT_DTRACE_OUT_FILE_PATH "build/dtrace.log"
 #define DEFAULT_ELF_FILE_PATH "build/program.elf"
 #define DEFAULT_DIFFTEST_SO_FILE_PATH "build/riscv32-nemu-interpreter-so"
+#define DEFAULT_WAVE_FILE_PATH "build/sim.fst"
 
 struct SimConfig {
     bool config_itrace;
     bool config_mtrace;
     bool config_ftrace;
+    bool config_dtrace;
     bool config_difftest;
     bool config_device;
     bool config_wave;
+    bool config_debugOutput;
 
     int config_difftestPort;
 
     std::string config_itraceOutFilePath;
     std::string config_mtraceOutFilePath;
     std::string config_ftraceOutFilePath;
+    std::string config_dtraceOutFilePath;
     std::string config_elfFilePath;
     std::string config_difftestSoFilePath;
     std::string config_waveFilePath;
@@ -55,6 +60,7 @@ struct SimState {
     std::ofstream itrace_ofs;
     std::ofstream mtrace_ofs;
     std::ofstream ftrace_ofs;
+    std::ofstream dtrace_ofs;
 };
 
 extern SimConfig sim_config;
@@ -185,5 +191,14 @@ bool ftrace_tryRecord(CallType type, addr_t srcAddr, addr_t addr);
 word_t memoryHostRead(const void *addr, int len);
 
 void memoryHostWrite(void *addr, int len, word_t data);
+
+// ----------- util macros -----------
+
+// functional-programming-like macro (X-macro)
+// apply the function `f` to each element in the container `c`
+// NOTE1: `c` should be defined as a list like:
+//   f(a0) f(a1) f(a2) ...
+// NOTE2: each element in the container can be a tuple
+#define MAP(c, f) c(f)
 
 #endif /* __UTILS_HPP__ */

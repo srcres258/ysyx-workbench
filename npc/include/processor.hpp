@@ -17,6 +17,11 @@ extern "C" struct ProcessorState {
      * 
      */
     addr_t pc;
+
+    /**
+     * @brief 将处理器状态进行可读化输出。
+     */
+    void dump();
 };
 
 /**

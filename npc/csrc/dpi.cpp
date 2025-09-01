@@ -12,7 +12,8 @@ extern "C" void dpi_halt(bool halt) {
     sim_halt = halt;
 
     if (sim_halt) {
-        std::cout << "[sim] 仿真环境置仿真终止信号，处理器下一次执行前将结束仿真！" << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "[sim] 仿真环境置仿真终止信号，处理器下一次执行前将结束仿真！" << std::endl;
     }
 }
 
@@ -31,9 +32,11 @@ static bool tryRecord(CallType type, addr_t pc, addr_t destAddr) {
     
     result = ftrace_tryRecord(type, pc, destAddr);
     if (result) {
-        std::cout << "[sim] ftrace: Detect succeeded." << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "[sim] ftrace: Detect succeeded." << std::endl;
     } else {
-        std::cout << "[sim] ftrace: Detect failed." << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "[sim] ftrace: Detect failed." << std::endl;
     }
 
     return result;
@@ -57,11 +60,12 @@ extern "C" void dpi_onInst_jal(bool _trig) {
     if (rd == 1) {
         // 情况：rd 为 x1
         // 推测：该 jal 指令可能来源于 call 伪指令
-        std::println(
-            "[sim] ftrace: Detected call from jal at pc = {:#08x}, "
-                "dest_addr = {:#08x}",
-            pc, destAddr
-        );
+        if (sim_config.config_debugOutput)
+            std::println(
+                "[sim] ftrace: Detected call from jal at pc = {:#08x}, "
+                    "dest_addr = {:#08x}",
+                pc, destAddr
+            );
         tryRecord(CALL_TYPE_CALL, pc, destAddr);
     }
 }
@@ -89,29 +93,32 @@ extern "C" void dpi_onInst_jalr(bool _trig) {
         // 推测：该 jalr 指令可能来源于 call 伪指令
         // 情况：rd 为 x1
         // 推测：该 jal 指令可能来源于 call 伪指令
-        std::println(
-            "[sim] ftrace: Detected call from jalr at pc = {:#08x}, "
-                "dest_addr = {:#08x}",
-            pc, destAddr
-        );
+        if (sim_config.config_debugOutput)
+            std::println(
+                "[sim] ftrace: Detected call from jalr at pc = {:#08x}, "
+                    "dest_addr = {:#08x}",
+                pc, destAddr
+            );
         tryRecord(CALL_TYPE_CALL, pc, destAddr);
     } else if (rd == 0 && rs1 == 1) {
         // 情况：rd 为 x0， rs1 为 x1
         // 推测：该 jalr 指令可能来源于 ret 伪指令
-        std::println(
-            "[sim] ftrace: Detected ret from jalr at pc = {:#08x}, "
-                "dest_addr = {:#08x}",
-            pc, destAddr
-        );
+        if (sim_config.config_debugOutput)
+            std::println(
+                "[sim] ftrace: Detected ret from jalr at pc = {:#08x}, "
+                    "dest_addr = {:#08x}",
+                pc, destAddr
+            );
         tryRecord(CALL_TYPE_RET, pc, destAddr);
     } else if (rd == 1 && (rs1 == 6 || rs1 == 7)) {
         // 情况：rd 为 x1， rs1 为 x6 或 x7
         // 推测：该 jalr 指令可能来源于 tail 伪指令
-        std::println(
-            "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, "
-                "dest_addr = {:#08x}",
-            pc, destAddr
-        );
+        if (sim_config.config_debugOutput)
+            std::println(
+                "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, "
+                    "dest_addr = {:#08x}",
+                pc, destAddr
+            );
         tryRecord(CALL_TYPE_TAIL, pc, destAddr);
     }
 }
@@ -138,17 +145,20 @@ extern "C" void dpi_onMemWriteEnable(bool _memWriteEnable) {
         return;
     }
 
-    std::cout << "[sim] 处理器置写使能，将向主存写入数据..." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "[sim] 处理器置写使能，将向主存写入数据..." << std::endl;
 
     addr = top->io_address;
     if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
         data = top->io_writeData;
-        std::cout << "地址: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << addr <<
-            ", 数据: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << data << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "地址: 0x" << std::setfill('0') <<
+                std::setw(8) << std::hex << addr <<
+                ", 数据: 0x" << std::setfill('0') <<
+                std::setw(8) << std::hex << data << std::endl;
         size_t len = dataStrobeToSize(top->io_dataStrobe);
-        std::cout << "[sim] 长度: " << std::dec << len << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "[sim] 长度: " << std::dec << len << std::endl;
         writeMemory(addr, len, data);
 
         if (sim_config.config_mtrace) {
@@ -158,11 +168,13 @@ extern "C" void dpi_onMemWriteEnable(bool _memWriteEnable) {
             );
             sim_state.mtrace_ofs << mtraceContent << std::endl;
             std::flush(sim_state.mtrace_ofs);
-            std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
+            if (sim_config.config_debugOutput)
+                std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
         }
     } else {
-        std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
-            << addr << " 尚未初始化，跳过..." << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
+                << addr << " 尚未初始化，跳过..." << std::endl;
     }
 }
 
@@ -176,17 +188,21 @@ extern "C" void dpi_onMemReadEnable(bool _memReadEnable) {
         return;
     }
 
-    std::cout << "[sim] 处理器置读使能，将从主存读取数据..." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "[sim] 处理器置读使能，将从主存读取数据..." << std::endl;
 
     addr = top->io_address;
-    std::cout << "[sim] 地址: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << addr << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "[sim] 地址: 0x" << std::setfill('0') <<
+                std::setw(8) << std::hex << addr << std::endl;
     if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
         size_t len = dataStrobeToSize(top->io_dataStrobe);
         data = readMemory(addr, len);
-        std::cout << "[sim] 数据: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << data << std::endl;
-        std::cout << "[sim] 长度: " << std::dec << len << std::endl;
+        if (sim_config.config_debugOutput) {
+            std::cout << "[sim] 数据: 0x" << std::setfill('0') <<
+                std::setw(8) << std::hex << data << std::endl;
+            std::cout << "[sim] 长度: " << std::dec << len << std::endl;
+        }
         top->io_readData = data;
 
         if (sim_config.config_mtrace) {
@@ -196,11 +212,13 @@ extern "C" void dpi_onMemReadEnable(bool _memReadEnable) {
             );
             sim_state.mtrace_ofs << mtraceContent << std::endl;
             std::flush(sim_state.mtrace_ofs);
-            std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
+            if (sim_config.config_debugOutput)
+                std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
         }
     } else {
-        std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
-            << addr << " 尚未初始化，跳过..." << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
+                << addr << " 尚未初始化，跳过..." << std::endl;
         top->io_readData = 0;
     }
 }
@@ -208,27 +226,29 @@ extern "C" void dpi_onMemReadEnable(bool _memReadEnable) {
 extern "C" void dpi_onStage(uint8_t _stage) {
     uint8_t stage = top->ioDPI_stage;
 
-    std::cout << "[sim] 处理器当前阶段: ";
-    switch (stage & 0b111) {
-        case STAGE_IF:
-            std::cout << "IF" << std::endl;
-            break;
-        case STAGE_ID:
-            std::cout << "ID" << std::endl;
-            break;
-        case STAGE_EX:
-            std::cout << "EX" << std::endl;
-            break;
-        case STAGE_MA:
-            std::cout << "MA" << std::endl;
-            break;
-        case STAGE_WB:
-            std::cout << "WB" << std::endl;
-            break;
-        case STAGE_UPC:
-            std::cout << "UPC" << std::endl;
-            break;
-        default:
-            std::cout << "Unknown" << std::endl;
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] 处理器当前阶段: ";
+        switch (stage & 0b111) {
+            case STAGE_IF:
+                std::cout << "IF" << std::endl;
+                break;
+            case STAGE_ID:
+                std::cout << "ID" << std::endl;
+                break;
+            case STAGE_EX:
+                std::cout << "EX" << std::endl;
+                break;
+            case STAGE_MA:
+                std::cout << "MA" << std::endl;
+                break;
+            case STAGE_WB:
+                std::cout << "WB" << std::endl;
+                break;
+            case STAGE_UPC:
+                std::cout << "UPC" << std::endl;
+                break;
+            default:
+                std::cout << "Unknown" << std::endl;
+        }
     }
 }

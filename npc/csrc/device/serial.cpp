@@ -6,7 +6,7 @@
 
 #define CH_OFFSET 0
 
-static uint8_t *serial_base = nullptr;
+static void *serial_base = nullptr;
 
 static void serial_putc(char ch) {
     std::cerr.put(ch);
@@ -14,11 +14,14 @@ static void serial_putc(char ch) {
 }
 
 static void serial_io_handler(uint32_t offset, int len, bool isWrite) {
+    uint8_t *serialAddr;
+    
     Assert(len == 1);
+    serialAddr = (uint8_t *) serial_base;
     switch (offset) {
         case CH_OFFSET:
             if (isWrite) {
-                serial_putc(serial_base[0]);
+                serial_putc(serialAddr[0]);
             } else {
                 panic("do not support read");
             }

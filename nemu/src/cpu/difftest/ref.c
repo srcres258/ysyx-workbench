@@ -18,17 +18,6 @@
 #include <difftest-def.h>
 #include <memory/paddr.h>
 
-static void dump_cpu_regs(void) {
-  size_t n, i;
-
-  printf("Registers:\n");
-  n = sizeof(cpu.gpr) / sizeof(cpu.gpr[0]);
-  for (i = 0; i < n; i++) {
-    printf("x%ld: 0x%08x\n", i, cpu.gpr[i]);
-  }
-  printf("PC: 0x%08x\n", cpu.pc);
-}
-
 __EXPORT void difftest_memcpy(paddr_t addr, void *buf, size_t n, bool direction) {
   uint8_t *b_buf;
   size_t i;
@@ -54,8 +43,6 @@ __EXPORT void difftest_regcpy(void *dut, bool direction) {
   } else {
     memcpy(dut_cpu, &cpu, sizeof(CPU_state));
   }
-
-  dump_cpu_regs();
 }
 
 __EXPORT void difftest_exec(uint64_t n) {

@@ -13,6 +13,7 @@ Area heap = RANGE(&_heap_start, PMEM_END);
 static const char mainargs[MAINARGS_MAX_LEN] = TOSTRING(MAINARGS_PLACEHOLDER); // defined in CFLAGS
 
 #define SERIAL_MMIO_ADDR 0xa00003f8
+#define RTC_MMIO_ADDR 0xa0000048
 
 void putch(char ch) {
   outb(SERIAL_MMIO_ADDR, ch);

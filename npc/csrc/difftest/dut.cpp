@@ -90,6 +90,9 @@ static void checkregs(ProcessorState *refState, addr_t pc) {
         std::println("[difftest] 检测到 DUT 与 REF 的处理器状态不一致! 正在中止...");
         sim_state.state = SIM_ABORT;
         sim_state.haltPC = pc;
+        std::cout << "----- REF registers -----" << std::endl;
+        refState->dump();
+        std::cout << "----- DUT registers -----" << std::endl;
         isaRegDisplay();
     }
 }

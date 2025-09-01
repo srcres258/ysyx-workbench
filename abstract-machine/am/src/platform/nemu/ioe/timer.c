@@ -17,9 +17,9 @@ void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime) {
   */
   timer_addr = (uintptr_t) RTC_ADDR;
   result = 0;
-  result = inl(timer_addr + sizeof(uint32_t));   // 先访问高字
+  result = inl(timer_addr + sizeof(uint32_t));    // 先访问高字
   result <<= 32;
-  result |= inl(timer_addr);      // 再访问低字
+  result |= inl(timer_addr);                      // 再访问低字
   uptime->us = result;
 }
 

@@ -12,6 +12,7 @@
 #include <difftest/dut.hpp>
 #include <device.hpp>
 #include <utils/Stage.hpp>
+#include <utils/timer.hpp>
 
 ExecInfo simExecInfo = {
     .pc = 0x00000000,
@@ -64,31 +65,37 @@ bool simExecOnce() {
     addr_t addr;
     word_t data;
 
-    std::cout << "处理器第 " << std::dec << execCount << " 次执行 (从 0 开始算)..." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "处理器第 " << std::dec << execCount << " 次执行 (从 0 开始算)..." << std::endl;
 
     simExecInfo.pc = top->io_pc;
-    std::cout << "当前PC: 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << simExecInfo.pc << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "当前PC: 0x" << std::setfill('0') <<
+            std::setw(8) << std::hex << simExecInfo.pc << std::endl;
 
     // 从内存中读指令
     simExecInfo.inst = 0x00000000;
-    std::cout << "正在从内存中读指令..." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "正在从内存中读指令..." << std::endl;
     addr = top->io_pc;
     if (addr >= MEMORY_OFFSET) {
         data = readMemory(addr, sizeof(word_t));
-        std::cout << "地址: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << addr <<
-            ", 指令: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << data << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "地址: 0x" << std::setfill('0') <<
+                std::setw(8) << std::hex << addr <<
+                ", 指令: 0x" << std::setfill('0') <<
+                std::setw(8) << std::hex << data << std::endl;
         top->io_instData = data;
         simExecInfo.inst = data;
     } else {
-        std::cerr << "地址尚未初始化，仿真无法继续，只能异常退出！" << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cerr << "地址尚未初始化，仿真无法继续，只能异常退出！" << std::endl;
         return false;
     }
 
     // 解析指令
-    std::cout << "正在解析该条指令..." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "正在解析该条指令..." << std::endl;
     simStep();
 
     execCount++;
@@ -122,8 +129,10 @@ bool simExecOnce() {
         sim_state.itrace_ofs << str;
         std::flush(sim_state.itrace_ofs);
 
-        std::cout << str;
-        std::flush(std::cout);
+        if (sim_config.config_debugOutput) {
+            std::cout << str;
+            std::flush(std::cout);
+        }
     }
 
     return true;
@@ -160,6 +169,9 @@ static void execute(uint64_t n) {
         if (sim_state.state != SIM_RUNNING) {
             break;
         }
+        if (sim_config.config_device) {
+            device_update();
+        }
     }
 
     if (sim_config.config_itrace) {
@@ -179,7 +191,8 @@ void simExec(uint64_t n) {
         case SIM_END:
         case SIM_ABORT:
         case SIM_QUIT:
-            std::cout << "即将退出仿真！" << std::endl;
+            if (sim_config.config_debugOutput)
+                std::cout << "即将退出仿真！" << std::endl;
             return;
         default:
             sim_state.state = SIM_RUNNING;
@@ -194,13 +207,14 @@ void simExec(uint64_t n) {
         case SIM_END:
         case SIM_ABORT:
             halt_ret = top->ioDPI_registers_0;
-            std::cout << "仿真: " <<
-                (sim_state.state == SIM_ABORT ?
-                    ANSI_FMT("ABORT", ANSI_FG_RED) :
-                    ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
-                " at pc = 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
-                ", 结果: " << halt_ret << std::endl;
+            if (sim_config.config_debugOutput)
+                std::cout << "仿真: " <<
+                    (sim_state.state == SIM_ABORT ?
+                        ANSI_FMT("ABORT", ANSI_FG_RED) :
+                        ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
+                    " at pc = 0x" << std::setfill('0') <<
+                    std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
+                    ", 结果: " << halt_ret << std::endl;
     }
 }
 
@@ -216,6 +230,7 @@ extern size_t binFileSize;
 bool simulate(bool sdbEnabled) {
     word_t halt_ret;
 
+    timer_initRand();
     disasm_init();
     if (sim_config.config_itrace) {
         sim_state_itrace_iringbuf_init();
@@ -237,11 +252,13 @@ bool simulate(bool sdbEnabled) {
         tfp->open(sim_config.config_waveFilePath.c_str());
     }
 
-    std::cout << "正在重置处理器..." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "正在重置处理器..." << std::endl;
     simReset(1);
 
     if (sim_config.config_difftest) {
-        std::cout << "正在加载 DiffTest..." << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "正在加载 DiffTest..." << std::endl;
         difftest_dut_init(
             sim_config.config_difftestSoFilePath.c_str(),
             binFileSize,
@@ -250,11 +267,13 @@ bool simulate(bool sdbEnabled) {
     }
 
     if (sim_config.config_device) {
-        std::cout << "正在加载外部设备..." << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "正在加载外部设备..." << std::endl;
         device_init();
     }
 
-    std::cout << "正在启动仿真..." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "正在启动仿真..." << std::endl;
     if (sdbEnabled) {
         sdb_init();
         sdb_mainLoop();
@@ -262,7 +281,8 @@ bool simulate(bool sdbEnabled) {
         simExec(-1);
     }
 
-    std::cout << "仿真结束." << std::endl;
+    if (sim_config.config_debugOutput)
+        std::cout << "仿真结束." << std::endl;
     halt_ret = top->ioDPI_registers_0;
     delete top;
 
