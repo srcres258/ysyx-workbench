@@ -60,6 +60,13 @@ static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
     log_write("%s", nemu_state.dtrace_logbuf);
   }
 #endif
+#ifdef CONFIG_ETRACE
+  if (nemu_state.etrace_available) {
+    // newline character is not needed since it is already
+    // included in the logbuf
+    log_write("%s", nemu_state.etrace_logbuf);
+  }
+#endif
   if (g_print_step) { IFDEF(CONFIG_ITRACE, puts(_this->logbuf)); }
   IFDEF(CONFIG_DIFFTEST, difftest_step(_this->pc, dnpc));
 
@@ -76,6 +83,14 @@ static void exec_once(Decode *s, vaddr_t pc) {
 #ifdef CONFIG_FTRACE
   nemu_state.ftrace_available = false;
   memset(nemu_state.ftrace_logbuf, 0, sizeof(nemu_state.ftrace_logbuf));
+#endif
+#ifdef CONFIG_DTRACE
+  nemu_state.dtrace_available = false;
+  memset(nemu_state.dtrace_logbuf, 0, sizeof(nemu_state.dtrace_logbuf));
+#endif
+#ifdef CONFIG_ETRACE
+  nemu_state.etrace_available = false;
+  memset(nemu_state.etrace_logbuf, 0, sizeof(nemu_state.etrace_logbuf));
 #endif
 
   s->pc = pc;

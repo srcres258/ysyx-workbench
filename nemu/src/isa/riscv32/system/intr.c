@@ -14,13 +14,35 @@
 ***************************************************************************************/
 
 #include <isa.h>
+#include <cpu/difftest.h>
+
+#include "../local-include/reg.h"
+#include "../local-include/intr.h"
 
 word_t isa_raise_intr(word_t NO, vaddr_t epc) {
-  /* TODO: Trigger an interrupt/exception with ``NO''.
-   * Then return the address of the interrupt/exception vector.
-   */
+#ifdef CONFIG_DIFFTEST
+  ref_difftest_raise_intr(NO);
+#endif
 
-  return 0;
+#ifdef CONFIG_ETRACE
+  nemu_state.etrace_available = true;
+  size_t offset = strlen(nemu_state.etrace_logbuf);
+  snprintf(
+    nemu_state.etrace_logbuf + offset,
+    sizeof(nemu_state.etrace_logbuf) - offset,
+    "[etrace] " FMT_PADDR ": Exception number " FMT_WORD ", epc" FMT_PADDR "\n",
+    cpu.pc, NO, epc
+  );
+#endif
+
+  // riscv32触发异常后硬件的响应过程如下:
+  // 1. 将当前PC值保存到mepc寄存器
+  cpu.csr[CSR_MEPC] = epc;
+  // 2. 在mcause寄存器中设置异常号
+  cpu.csr[CSR_MCAUSE] = NO;
+  // 3. 从mtvec寄存器中取出异常入口地址
+  // (此处直接返回mtvec中的值即可)
+  return cpu.csr[CSR_MTVEC];
 }
 
 word_t isa_query_intr() {

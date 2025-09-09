@@ -20,6 +20,18 @@
 
 #define NR_GPR MUXDEF(CONFIG_RVE, 16, 32)
 
+/* CSR 编号 */
+
+#define CSR_MSTATUS 0x300
+#define CSR_MISA 0x301
+#define CSR_MIE 0x304
+#define CSR_MTVEC 0x305
+#define CSR_MSCRATCH 0x340
+#define CSR_MEPC 0x341
+#define CSR_MCAUSE 0x342
+#define CSR_MTVAL 0x343
+#define CSR_MIP 0x344
+
 static std::vector<std::pair<reg_t, abstract_device_t*>> difftest_plugin_devices;
 static std::vector<std::string> difftest_htif_args;
 static std::vector<std::pair<reg_t, mem_t*>> difftest_mem(
@@ -39,6 +51,9 @@ static debug_module_config_t difftest_dm_config = {
 struct diff_context_t {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   word_t pc;
+
+  // RISC-V 中的 CSR 编号: 0x000 - 0xFFF, 共 4096 个
+  word_t csr[4096];
 };
 
 static sim_t* s = NULL;
@@ -60,6 +75,13 @@ void sim_t::diff_get_regs(void* diff_context) {
     ctx->gpr[i] = state->XPR[i];
   }
   ctx->pc = state->pc;
+
+  // read CSRs
+  ctx->csr[CSR_MSTATUS] = state->mstatus.get()->read();
+  ctx->csr[CSR_MTVEC] = state->mtvec.get()->read();
+  ctx->csr[CSR_MEPC] = state->mepc.get()->read();
+  ctx->csr[CSR_MCAUSE] = state->mcause.get()->read();
+  ctx->csr[CSR_MTVAL] = state->mtval.get()->read();
 }
 
 void sim_t::diff_set_regs(void* diff_context) {
@@ -68,6 +90,13 @@ void sim_t::diff_set_regs(void* diff_context) {
     state->XPR.write(i, (sword_t)ctx->gpr[i]);
   }
   state->pc = ctx->pc;
+
+  // write CSRs
+  state->mstatus.get()->write(ctx->csr[CSR_MSTATUS]);
+  state->mtvec.get()->write(ctx->csr[CSR_MTVEC]);
+  state->mepc.get()->write(ctx->csr[CSR_MEPC]);
+  state->mcause.get()->write(ctx->csr[CSR_MCAUSE]);
+  state->mtval.get()->write(ctx->csr[CSR_MTVAL]);
 }
 
 void sim_t::diff_memcpy(reg_t dest, void* src, size_t n) {

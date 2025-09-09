@@ -8,7 +8,18 @@ Context* __am_irq_handle(Context *c) {
   if (user_handler) {
     Event ev = {0};
     switch (c->mcause) {
-      default: ev.event = EVENT_ERROR; break;
+      case MCAUSE_ECALL_FROM_M_MODE:
+        if (((int) c->gpr[17]) == -1) {
+          // a1 寄存器是 -1, 表明是 yield
+          ev.event = EVENT_YIELD;
+        } else {
+          ev.event = EVENT_SYSCALL;
+        }
+        c->mepc += 4; // skip the instruction that caused the interrupt
+        break;
+      default:
+        ev.event = EVENT_ERROR;
+        break;
     }
 
     c = user_handler(ev, c);

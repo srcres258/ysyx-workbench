@@ -33,6 +33,39 @@ void isa_reg_display() {
   }
 
   printf("PC is currently at 0x%08x\n", cpu.pc);
+
+  printf("CSRs:\n");
+  printf("mstatus : 0x%08x\n", cpu.csr[CSR_MSTATUS]);
+  printf("misa    : 0x%08x\n", cpu.csr[CSR_MISA]);
+  printf("mie     : 0x%08x\n", cpu.csr[CSR_MIE]);
+  printf("mtvec   : 0x%08x\n", cpu.csr[CSR_MTVEC]);
+  printf("mscratch: 0x%08x\n", cpu.csr[CSR_MSCRATCH]);
+  printf("mepc    : 0x%08x\n", cpu.csr[CSR_MEPC]);
+  printf("mcause  : 0x%08x\n", cpu.csr[CSR_MCAUSE]);
+  printf("mtval   : 0x%08x\n", cpu.csr[CSR_MTVAL]);
+  printf("mip     : 0x%08x\n", cpu.csr[CSR_MIP]);
+}
+
+void isa_reg_dump(CPU_state *state) {
+  int i;
+
+  printf("Registers:\n");
+  for (i = 0; i < LEN_REGS; i++) {
+    printf("%s: 0x%08x\n", regs[i], state->gpr[i]);
+  }
+
+  printf("PC is currently at 0x%08x\n", state->pc);
+
+  printf("CSRs:\n");
+  printf("mstatus : 0x%08x\n", state->csr[CSR_MSTATUS]);
+  printf("misa    : 0x%08x\n", state->csr[CSR_MISA]);
+  printf("mie     : 0x%08x\n", state->csr[CSR_MIE]);
+  printf("mtvec   : 0x%08x\n", state->csr[CSR_MTVEC]);
+  printf("mscratch: 0x%08x\n", state->csr[CSR_MSCRATCH]);
+  printf("mepc    : 0x%08x\n", state->csr[CSR_MEPC]);
+  printf("mcause  : 0x%08x\n", state->csr[CSR_MCAUSE]);
+  printf("mtval   : 0x%08x\n", state->csr[CSR_MTVAL]);
+  printf("mip     : 0x%08x\n", state->csr[CSR_MIP]);
 }
 
 word_t isa_reg_str2val(const char *s, bool *success) {

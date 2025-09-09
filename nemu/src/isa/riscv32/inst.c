@@ -14,6 +14,7 @@
 ***************************************************************************************/
 
 #include "local-include/reg.h"
+#include "local-include/intr.h"
 #include <cpu/cpu.h>
 #include <cpu/ifetch.h>
 #include <cpu/decode.h>
@@ -80,23 +81,27 @@ static void decode_operand(
   }
 }
 
-static inline word_t inst_mul(word_t rs1, word_t rs2) {
+// ----- begin instruction implementations -----
+
+// ***** RV32M *****
+
+static inline word_t inst_mul(word_t src1, word_t src2) {
   uint64_t rs1e, rs2e, r;
 
-  rs1e = (uint64_t) rs1;
-  rs2e = (uint64_t) rs2;
+  rs1e = (uint64_t) src1;
+  rs2e = (uint64_t) src2;
 
   r = rs1e * rs2e;
 
   return (word_t) (r & 0xFFFFFFFFLL);
 }
 
-static inline word_t inst_mulh(word_t rs1, word_t rs2) {
+static inline word_t inst_mulh(word_t src1, word_t src2) {
   int64_t srs1, srs2, sr;
   uint64_t r;
 
-  srs1 = (int64_t) SEXT_REG(rs1);
-  srs2 = (int64_t) SEXT_REG(rs2);
+  srs1 = (int64_t) SEXT_REG(src1);
+  srs2 = (int64_t) SEXT_REG(src2);
 
   sr = srs1 * srs2;
   r = (uint64_t) sr;
@@ -104,12 +109,12 @@ static inline word_t inst_mulh(word_t rs1, word_t rs2) {
   return (word_t) (r >> 32);
 }
 
-static inline word_t inst_mulhsu(word_t rs1, word_t rs2) {
+static inline word_t inst_mulhsu(word_t src1, word_t src2) {
   int64_t srs1, sr;
   uint64_t rs2e, r;
 
-  srs1 = (int64_t) SEXT_REG(rs1);
-  rs2e = (uint64_t) rs2;
+  srs1 = (int64_t) SEXT_REG(src1);
+  rs2e = (uint64_t) src2;
 
   sr = srs1 * rs2e;
   r = (uint64_t) sr;
@@ -117,46 +122,92 @@ static inline word_t inst_mulhsu(word_t rs1, word_t rs2) {
   return (word_t) (r >> 32);
 }
 
-static inline word_t inst_mulhu(word_t rs1, word_t rs2) {
+static inline word_t inst_mulhu(word_t src1, word_t src2) {
   uint64_t rs1e, rs2e, r;
 
-  rs1e = (uint64_t) rs1;
-  rs2e = (uint64_t) rs2;
+  rs1e = (uint64_t) src1;
+  rs2e = (uint64_t) src2;
 
   r = rs1e * rs2e;
 
   return (word_t) (r >> 32);
 }
 
-static inline word_t inst_div(word_t rs1, word_t rs2) {
+static inline word_t inst_div(word_t src1, word_t src2) {
   int srs1, srs2, sr;
 
-  srs1 = (int) rs1;
-  srs2 = (int) rs2;
+  srs1 = (int) src1;
+  srs2 = (int) src2;
 
   sr = srs1 / srs2;
 
   return (word_t) sr;
 }
 
-static inline word_t inst_divu(word_t rs1, word_t rs2) {
-  return rs1 / rs2;
+static inline word_t inst_divu(word_t src1, word_t src2) {
+  return src1 / src2;
 }
 
-static inline word_t inst_rem(word_t rs1, word_t rs2) {
+static inline word_t inst_rem(word_t src1, word_t src2) {
   int srs1, srs2, sr;
 
-  srs1 = (int) rs1;
-  srs2 = (int) rs2;
+  srs1 = (int) src1;
+  srs2 = (int) src2;
 
   sr = srs1 % srs2;
 
   return (word_t) sr;
 }
 
-static inline word_t inst_remu(word_t rs1, word_t rs2) {
-  return rs1 % rs2;
+static inline word_t inst_remu(word_t src1, word_t src2) {
+  return src1 % src2;
 }
+
+// ***** Zicsr *****
+
+static inline word_t inst_csrrw(word_t src1, word_t csr) {
+  word_t t = cpu.csr[csr];
+  cpu.csr[csr] = src1;
+  return t;
+}
+
+static inline word_t inst_csrrs(word_t src1, word_t csr) {
+  word_t t = cpu.csr[csr];
+  cpu.csr[csr] = t | src1;
+  return t;
+}
+
+static inline word_t inst_csrrc(word_t src1, word_t csr) {
+  word_t t = cpu.csr[csr];
+  cpu.csr[csr] = t & ~src1;
+  return t;
+}
+
+static inline word_t inst_csrrwi(word_t zimm, word_t csr) {
+  word_t t = cpu.csr[csr];
+  cpu.csr[csr] = zimm;
+  return t;
+}
+
+static inline word_t inst_csrrsi(word_t zimm, word_t csr) {
+  word_t t = cpu.csr[csr];
+  cpu.csr[csr] = t | zimm;
+  return t;
+}
+
+static inline word_t inst_csrrci(word_t zimm, word_t csr) {
+  word_t t = cpu.csr[csr];
+  cpu.csr[csr] = t & ~zimm;
+  return t;
+}
+
+// ***** 特权指令 *****
+
+static inline vaddr_t inst_mret(void) {
+  return cpu.csr[CSR_MEPC];
+}
+
+// ----- end instruction implementations -----
 
 #ifdef CONFIG_FTRACE
 static bool is_addr_func_sym_start(word_t addr) {
@@ -288,6 +339,8 @@ static int decode_exec(Decode *s) {
   INSTPAT("0000000 ????? ????? 001 ????? 00100 11", slli    , I, R(rd) = src1 << immm);
   INSTPAT("0000000 ????? ????? 101 ????? 00100 11", srli    , I, R(rd) = src1 >> immm);
   INSTPAT("0100000 ????? ????? 101 ????? 00100 11", srai    , I, R(rd) = (word_t) (ssrc1 >> immm));
+  INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall   , N, s->dnpc = isa_raise_intr(MCAUSE_ECALL_FROM_M_MODE, s->pc));
+  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak  , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
 
   // S-Type 指令
   INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb      , S, Mw(src1 + imm, 1, src2));
@@ -321,10 +374,20 @@ static int decode_exec(Decode *s) {
   INSTPAT("0000001 ????? ????? 110 ????? 01100 11", rem     , R, R(rd) = inst_rem(src1, src2));
   INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu    , R, R(rd) = inst_remu(src1, src2));
 
+  /* ----- Zicsr 指令模块 ----- */
+  INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw   , I, R(rd) = inst_csrrw(src1, imm & 0xFFF));
+  INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs   , I, R(rd) = inst_csrrs(src1, imm & 0xFFF));
+  INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   , I, R(rd) = inst_csrrc(src1, imm & 0xFFF));
+  INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi  , I, R(rd) = inst_csrrwi(rs1, imm & 0xFFF));
+  INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi  , I, R(rd) = inst_csrrsi(rs1, imm & 0xFFF));
+  INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci  , I, R(rd) = inst_csrrci(rs1, imm & 0xFFF));
+
+  /* ----- 特权指令模块 ----- */
+  INSTPAT("0011000 00010 00000 000 00000 11100 11", mret    , N, s->dnpc = inst_mret());
+
   /* ----- 其他指令 ----- */
 
   // 非法指令
-  INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak  , N, NEMUTRAP(s->pc, R(10))); // R(10) is $a0
   INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv     , N, INV(s->pc));
 
   INSTPAT_END();

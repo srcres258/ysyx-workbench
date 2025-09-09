@@ -44,6 +44,8 @@ typedef struct {
   IFDEF(CONFIG_FTRACE, bool ftrace_available);
   IFDEF(CONFIG_DTRACE, char dtrace_logbuf[4096]);
   IFDEF(CONFIG_DTRACE, bool dtrace_available);
+  IFDEF(CONFIG_ETRACE, char etrace_logbuf[4096]);
+  IFDEF(CONFIG_ETRACE, bool etrace_available);
 } NEMUState;
 
 extern NEMUState nemu_state;

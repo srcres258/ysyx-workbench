@@ -16,6 +16,8 @@
 #include <isa.h>
 #include <memory/paddr.h>
 
+#include "local-include/reg.h"
+
 // this is not consistent with uint8_t
 // but it is ok since we do not access the array directly
 static const uint32_t img [] = {
@@ -32,6 +34,13 @@ static void restart() {
 
   /* The zero register is always 0. */
   cpu.gpr[0] = 0;
+
+  /* For difftest purpose, the mstatus CSR needs to be initialized. */
+#ifdef CONFIG_RV64
+  cpu.csr[CSR_MSTATUS] = 0xa00001800;
+#else
+  cpu.csr[CSR_MSTATUS] = 0x1800;
+#endif
 }
 
 void init_isa() {
