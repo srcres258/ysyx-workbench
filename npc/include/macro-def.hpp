@@ -12,6 +12,8 @@
 #else
 #define RISCV_GPR_NUM 32
 #endif
+// RISC-V 中的 CSR 编号: 0x000 - 0xFFF, 共 4096 个。
+#define RISCV_CSR_NUM 4096
 
 #define SERIAL_MMIO_ADDR    0xa00003f8
 #define RTC_MMIO_ADDR       0xa0000048

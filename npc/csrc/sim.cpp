@@ -73,6 +73,11 @@ bool simExecOnce() {
         std::cout << "当前PC: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << simExecInfo.pc << std::endl;
 
+    // 若开启了 difftest, 执行前要先向 REF 同步处理器状态.
+    if (sim_config.config_difftest) {
+        difftest_dut_syncCurrentProcessorState();
+    }
+
     // 从内存中读指令
     simExecInfo.inst = 0x00000000;
     if (sim_config.config_debugOutput)
@@ -206,7 +211,7 @@ void simExec(uint64_t n) {
             break;
         case SIM_END:
         case SIM_ABORT:
-            halt_ret = top->ioDPI_registers_0;
+            halt_ret = top->ioDPI_gprs_0;
             if (sim_config.config_debugOutput)
                 std::cout << "仿真: " <<
                     (sim_state.state == SIM_ABORT ?
@@ -283,7 +288,7 @@ bool simulate(bool sdbEnabled) {
 
     if (sim_config.config_debugOutput)
         std::cout << "仿真结束." << std::endl;
-    halt_ret = top->ioDPI_registers_0;
+    halt_ret = top->ioDPI_gprs_0;
     delete top;
 
     if (sim_config.config_itrace) {

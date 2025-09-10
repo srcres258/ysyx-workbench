@@ -3,9 +3,10 @@
 #include <format>
 #include <utility>
 #include <sim_top.hpp>
+#include <isa.hpp>
 #include <processor.hpp>
 
-void ProcessorState::dump() {
+void ProcessorState::dump() const {
     int i;
 
     std::cout << "Registers:" << std::endl;
@@ -18,6 +19,23 @@ void ProcessorState::dump() {
 
     std::cout << "PC is currently at 0x" << std::setfill('0') <<
         std::setw(8) << std::hex << pc << std::dec << std::endl;
+
+    std::cout << "CSRs:" << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mstatus" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << csr[CSR_MSTATUS] << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mtvec" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << csr[CSR_MTVEC] << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mepc" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << csr[CSR_MEPC] << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mcause" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << csr[CSR_MCAUSE] << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mtval" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << csr[CSR_MTVAL] << std::dec << std::endl;
 }
 
 /**
@@ -28,42 +46,48 @@ void ProcessorState::dump() {
 ProcessorState getProcessorState() {
     ProcessorState state = {
         .gpr = {
-            top->ioDPI_registers_0,
-            top->ioDPI_registers_1,
-            top->ioDPI_registers_2,
-            top->ioDPI_registers_3,
-            top->ioDPI_registers_4,
-            top->ioDPI_registers_5,
-            top->ioDPI_registers_6,
-            top->ioDPI_registers_7,
-            top->ioDPI_registers_8,
-            top->ioDPI_registers_9,
-            top->ioDPI_registers_10,
-            top->ioDPI_registers_11,
-            top->ioDPI_registers_12,
-            top->ioDPI_registers_13,
-            top->ioDPI_registers_14,
-            top->ioDPI_registers_15,
+            top->ioDPI_gprs_0,
+            top->ioDPI_gprs_1,
+            top->ioDPI_gprs_2,
+            top->ioDPI_gprs_3,
+            top->ioDPI_gprs_4,
+            top->ioDPI_gprs_5,
+            top->ioDPI_gprs_6,
+            top->ioDPI_gprs_7,
+            top->ioDPI_gprs_8,
+            top->ioDPI_gprs_9,
+            top->ioDPI_gprs_10,
+            top->ioDPI_gprs_11,
+            top->ioDPI_gprs_12,
+            top->ioDPI_gprs_13,
+            top->ioDPI_gprs_14,
+            top->ioDPI_gprs_15,
 #ifndef CONFIG_RVE
-            top->ioDPI_registers_16,
-            top->ioDPI_registers_17,
-            top->ioDPI_registers_18,
-            top->ioDPI_registers_19,
-            top->ioDPI_registers_20,
-            top->ioDPI_registers_21,
-            top->ioDPI_registers_22,
-            top->ioDPI_registers_23,
-            top->ioDPI_registers_24,
-            top->ioDPI_registers_25,
-            top->ioDPI_registers_26,
-            top->ioDPI_registers_27,
-            top->ioDPI_registers_28,
-            top->ioDPI_registers_29,
-            top->ioDPI_registers_30,
-            top->ioDPI_registers_31
+            top->ioDPI_gprs_16,
+            top->ioDPI_gprs_17,
+            top->ioDPI_gprs_18,
+            top->ioDPI_gprs_19,
+            top->ioDPI_gprs_20,
+            top->ioDPI_gprs_21,
+            top->ioDPI_gprs_22,
+            top->ioDPI_gprs_23,
+            top->ioDPI_gprs_24,
+            top->ioDPI_gprs_25,
+            top->ioDPI_gprs_26,
+            top->ioDPI_gprs_27,
+            top->ioDPI_gprs_28,
+            top->ioDPI_gprs_29,
+            top->ioDPI_gprs_30,
+            top->ioDPI_gprs_31
 #endif
         },
-        .pc = top->io_pc
+        .pc = top->io_pc,
+        .csr = { 0 }
     };
+    state.csr[CSR_MSTATUS] = top->ioDPI_csr_mstatus;
+    state.csr[CSR_MTVEC] = top->ioDPI_csr_mtvec;
+    state.csr[CSR_MEPC] = top->ioDPI_csr_mepc;
+    state.csr[CSR_MCAUSE] = top->ioDPI_csr_mcause;
+    state.csr[CSR_MTVAL] = top->ioDPI_csr_mtval;
     return std::move(state);
 };

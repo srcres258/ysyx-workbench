@@ -9,7 +9,11 @@ Context* __am_irq_handle(Context *c) {
     Event ev = {0};
     switch (c->mcause) {
       case MCAUSE_ECALL_FROM_M_MODE:
+#ifdef __riscv_e
+        if (((int) c->gpr[15]) == -1) {
+#else
         if (((int) c->gpr[17]) == -1) {
+#endif
           // a1 寄存器是 -1, 表明是 yield
           ev.event = EVENT_YIELD;
         } else {
@@ -42,7 +46,11 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
 }
 
 Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
-  return NULL;
+  Context *ctx = (Context *) (kstack.end - sizeof(Context));
+  ctx->mstatus = 0x1800; // For difftest purpose, mstatus should be set.
+  ctx->mepc = (uintptr_t) entry;
+  ctx->gpr[10] = (uintptr_t) arg; // RISC-V ISA 的 x10 寄存器就是 a0, 传递函数的第一个参数的寄存器.
+  return ctx;
 }
 
 void yield() {

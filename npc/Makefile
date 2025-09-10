@@ -35,9 +35,9 @@ VERILATOR_CFLAGS += -MMD --build -cc \
 					--x-initial fast --noassert \
 					--trace-fst --debug \
 					-CFLAGS -g \
-					-CFLAGS -DCONFIG_RVE=1 \
 					-CFLAGS -std=c++26 \
-					-LDFLAGS -lelf
+					-LDFLAGS -lelf \
+					-LDFLAGS -fsanitize=address
 
 BUILD_DIR = ./build
 OBJ_DIR = $(BUILD_DIR)/obj_dir

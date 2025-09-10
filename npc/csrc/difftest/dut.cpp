@@ -81,8 +81,7 @@ void difftest_dut_init(const char *refSoFile, size_t imgSize, int port) {
 
     std::println("[difftest] 正在将初始数据同步给 REF...");
     ref_difftest_memcpy(MEMORY_OFFSET, memory, imgSize, DIFFTEST_TO_REF);
-    ProcessorState state = getProcessorState();
-    ref_difftest_regcpy(&state, DIFFTEST_TO_REF);
+    difftest_dut_syncCurrentProcessorState();
 }
 
 static void checkregs(ProcessorState *refState, addr_t pc) {
@@ -131,4 +130,9 @@ void difftest_dut_step(addr_t pc, addr_t npc) {
     ref_difftest_regcpy(&refState, DIFFTEST_TO_DUT);
 
     checkregs(&refState, pc);
+}
+
+void difftest_dut_syncCurrentProcessorState() {
+    ProcessorState state = getProcessorState();
+    ref_difftest_regcpy(&state, DIFFTEST_TO_REF);
 }

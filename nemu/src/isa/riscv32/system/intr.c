@@ -30,7 +30,7 @@ word_t isa_raise_intr(word_t NO, vaddr_t epc) {
   snprintf(
     nemu_state.etrace_logbuf + offset,
     sizeof(nemu_state.etrace_logbuf) - offset,
-    "[etrace] " FMT_PADDR ": Exception number " FMT_WORD ", epc" FMT_PADDR "\n",
+    "[etrace] " FMT_PADDR ": Exception number " FMT_WORD ", epc " FMT_PADDR "\n",
     cpu.pc, NO, epc
   );
 #endif

@@ -52,8 +52,11 @@ __am_asm_trap:
   STORE t1, OFFSET_STATUS(sp)
   STORE t2, OFFSET_EPC(sp)
 
+  # 将当前栈指针作为参数传给 __am_irq_handle 以供处理
   mv a0, sp
   call __am_irq_handle
+  # 根据 __am_irq_handle 的返回值, 重新设置栈指针
+  mv sp, a0
 
   LOAD t1, OFFSET_STATUS(sp)
   LOAD t2, OFFSET_EPC(sp)

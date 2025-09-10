@@ -14,14 +14,17 @@ extern "C" struct ProcessorState {
     word_t gpr[RISCV_GPR_NUM];
     /**
      * @brief 程序计数器。
-     * 
      */
     addr_t pc;
+    /**
+     * @brief 控制与状态寄存器。
+     */
+    word_t csr[RISCV_CSR_NUM];
 
     /**
      * @brief 将处理器状态进行可读化输出。
      */
-    void dump();
+    void dump() const;
 };
 
 /**

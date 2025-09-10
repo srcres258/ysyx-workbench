@@ -4,6 +4,14 @@
 #include <common.hpp>
 #include <processor.hpp>
 
+/* (处理器已经实现的) CSR 编号 */
+
+#define CSR_MSTATUS 0x300
+#define CSR_MTVEC 0x305
+#define CSR_MEPC 0x341
+#define CSR_MCAUSE 0x342
+#define CSR_MTVAL 0x343
+
 /**
  * @brief 根据寄存器索引，读取寄存器的值。
  * 

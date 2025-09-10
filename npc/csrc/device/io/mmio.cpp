@@ -64,14 +64,18 @@ void device_map_addMMIOMap(
 
 word_t device_mmio_read(addr_t addr, int len) {
     IOMap *map = fetchMMIOMap(addr);
-    Assert(map != nullptr);
+    if (map == nullptr) {
+        panic("device_mmio_read failed to find a device map at " FMT_ADDR ", read len 0x%08x\n", addr, len);
+    }
     Assert(len == 1 || len == 2 || len == 4 || len == 8);
     return map->read(addr, len);
 }
 
 void device_mmio_write(addr_t addr, int len, word_t data) {
     IOMap *map = fetchMMIOMap(addr);
-    Assert(map != nullptr);
+    if (map == nullptr) {
+        panic("device_mmio_write failed to find a device map at " FMT_ADDR ", write len 0x%08x, data " FMT_WORD "\n", addr, len, data);
+    }
     Assert(len == 1 || len == 2 || len == 4 || len == 8);
     map->write(addr, len, data);
 }

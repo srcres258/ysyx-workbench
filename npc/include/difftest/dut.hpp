@@ -54,4 +54,9 @@ void difftest_dut_init(const char *refSoFile, size_t imgSize, int port);
  */
 void difftest_dut_step(addr_t pc, addr_t npc);
 
+/**
+ * @brief DiffTest dut: 向 REF 传送当前处理器状态以保持状态同步。
+ */
+void difftest_dut_syncCurrentProcessorState();
+
 #endif /* __DIFFTEST__DUT_HPP__ */
