@@ -49,24 +49,26 @@ extern "C" void dpi_onInst_jal(bool _trig) {
         return;
     }
 
-    word_t imm;
-    uint8_t rd;
-    addr_t pc, destAddr;
-    imm = top->ioDPI_imm;
-    rd = top->ioDPI_rd;
-    pc = top->io_pc;
-    destAddr = pc + imm;
+    if (sim_config.config_ftrace) {
+        word_t imm;
+        uint8_t rd;
+        addr_t pc, destAddr;
+        imm = top->ioDPI_imm;
+        rd = top->ioDPI_rd;
+        pc = top->io_pc;
+        destAddr = pc + imm;
 
-    if (rd == 1) {
-        // 情况：rd 为 x1
-        // 推测：该 jal 指令可能来源于 call 伪指令
-        if (sim_config.config_debugOutput)
-            std::println(
-                "[sim] ftrace: Detected call from jal at pc = {:#08x}, "
-                    "dest_addr = {:#08x}",
-                pc, destAddr
-            );
-        tryRecord(CALL_TYPE_CALL, pc, destAddr);
+        if (rd == 1) {
+            // 情况：rd 为 x1
+            // 推测：该 jal 指令可能来源于 call 伪指令
+            if (sim_config.config_debugOutput)
+                std::println(
+                    "[sim] ftrace: Detected call from jal at pc = {:#08x}, "
+                        "dest_addr = {:#08x}",
+                    pc, destAddr
+                );
+            tryRecord(CALL_TYPE_CALL, pc, destAddr);
+        }
     }
 }
 
@@ -77,49 +79,51 @@ extern "C" void dpi_onInst_jalr(bool _trig) {
         return;
     }
 
-    word_t src1, imm;
-    uint8_t rd, rs1;
-    addr_t pc, destAddr;
-    src1 = top->ioDPI_rs1Data;
-    imm = top->ioDPI_imm;
-    rd = top->ioDPI_rd;
-    rs1 = top->ioDPI_rs1;
-    pc = top->io_pc;
-    destAddr = src1 + imm;
+    if (sim_config.config_ftrace) {
+        word_t src1, imm;
+        uint8_t rd, rs1;
+        addr_t pc, destAddr;
+        src1 = top->ioDPI_rs1Data;
+        imm = top->ioDPI_imm;
+        rd = top->ioDPI_rd;
+        rs1 = top->ioDPI_rs1;
+        pc = top->io_pc;
+        destAddr = src1 + imm;
 
-    if (isAddrFuncSymStart(destAddr) || (rd == 1 && rs1 == 1)) {
-        // 情况：1. 目的地址是函数起始地址 
-        //    或2. rd 为 x1， rs1 为 x1
-        // 推测：该 jalr 指令可能来源于 call 伪指令
-        // 情况：rd 为 x1
-        // 推测：该 jal 指令可能来源于 call 伪指令
-        if (sim_config.config_debugOutput)
-            std::println(
-                "[sim] ftrace: Detected call from jalr at pc = {:#08x}, "
-                    "dest_addr = {:#08x}",
-                pc, destAddr
-            );
-        tryRecord(CALL_TYPE_CALL, pc, destAddr);
-    } else if (rd == 0 && rs1 == 1) {
-        // 情况：rd 为 x0， rs1 为 x1
-        // 推测：该 jalr 指令可能来源于 ret 伪指令
-        if (sim_config.config_debugOutput)
-            std::println(
-                "[sim] ftrace: Detected ret from jalr at pc = {:#08x}, "
-                    "dest_addr = {:#08x}",
-                pc, destAddr
-            );
-        tryRecord(CALL_TYPE_RET, pc, destAddr);
-    } else if (rd == 1 && (rs1 == 6 || rs1 == 7)) {
-        // 情况：rd 为 x1， rs1 为 x6 或 x7
-        // 推测：该 jalr 指令可能来源于 tail 伪指令
-        if (sim_config.config_debugOutput)
-            std::println(
-                "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, "
-                    "dest_addr = {:#08x}",
-                pc, destAddr
-            );
-        tryRecord(CALL_TYPE_TAIL, pc, destAddr);
+        if (isAddrFuncSymStart(destAddr) || (rd == 1 && rs1 == 1)) {
+            // 情况：1. 目的地址是函数起始地址 
+            //    或2. rd 为 x1， rs1 为 x1
+            // 推测：该 jalr 指令可能来源于 call 伪指令
+            // 情况：rd 为 x1
+            // 推测：该 jal 指令可能来源于 call 伪指令
+            if (sim_config.config_debugOutput)
+                std::println(
+                    "[sim] ftrace: Detected call from jalr at pc = {:#08x}, "
+                        "dest_addr = {:#08x}",
+                    pc, destAddr
+                );
+            tryRecord(CALL_TYPE_CALL, pc, destAddr);
+        } else if (rd == 0 && rs1 == 1) {
+            // 情况：rd 为 x0， rs1 为 x1
+            // 推测：该 jalr 指令可能来源于 ret 伪指令
+            if (sim_config.config_debugOutput)
+                std::println(
+                    "[sim] ftrace: Detected ret from jalr at pc = {:#08x}, "
+                        "dest_addr = {:#08x}",
+                    pc, destAddr
+                );
+            tryRecord(CALL_TYPE_RET, pc, destAddr);
+        } else if (rd == 1 && (rs1 == 6 || rs1 == 7)) {
+            // 情况：rd 为 x1， rs1 为 x6 或 x7
+            // 推测：该 jalr 指令可能来源于 tail 伪指令
+            if (sim_config.config_debugOutput)
+                std::println(
+                    "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, "
+                        "dest_addr = {:#08x}",
+                    pc, destAddr
+                );
+            tryRecord(CALL_TYPE_TAIL, pc, destAddr);
+        }
     }
 }
 

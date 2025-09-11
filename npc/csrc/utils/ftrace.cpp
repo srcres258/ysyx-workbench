@@ -102,7 +102,8 @@ bool ftrace_tryRecord(
         message += tmpStr;
         sim_state.ftrace_ofs << message << std::endl;
         std::flush(sim_state.ftrace_ofs);
-        std::cout << "[sim] ftrace: " << message << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "[sim] ftrace: " << message << std::endl;
 
         // 再将目的函数入栈
         CallStackInfo info;
@@ -152,7 +153,8 @@ bool ftrace_tryRecord(
         message += tmpStr;
         sim_state.ftrace_ofs << message << std::endl;
         std::flush(sim_state.ftrace_ofs);
-        std::cout << "[sim] ftrace: " << message << std::endl;
+        if (sim_config.config_debugOutput)
+            std::cout << "[sim] ftrace: " << message << std::endl;
 
         return true;
     }
