@@ -252,3 +252,15 @@ extern "C" void dpi_onStage(uint8_t _stage) {
         }
     }
 }
+
+extern "C" void dpi_onEcallEnable(bool _ecallEnable) {
+    bool ecallEnable = top->ioDPI_ecallEnable;
+    if (ecallEnable && sim_config.config_etrace) {
+        // 记录 etrace
+        std::string message = std::format("0x{:08x}: ecall detected", top->io_pc);
+        sim_state.etrace_ofs << message << std::endl;
+        if (sim_config.config_debugOutput) {
+            std::cout << "[sim] etrace: " << message << std::endl;
+        }
+    }
+}

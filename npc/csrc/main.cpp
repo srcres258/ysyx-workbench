@@ -37,6 +37,12 @@ static void loadConfig() {
         std::cout << "[config] dtrace 已启用" << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_ETRACE");
+    sim_config.config_etrace = env && strcmp(env, "on") == 0;
+    if (sim_config.config_etrace) {
+        std::cout << "[config] etrace 已启用" << std::endl;
+    }
+
     env = std::getenv("NPC_CONFIG_DIFFTEST");
     sim_config.config_difftest = env && strcmp(env, "on") == 0;
     if (sim_config.config_difftest) {
@@ -102,6 +108,14 @@ static void loadConfig() {
             std::move(std::string(env));
         std::cout << "[config] dtrace 输出路径已指定为: " <<
             sim_config.config_dtraceOutFilePath << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_ETRACE_OUT_FILE_PATH");
+    if (env) {
+        sim_config.config_etraceOutFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] etrace 输出路径已指定为: " <<
+            sim_config.config_etraceOutFilePath << std::endl;
     }
     
     env = std::getenv("NPC_CONFIG_ELF_FILE_PATH");

@@ -4,7 +4,8 @@ module DPIAdapter (
     input logic         inst_jalr,
     input logic         memWriteEnable,
     input logic         memReadEnable,
-    input logic [2:0]   stage
+    input logic [2:0]   stage,
+    input logic         ecallEnable
 );
     /**
      * 终止仿真
@@ -42,6 +43,12 @@ module DPIAdapter (
     import "DPI-C" function void dpi_onStage(
         input logic [2:0]   stage
     );
+    /**
+     * 触发环境调用，以记录 etrace 日志
+     */
+    import "DPI-C" function void dpi_onEcallEnable(
+        input logic         ecallEnable
+    );
 
     always_ff @( posedge halt ) begin : call_dpi_halt
         dpi_halt(halt);
@@ -60,5 +67,8 @@ module DPIAdapter (
     end
     always @( stage ) begin : call_dpi_onStage
         dpi_onStage(stage);
+    end
+    always_ff @( posedge ecallEnable ) begin : call_dpi_onEcallEnable
+        dpi_onEcallEnable(ecallEnable);
     end
 endmodule

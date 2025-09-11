@@ -13,6 +13,7 @@ SimConfig sim_config = {
     .config_mtrace = false,
     .config_ftrace = false,
     .config_dtrace = false,
+    .config_etrace = false,
     .config_difftest = false,
     .config_device = false,
     .config_wave = false,
@@ -28,6 +29,8 @@ SimConfig sim_config = {
         std::move(std::string(DEFAULT_FTRACE_OUT_FILE_PATH)),
     .config_dtraceOutFilePath =
         std::move(std::string(DEFAULT_DTRACE_OUT_FILE_PATH)),
+    .config_etraceOutFilePath =
+        std::move(std::string(DEFAULT_ETRACE_OUT_FILE_PATH)),
     .config_elfFilePath =
         std::move(std::string(DEFAULT_ELF_FILE_PATH)),
     .config_difftestSoFilePath =
@@ -90,6 +93,9 @@ void sim_state_ofstream_init() {
     if (sim_config.config_dtrace) {
         sim_state.dtrace_ofs.open(sim_config.config_dtraceOutFilePath);
     }
+    if (sim_config.config_etrace) {
+        sim_state.etrace_ofs.open(sim_config.config_etraceOutFilePath);
+    }
 }
 
 /**
@@ -107,6 +113,9 @@ void sim_state_ofstream_finalise() {
     }
     if (sim_config.config_dtrace) {
         sim_state.dtrace_ofs.flush();
+    }
+    if (sim_config.config_etrace) {
+        sim_state.etrace_ofs.flush();
     }
 }
 
