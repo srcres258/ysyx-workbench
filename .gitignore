@@ -13,3 +13,4 @@
 !init.sh
 /fceux-am
 !/docs/*.md
+!LICENSE.txt
