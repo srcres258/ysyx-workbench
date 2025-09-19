@@ -227,36 +227,6 @@ extern "C" void dpi_onMemReadEnable(bool _memReadEnable) {
     }
 }
 
-extern "C" void dpi_onStage(uint8_t _stage) {
-    uint8_t stage = top->ioDPI_stage;
-
-    if (sim_config.config_debugOutput) {
-        std::cout << "[sim] 处理器当前阶段: ";
-        switch (stage & 0b111) {
-            case STAGE_IF:
-                std::cout << "IF" << std::endl;
-                break;
-            case STAGE_ID:
-                std::cout << "ID" << std::endl;
-                break;
-            case STAGE_EX:
-                std::cout << "EX" << std::endl;
-                break;
-            case STAGE_MA:
-                std::cout << "MA" << std::endl;
-                break;
-            case STAGE_WB:
-                std::cout << "WB" << std::endl;
-                break;
-            case STAGE_UPC:
-                std::cout << "UPC" << std::endl;
-                break;
-            default:
-                std::cout << "Unknown" << std::endl;
-        }
-    }
-}
-
 extern "C" void dpi_onEcallEnable(bool _ecallEnable) {
     bool ecallEnable = top->ioDPI_ecallEnable;
     if (ecallEnable && sim_config.config_etrace) {
@@ -266,5 +236,61 @@ extern "C" void dpi_onEcallEnable(bool _ecallEnable) {
         if (sim_config.config_debugOutput) {
             std::cout << "[sim] etrace: " << message << std::endl;
         }
+    }
+}
+
+extern "C" void dpi_onPosEdge_ifuInputValid(bool _ifuInputValid) {
+    bool ifuInputValid = top->ioDPI_ifuInputValid;
+
+    if (ifuInputValid && sim_config.config_debugOutput) {
+        std::cout << "[sim] ifuInputValid posedge detected." << std::endl;
+    }
+}
+
+extern "C" void dpi_onPosEdge_if_nextStage_valid(bool _if_nextStage_valid) {
+    bool if_nextStage_valid = top->ioDPI_if_nextStage_valid;
+
+    if (if_nextStage_valid && sim_config.config_debugOutput) {
+        std::cout << "[sim] if_nextStage_valid posedge detected." << std::endl;
+    }
+}
+
+extern "C" void dpi_onPosEdge_id_nextStage_valid(bool _id_nextStage_valid) {
+    bool id_nextStage_valid = top->ioDPI_id_nextStage_valid;
+
+    if (id_nextStage_valid && sim_config.config_debugOutput) {
+        std::cout << "[sim] id_nextStage_valid posedge detected." << std::endl;
+    }
+}
+
+extern "C" void dpi_onPosEdge_ex_nextStage_valid(bool _ex_nextStage_valid) {
+    bool ex_nextStage_valid = top->ioDPI_ex_nextStage_valid;
+
+    if (ex_nextStage_valid && sim_config.config_debugOutput) {
+        std::cout << "[sim] ex_nextStage_valid posedge detected." << std::endl;
+    }
+}
+
+extern "C" void dpi_onPosEdge_ma_nextStage_valid(bool _ma_nextStage_valid) {
+    bool ma_nextStage_valid = top->ioDPI_ma_nextStage_valid;
+
+    if (ma_nextStage_valid && sim_config.config_debugOutput) {
+        std::cout << "[sim] ma_nextStage_valid posedge detected." << std::endl;
+    }
+}
+
+extern "C" void dpi_onPosEdge_wb_nextStage_valid(bool _wb_nextStage_valid) {
+    bool wb_nextStage_valid = top->ioDPI_wb_nextStage_valid;
+
+    if (wb_nextStage_valid && sim_config.config_debugOutput) {
+        std::cout << "[sim] wb_nextStage_valid posedge detected." << std::endl;
+    }
+}
+
+extern "C" void dpi_onPosEdge_upcu_pcOutput_valid(bool _upcu_pcOutput_valid) {
+    bool upcu_pcOutput_valid = top->ioDPI_upcu_pcOutput_valid;
+
+    if (upcu_pcOutput_valid && sim_config.config_debugOutput) {
+        std::cout << "[sim] upcu_pcOutput_valid posedge detected." << std::endl;
     }
 }

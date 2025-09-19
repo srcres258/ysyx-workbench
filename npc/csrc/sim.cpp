@@ -23,12 +23,13 @@ VProcessorCore *top = nullptr;
 static VerilatedFstC *tfp = nullptr;
 bool sim_halt = false;
 
-static uint32_t execCount = 0;
+static uint64_t execCount = 0;
 
 /**
  * @brief 执行一步仿真，执行一个时钟周期。
  */
 void simStep() {
+    bool executionBegun = false;
     do {
         top->clock = 0;
         top->eval();
@@ -42,7 +43,15 @@ void simStep() {
             verContext->timeInc(1);
             tfp->dump(verContext->time());
         }
-    } while (top->ioDPI_stage != STAGE_IF);
+
+        if (top->reset) {
+            break;
+        }
+
+        if (top->ioDPI_executing && !executionBegun) {
+            executionBegun = true;
+        }
+    } while (!executionBegun || (executionBegun && top->ioDPI_executing));
 }
 
 /**
@@ -103,8 +112,6 @@ bool simExecOnce() {
         std::cout << "正在解析该条指令..." << std::endl;
     simStep();
 
-    execCount++;
-
     if (sim_config.config_itrace) {
         char pbuf[128];
         char *p = pbuf;
@@ -139,6 +146,8 @@ bool simExecOnce() {
             std::flush(std::cout);
         }
     }
+
+    execCount++;
 
     return true;
 }
@@ -220,6 +229,8 @@ void simExec(uint64_t n) {
                     " at pc = 0x" << std::setfill('0') <<
                     std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
                     ", 结果: " << halt_ret << std::endl;
+            std::cout << "仿真结束, 共耗时 " << std::dec << execCount <<
+                " 个周期." << std::endl;
     }
 }
 

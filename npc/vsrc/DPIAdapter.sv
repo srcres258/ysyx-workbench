@@ -1,11 +1,71 @@
 module DPIAdapter (
     input logic         halt,
+
+    input logic [31:0]  gprs_0,
+    input logic [31:0]  gprs_1,
+    input logic [31:0]  gprs_2,
+    input logic [31:0]  gprs_3,
+    input logic [31:0]  gprs_4,
+    input logic [31:0]  gprs_5,
+    input logic [31:0]  gprs_6,
+    input logic [31:0]  gprs_7,
+    input logic [31:0]  gprs_8,
+    input logic [31:0]  gprs_9,
+    input logic [31:0]  gprs_10,
+    input logic [31:0]  gprs_11,
+    input logic [31:0]  gprs_12,
+    input logic [31:0]  gprs_13,
+    input logic [31:0]  gprs_14,
+    input logic [31:0]  gprs_15,
+    input logic [31:0]  gprs_16,
+    input logic [31:0]  gprs_17,
+    input logic [31:0]  gprs_18,
+    input logic [31:0]  gprs_19,
+    input logic [31:0]  gprs_20,
+    input logic [31:0]  gprs_21,
+    input logic [31:0]  gprs_22,
+    input logic [31:0]  gprs_23,
+    input logic [31:0]  gprs_24,
+    input logic [31:0]  gprs_25,
+    input logic [31:0]  gprs_26,
+    input logic [31:0]  gprs_27,
+    input logic [31:0]  gprs_28,
+    input logic [31:0]  gprs_29,
+    input logic [31:0]  gprs_30,
+    input logic [31:0]  gprs_31,
+
+    input logic [31:0]  csr_mstatus,
+    input logic [31:0]  csr_mtvec,
+    input logic [31:0]  csr_mepc,
+    input logic [31:0]  csr_mcause,
+    input logic [31:0]  csr_mtval,
+
     input logic         inst_jal,
     input logic         inst_jalr,
+
+    input logic [4:0]   rs1,
+    input logic [4:0]   rs2,
+    input logic [4:0]   rd,
+    input logic [31:0]  imm,
+    input logic [31:0]  rs1Data,
+    input logic [31:0]  rs2Data,
+
     input logic         memWriteEnable,
     input logic         memReadEnable,
-    input logic [2:0]   stage,
-    input logic         ecallEnable
+
+    input logic         ecallEnable,
+
+    input logic         executing,
+
+    input logic         ifuInputValid,
+
+    input logic         if_nextStage_valid,
+    input logic         id_nextStage_valid,
+    input logic         ex_nextStage_valid,
+    input logic         ma_nextStage_valid,
+    input logic         wb_nextStage_valid,
+
+    input logic         upcu_pcOutput_valid
 );
     /**
      * 终止仿真
@@ -38,16 +98,34 @@ module DPIAdapter (
         input logic         memReadEnable
     );
     /**
-     * 触发处理器阶段更新，通知后台仿真环境同步处理器阶段
-     */
-    import "DPI-C" function void dpi_onStage(
-        input logic [2:0]   stage
-    );
-    /**
      * 触发环境调用，以记录 etrace 日志
      */
     import "DPI-C" function void dpi_onEcallEnable(
         input logic         ecallEnable
+    );
+
+    import "DPI-C" function void dpi_onPosEdge_ifuInputValid(
+        input logic         ifuInputValid
+    );
+
+    import "DPI-C" function void dpi_onPosEdge_if_nextStage_valid(
+        input logic         if_nextStage_valid
+    );
+    import "DPI-C" function void dpi_onPosEdge_id_nextStage_valid(
+        input logic         id_nextStage_valid
+    );
+    import "DPI-C" function void dpi_onPosEdge_ex_nextStage_valid(
+        input logic         ex_nextStage_valid
+    );
+    import "DPI-C" function void dpi_onPosEdge_ma_nextStage_valid(
+        input logic         ma_nextStage_valid
+    );
+    import "DPI-C" function void dpi_onPosEdge_wb_nextStage_valid(
+        input logic         wb_nextStage_valid
+    );
+    
+    import "DPI-C" function void dpi_onPosEdge_upcu_pcOutput_valid(
+        input logic         upcu_pcOutput_valid
     );
 
     always_ff @( posedge halt ) begin : call_dpi_halt
@@ -65,10 +143,31 @@ module DPIAdapter (
     always_ff @( posedge memReadEnable ) begin : call_dpi_onMemReadEnable
         dpi_onMemReadEnable(memReadEnable);
     end
-    always @( stage ) begin : call_dpi_onStage
-        dpi_onStage(stage);
-    end
     always_ff @( posedge ecallEnable ) begin : call_dpi_onEcallEnable
         dpi_onEcallEnable(ecallEnable);
+    end
+
+    always_ff @( posedge ifuInputValid ) begin : call_dpi_onPosEdge_ifuInputValid
+        dpi_onPosEdge_ifuInputValid(ifuInputValid);
+    end
+
+    always_ff @( posedge if_nextStage_valid ) begin : call_dpi_onPosEdge_if_nextStage_valid
+        dpi_onPosEdge_if_nextStage_valid(if_nextStage_valid);
+    end
+    always_ff @( posedge id_nextStage_valid ) begin : call_dpi_onPosEdge_id_nextStage_valid
+        dpi_onPosEdge_id_nextStage_valid(id_nextStage_valid);
+    end
+    always_ff @( posedge ex_nextStage_valid ) begin : call_dpi_onPosEdge_ex_nextStage_valid
+        dpi_onPosEdge_ex_nextStage_valid(ex_nextStage_valid);
+    end
+    always_ff @( posedge ma_nextStage_valid ) begin : call_dpi_onPosEdge_ma_nextStage_valid
+        dpi_onPosEdge_ma_nextStage_valid(ma_nextStage_valid);
+    end
+    always_ff @( posedge wb_nextStage_valid ) begin : call_dpi_onPosEdge_wb_nextStage_valid
+        dpi_onPosEdge_wb_nextStage_valid(wb_nextStage_valid);
+    end
+
+    always_ff @( posedge upcu_pcOutput_valid ) begin : call_dpi_onPosEdge_upcu_pcOutput_valid
+        dpi_onPosEdge_upcu_pcOutput_valid(upcu_pcOutput_valid);
     end
 endmodule
