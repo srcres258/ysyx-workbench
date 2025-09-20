@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <iomanip>
 #include <cmath>
-#include <sim_top.hpp>
 #include <utils.hpp>
 #include <memory.hpp>
 #include <sdb.hpp>
@@ -13,6 +12,7 @@
 #include <device.hpp>
 #include <utils/Stage.hpp>
 #include <utils/timer.hpp>
+#include <sim_top.hpp>
 
 ExecInfo simExecInfo = {
     .pc = 0x00000000,
@@ -24,25 +24,35 @@ static VerilatedFstC *tfp = nullptr;
 bool sim_halt = false;
 
 static uint64_t execCount = 0;
+static uint64_t execCountClockPeriod = 0;
 
 /**
- * @brief 执行一步仿真，执行一个时钟周期。
+ * @brief 执行一步仿真 (执行一个时钟周期).
+ */
+void simStepClockPeriod() {
+    top->clock = 0;
+    top->eval();
+    if (tfp) {
+        verContext->timeInc(1);
+        tfp->dump(verContext->time());
+    }
+    top->clock = 1;
+    top->eval();
+    if (tfp) {
+        verContext->timeInc(1);
+        tfp->dump(verContext->time());
+    }
+
+    execCountClockPeriod++;
+}
+
+/**
+ * @brief 执行一步仿真 (执行一条指令).
  */
 void simStep() {
     bool executionBegun = false;
     do {
-        top->clock = 0;
-        top->eval();
-        if (tfp) {
-            verContext->timeInc(1);
-            tfp->dump(verContext->time());
-        }
-        top->clock = 1;
-        top->eval();
-        if (tfp) {
-            verContext->timeInc(1);
-            tfp->dump(verContext->time());
-        }
+        simStepClockPeriod();
 
         if (top->reset) {
             break;
@@ -68,14 +78,14 @@ void simReset(int n) {
 }
 
 /**
- * @brief 执行一个时钟周期的仿真。
+ * @brief 执行一条指令的仿真。
  */
 bool simExecOnce() {
     addr_t addr;
     word_t data;
 
     if (sim_config.config_debugOutput)
-        std::cout << "处理器第 " << std::dec << execCount << " 次执行 (从 0 开始算)..." << std::endl;
+        std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
 
     simExecInfo.pc = top->io_pc;
     if (sim_config.config_debugOutput)
@@ -194,9 +204,24 @@ static void execute(uint64_t n) {
 }
 
 /**
- * @brief 执行若干时钟周期的仿真。
+ * @brief 执行若干次时钟周期的仿真.
  * 
  * @param n 需要进行仿真的时钟周期数
+ */
+void simExecClockPeriod(uint64_t n) {
+    uint64_t i;
+
+    for (i = n; i > 0; i--) {
+        if (sim_config.config_debugOutput)
+            std::cout << "处理器开始执行第 " << std::dec << execCountClockPeriod << " 个时钟周期 (从 0 开始算)..." << std::endl;
+        simStepClockPeriod();
+    }
+}
+
+/**
+ * @brief 执行若干条指令的仿真.
+ * 
+ * @param n 需要进行仿真的指令数
  */
 void simExec(uint64_t n) {
     word_t halt_ret;
@@ -229,8 +254,8 @@ void simExec(uint64_t n) {
                     " at pc = 0x" << std::setfill('0') <<
                     std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
                     ", 结果: " << halt_ret << std::endl;
-            std::cout << "仿真结束, 共耗时 " << std::dec << execCount <<
-                " 个周期." << std::endl;
+            std::cout << "仿真结束, 共执行 " << std::dec << execCount <<
+                " 条指令, 耗时 " << std::dec << execCountClockPeriod << " 个时钟周期." << std::endl;
     }
 }
 

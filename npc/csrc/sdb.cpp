@@ -471,8 +471,34 @@ static int cmd_si(char *args) {
     int n;
 
     try {
-        n = args ? std::stoi(args) : 1;
+        n = (args && strlen(args) > 0) ? std::stoi(args) : 1;
         simExec(n);
+    } catch (const std::invalid_argument &e) {
+        std::cout << "Error: invalid argument for 'si' command." << std::endl;
+    }
+
+    return 0;
+}
+
+/**
+ * @brief 单步执行 (时钟周期)
+ * 
+ * 让程序单步执行N个时钟周期后暂停执行,
+ * 当N没有给出时, 缺省为1
+ * 
+ * 格式：si [N]
+ * 
+ * 使用举例：si 10
+ * 
+ * @param args 指令的条数
+ * @return int 始终返回0
+ */
+static int cmd_sic(char *args) {
+    int n;
+
+    try {
+        n = (args && strlen(args) > 0) ? std::stoi(args) : 1;
+        simExecClockPeriod(n);
     } catch (const std::invalid_argument &e) {
         std::cout << "Error: invalid argument for 'si' command." << std::endl;
     }
@@ -673,6 +699,7 @@ static struct {
     { "c", "Continue the execution of the program", cmd_c },
     { "q", "Exit simulation", cmd_q },
     { "si", "Run the given number of instructions of the program and pause", cmd_si },
+    { "sic", "Run the given number of clock periods of the program and pause", cmd_sic },
     { "info", "Display information about registers or watchpoints", cmd_info },
     { "x", "Display the contents of memory", cmd_x },
     { "p", "Evaluate an expression and display the result", cmd_p },

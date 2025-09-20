@@ -26,7 +26,12 @@ extern bool sim_halt;
 #define DEFAULT_BIN_PATH "build/program.bin"
 
 /**
- * @brief 执行一步仿真，执行一个时钟周期。
+ * @brief 执行一步仿真 (执行一个时钟周期).
+ */
+void simStepClockPeriod();
+
+/**
+ * @brief 执行一步仿真 (执行一条指令).
  */
 void simStep();
 
@@ -38,14 +43,21 @@ void simStep();
 void simReset(int n);
 
 /**
- * @brief 执行一个时钟周期的仿真。
+ * @brief 执行一条指令的仿真。
  */
 bool simExecOnce();
 
 /**
- * @brief 执行若干时钟周期的仿真。
+ * @brief 执行若干次时钟周期的仿真.
  * 
  * @param n 需要进行仿真的时钟周期数
+ */
+void simExecClockPeriod(uint64_t n);
+
+/**
+ * @brief 执行若干条指令的仿真.
+ * 
+ * @param n 需要进行仿真的指令数
  */
 void simExec(uint64_t n);
 
