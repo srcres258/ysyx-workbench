@@ -1,47 +1,27 @@
 all: default
 
-SIM_ARGS = NPC_BIN_PATH=$(IMG) \
-	NPC_SDB_ENABLED=true \
-	NPC_CONFIG_ITRACE=on \
-	NPC_CONFIG_MTRACE=on \
-	NPC_CONFIG_FTRACE=on \
-	NPC_CONFIG_DTRACE=on \
-	NPC_CONFIG_ETRACE=on \
-	NPC_CONFIG_DIFFTEST=on \
-	NPC_CONFIG_DEVICE=on \
-	NPC_CONFIG_WAVE=on \
-	NPC_CONFIG_DEBUG_OUTPUT=on \
-	NPC_CONFIG_DIFFTEST_PORT=12345 \
-	NPC_CONFIG_ITRACE_OUT_FILE_PATH=build/itrace.log \
-	NPC_CONFIG_MTRACE_OUT_FILE_PATH=build/mtrace.log \
-	NPC_CONFIG_FTRACE_OUT_FILE_PATH=build/ftrace.log \
-	NPC_CONFIG_DTRACE_OUT_FILE_PATH=build/dtrace.log \
-	NPC_CONFIG_ETRACE_OUT_FILE_PATH=build/etrace.log \
-	NPC_CONFIG_ELF_FILE_PATH=build/program.elf \
-	NPC_CONFIG_DIFFTEST_SO_FILE_PATH=$(abspath $(NEMU_HOME)/build/riscv32-nemu-interpreter-so) \
-	NPC_CONFIG_WAVE_FILE_PATH=build/sim.fst
-
-sim: default
+git_commit_sim: default
 	$(call git_commit, "sim RTL") # DO NOT REMOVE THIS LINE!!!
-	$(SIM_ARGS) build/$(TOPNAME)
 
 include ../Makefile
+
+CCACHE ?= ccache
+CC = $(CCACHE) gcc
+CXX = $(CCACHE) g++
 
 TOPNAME = ProcessorCore
 NXDC_FILES = constr/ProcessorCore.nxdc
 INC_PATH ?= $(abspath ./include/)
+INC_PATH += $(abspath $(VERILATOR_HOME)/include/)
+INC_PATH += $(abspath $(VERILATOR_HOME)/include/vltstd/)
 
 VERILATOR = verilator
-VERILATOR_CFLAGS += -MMD --build -cc \
-					-O3 --x-assign fast \
+VERILATOR_CFLAGS += -MMD -O3 --x-assign fast \
 					--x-initial fast --noassert \
-					--trace-fst --debug \
-					-CFLAGS -g \
-					-CFLAGS -std=c++26 \
-					-LDFLAGS -lelf \
-					-LDFLAGS -fsanitize=address
+					--trace-fst --debug
 
 BUILD_DIR = ./build
+INC_PATH += $(abspath $(BUILD_DIR))
 OBJ_DIR = $(BUILD_DIR)/obj_dir
 BIN = $(BUILD_DIR)/$(TOPNAME)
 
@@ -55,28 +35,53 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
 auto_bind: $(SRC_AUTO_BIND)
 
-# project source
-VSRCS = $(shell find $(abspath ./vsrc) -name "*.v" -or -name "*.sv")
-CSRCS = $(shell find $(abspath ./csrc) -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+# Verilated 生成的代码输出目录
+VERILATOR_MDIR = $(OBJ_DIR)
+INC_PATH += $(abspath $(VERILATOR_MDIR))
+
+# Verilated 生成的静态库
+VERILATED_LIB = $(VERILATOR_MDIR)/V$(TOPNAME)__ALL.a
+
+# project sources
+VSRCS = $(shell find vsrc -name "*.v" -or -name "*.sv")
+CSRCS = $(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 CSRCS += $(SRC_AUTO_BIND)
+# project static libraries
+LIBS = $(VERILATED_LIB) $(NVBOARD_ARCHIVE)
+
+# C/C++ 源文件对应的 .o 文件路径（放到构建目录下的对应子目录）
+COBJS = $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(CSRCS))
 
 # rules for NVBoard
 # 把NVBoard的Makefile包括进来，构建程序包括NVBoard界面
 include $(NVBOARD_HOME)/scripts/nvboard.mk
 
 # rules for verilator
-INCFLAGS = $(addprefix -I, $(INC_PATH))
-CXXFLAGS += $(INCFLAGS)
+INCFLAGS = -I. $(addprefix -I, $(INC_PATH))
+CXXFLAGS += $(INCFLAGS) -g -std=c++26
+LDFLAGS += -lz -lelf -fsanitize=address
 
 IMG ?= build/program.bin
 
-$(BIN): $(VSRCS) $(CSRCS) $(NVBOARD_ARCHIVE)
-	@rm -rf $(OBJ_DIR)
-	OBJCACHE=ccache $(VERILATOR) $(VERILATOR_CFLAGS) \
-		--top-module $(TOPNAME) $^ \
-		$(addprefix -CFLAGS , $(CXXFLAGS)) $(addprefix -LDFLAGS , $(LDFLAGS)) \
-		--Mdir $(OBJ_DIR) --exe -o $(abspath $(BIN)) \
+# 规则：将 csrc/.../xxx.cpp -> obj_dir/.../xxx.o
+$(OBJ_DIR)/%.o: csrc/%.cpp
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# 规则：用 Verilator 生成仿真代码（不自动编译 C++ 源文件）
+$(VERILATED_LIB): $(VSRCS)
+	@mkdir -p $(BUILD_DIR)
+	$(VERILATOR) $(VERILATOR_CFLAGS) \
+		--top-module $(TOPNAME) \
+		--Mdir $(OBJ_DIR) --cc $^ \
 		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
+	make -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
+
+# 链接所有 .o 文件与 Verilated 库生成最终仿真程序
+$(BIN): $(LIBS) $(COBJS)
+	$(CXX) $(CXXFLAGS) $^ -o $@ \
+		-L$(VERILATOR_MDIR) -lverilated -lV$(TOPNAME) \
+		$(LDFLAGS)
 
 RUN_SDB_ENABLED ?= false
 RUN_CONFIG_ITRACE ?= off
@@ -119,7 +124,7 @@ RUN_ARGS = NPC_BIN_PATH=$(IMG) \
 	NPC_CONFIG_DIFFTEST_SO_FILE_PATH=$(RUN_CONFIG_DIFFTEST_SO_FILE_PATH) \
 	NPC_CONFIG_WAVE_FILE_PATH=$(RUN_CONFIG_WAVE_FILE_PATH)
 
-run: $(BIN)
+run: $(BIN) git_commit_sim
 	$(RUN_ARGS) $(BIN)
 
 GDB_ARGS = -ex "set debuginfod enabled on" \
@@ -144,7 +149,7 @@ GDB_ARGS = -ex "set debuginfod enabled on" \
 	-ex "set env NPC_CONFIG_DIFFTEST_SO_FILE_PATH $(RUN_CONFIG_DIFFTEST_SO_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_WAVE_FILE_PATH $(RUN_CONFIG_WAVE_FILE_PATH)"
 
-gdb: $(BIN)
+gdb: $(BIN) git_commit_sim
 	gdb $(GDB_ARGS) $(BIN)
 
 clean:
@@ -155,4 +160,4 @@ gen_header:
 	$(VERILATOR) --top-module $(TOPNAME) --Mdir $(OBJ_DIR) --cc $(VSRCS) \
 		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
 
-.PHONY: default all clean run sim auto_bind gen_header
+.PHONY: default all clean run git_commit_sim auto_bind gen_header
