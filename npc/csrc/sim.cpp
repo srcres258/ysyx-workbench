@@ -58,10 +58,10 @@ void simStep() {
             break;
         }
 
-        if (top->ioDPI_executing && !executionBegun) {
+        if (top->ioDPI_core_executing && !executionBegun) {
             executionBegun = true;
         }
-    } while (!executionBegun || (executionBegun && top->ioDPI_executing));
+    } while (!executionBegun || (executionBegun && top->ioDPI_core_executing));
 }
 
 /**
@@ -72,7 +72,7 @@ void simStep() {
 void simReset(int n) {
     top->reset = 1;
     while (n--) {
-        simStep();
+        simStepClockPeriod();
     }
     top->reset = 0;
 }
@@ -87,7 +87,7 @@ bool simExecOnce() {
     if (sim_config.config_debugOutput)
         std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
 
-    simExecInfo.pc = top->io_pc;
+    simExecInfo.pc = top->ioDPI_core_pc;
     if (sim_config.config_debugOutput)
         std::cout << "当前PC: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << simExecInfo.pc << std::endl;
@@ -101,7 +101,7 @@ bool simExecOnce() {
     simExecInfo.inst = 0x00000000;
     if (sim_config.config_debugOutput)
         std::cout << "正在从内存中读指令..." << std::endl;
-    addr = top->io_pc;
+    addr = top->ioDPI_core_pc;
     if (addr >= MEMORY_OFFSET) {
         data = readMemory(addr, sizeof(word_t));
         if (sim_config.config_debugOutput)
@@ -109,7 +109,6 @@ bool simExecOnce() {
                 std::setw(8) << std::hex << addr <<
                 ", 指令: 0x" << std::setfill('0') <<
                 std::setw(8) << std::hex << data << std::endl;
-        top->io_instData = data;
         simExecInfo.inst = data;
     } else {
         if (sim_config.config_debugOutput)
@@ -167,7 +166,7 @@ bool simExecOnce() {
  */
 static void traceAndDiffTest() {
     if (sim_config.config_difftest) {
-        difftest_dut_step(simExecInfo.pc, top->io_pc);
+        difftest_dut_step(simExecInfo.pc, top->ioDPI_core_pc);
     }
     sdb_evalAndUpdateWP();
 }
@@ -187,7 +186,7 @@ static void execute(uint64_t n) {
         }
         if (sim_halt) {
             sim_state.state = SIM_END;
-            sim_state.haltPC = top->io_pc;
+            sim_state.haltPC = top->ioDPI_core_pc;
         }
         traceAndDiffTest();
         if (sim_state.state != SIM_RUNNING) {
@@ -245,15 +244,13 @@ void simExec(uint64_t n) {
             break;
         case SIM_END:
         case SIM_ABORT:
-            halt_ret = top->ioDPI_gprs_0;
-            if (sim_config.config_debugOutput)
-                std::cout << "仿真: " <<
-                    (sim_state.state == SIM_ABORT ?
-                        ANSI_FMT("ABORT", ANSI_FG_RED) :
-                        ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
-                    " at pc = 0x" << std::setfill('0') <<
-                    std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
-                    ", 结果: " << halt_ret << std::endl;
+            halt_ret = top->ioDPI_gpr_gprs_0;
+            std::cout << "仿真: " << (sim_state.state == SIM_ABORT ?
+                    ANSI_FMT("ABORT", ANSI_FG_RED) :
+                    ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
+                " at pc = 0x" << std::setfill('0') <<
+                std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
+                ", 结果: " << halt_ret << std::endl;
             std::cout << "仿真结束, 共执行 " << std::dec << execCount <<
                 " 条指令, 耗时 " << std::dec << execCountClockPeriod << " 个时钟周期." << std::endl;
     }
@@ -324,7 +321,7 @@ bool simulate(bool sdbEnabled) {
 
     if (sim_config.config_debugOutput)
         std::cout << "仿真结束." << std::endl;
-    halt_ret = top->ioDPI_gprs_0;
+    halt_ret = top->ioDPI_gpr_gprs_0;
     delete top;
 
     if (sim_config.config_itrace) {

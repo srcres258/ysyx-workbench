@@ -31,39 +31,39 @@ word_t isaRegVal(size_t idx) {
     }
 
     switch (idx) {
-        case 0: return top->ioDPI_gprs_0;
-        case 1: return top->ioDPI_gprs_1;
-        case 2: return top->ioDPI_gprs_2;
-        case 3: return top->ioDPI_gprs_3;
-        case 4: return top->ioDPI_gprs_4;
-        case 5: return top->ioDPI_gprs_5;
-        case 6: return top->ioDPI_gprs_6;
-        case 7: return top->ioDPI_gprs_7;
-        case 8: return top->ioDPI_gprs_8;
-        case 9: return top->ioDPI_gprs_9;
-        case 10: return top->ioDPI_gprs_10;
-        case 11: return top->ioDPI_gprs_11;
-        case 12: return top->ioDPI_gprs_12;
-        case 13: return top->ioDPI_gprs_13;
-        case 14: return top->ioDPI_gprs_14;
-        case 15: return top->ioDPI_gprs_15;
+        case 0: return top->ioDPI_gpr_gprs_0;
+        case 1: return top->ioDPI_gpr_gprs_1;
+        case 2: return top->ioDPI_gpr_gprs_2;
+        case 3: return top->ioDPI_gpr_gprs_3;
+        case 4: return top->ioDPI_gpr_gprs_4;
+        case 5: return top->ioDPI_gpr_gprs_5;
+        case 6: return top->ioDPI_gpr_gprs_6;
+        case 7: return top->ioDPI_gpr_gprs_7;
+        case 8: return top->ioDPI_gpr_gprs_8;
+        case 9: return top->ioDPI_gpr_gprs_9;
+        case 10: return top->ioDPI_gpr_gprs_10;
+        case 11: return top->ioDPI_gpr_gprs_11;
+        case 12: return top->ioDPI_gpr_gprs_12;
+        case 13: return top->ioDPI_gpr_gprs_13;
+        case 14: return top->ioDPI_gpr_gprs_14;
+        case 15: return top->ioDPI_gpr_gprs_15;
 #ifndef CONFIG_RVE
-        case 16: return top->ioDPI_gprs_16;
-        case 17: return top->ioDPI_gprs_17;
-        case 18: return top->ioDPI_gprs_18;
-        case 19: return top->ioDPI_gprs_19;
-        case 20: return top->ioDPI_gprs_20;
-        case 21: return top->ioDPI_gprs_21;
-        case 22: return top->ioDPI_gprs_22;
-        case 23: return top->ioDPI_gprs_23;
-        case 24: return top->ioDPI_gprs_24;
-        case 25: return top->ioDPI_gprs_25;
-        case 26: return top->ioDPI_gprs_26;
-        case 27: return top->ioDPI_gprs_27;
-        case 28: return top->ioDPI_gprs_28;
-        case 29: return top->ioDPI_gprs_29;
-        case 30: return top->ioDPI_gprs_30;
-        case 31: return top->ioDPI_gprs_31;
+        case 16: return top->ioDPI_gpr_gprs_16;
+        case 17: return top->ioDPI_gpr_gprs_17;
+        case 18: return top->ioDPI_gpr_gprs_18;
+        case 19: return top->ioDPI_gpr_gprs_19;
+        case 20: return top->ioDPI_gpr_gprs_20;
+        case 21: return top->ioDPI_gpr_gprs_21;
+        case 22: return top->ioDPI_gpr_gprs_22;
+        case 23: return top->ioDPI_gpr_gprs_23;
+        case 24: return top->ioDPI_gpr_gprs_24;
+        case 25: return top->ioDPI_gpr_gprs_25;
+        case 26: return top->ioDPI_gpr_gprs_26;
+        case 27: return top->ioDPI_gpr_gprs_27;
+        case 28: return top->ioDPI_gpr_gprs_28;
+        case 29: return top->ioDPI_gpr_gprs_29;
+        case 30: return top->ioDPI_gpr_gprs_30;
+        case 31: return top->ioDPI_gpr_gprs_31;
 #endif
     }
 
@@ -97,7 +97,7 @@ word_t isaRegStr2Val(const char *s, bool *success) {
 
     if (str == "pc") {
         *success = true;
-        return top->io_pc;
+        return top->ioDPI_core_pc;
     }
 
     for (i = 0; i < LEN_REGS; i++) {
@@ -125,24 +125,24 @@ void isaRegDisplay() {
     }
 
     std::cout << "PC is currently at 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << top->io_pc << std::dec << std::endl;
+        std::setw(8) << std::hex << top->ioDPI_core_pc << std::dec << std::endl;
 
     std::cout << "CSRs:" << std::endl;
     std::cout << std::setfill(' ') << std::setw(4) << "mstatus" <<
         ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << top->ioDPI_csr_mstatus << std::dec << std::endl;
+        std::hex << top->ioDPI_csr_csr_mstatus << std::dec << std::endl;
     std::cout << std::setfill(' ') << std::setw(4) << "mtvec" <<
         ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << top->ioDPI_csr_mtvec << std::dec << std::endl;
+        std::hex << top->ioDPI_csr_csr_mtvec << std::dec << std::endl;
     std::cout << std::setfill(' ') << std::setw(4) << "mepc" <<
         ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << top->ioDPI_csr_mepc << std::dec << std::endl;
+        std::hex << top->ioDPI_csr_csr_mepc << std::dec << std::endl;
     std::cout << std::setfill(' ') << std::setw(4) << "mcause" <<
         ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << top->ioDPI_csr_mcause << std::dec << std::endl;
+        std::hex << top->ioDPI_csr_csr_mcause << std::dec << std::endl;
     std::cout << std::setfill(' ') << std::setw(4) << "mtval" <<
         ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << top->ioDPI_csr_mtval << std::dec << std::endl;
+        std::hex << top->ioDPI_csr_csr_mtval << std::dec << std::endl;
 }
 
 /**

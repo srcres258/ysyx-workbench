@@ -38,12 +38,12 @@ static void checkBound(const IOMap *map, addr_t addr) {
             addr <= map->high && addr >= map->low,
             "address (" FMT_ADDR ") is out of bound {%s} [" FMT_ADDR
                 ", " FMT_ADDR "] at pc = " FMT_WORD,
-            addr, map->name, map->low, map->high, top->io_pc
+            addr, map->name, map->low, map->high, top->ioDPI_core_pc
         );
     } else {
         panic(
             "address (" FMT_ADDR ") is null at pc = " FMT_WORD,
-            addr, top->io_pc
+            addr, top->ioDPI_core_pc
         );
     }
 }
@@ -60,7 +60,7 @@ static void dtraceRecord(
 ) {
     auto content = std::format(
         "0x{:08x}: Device {}: {} at 0x{:08x}, len {}, data 0x{:08x}",
-        top->io_pc, map->name, type, addr, len, data
+        top->ioDPI_core_pc, map->name, type, addr, len, data
     );
     sim_state.dtrace_ofs << content << std::endl;
     if (sim_config.config_debugOutput)
