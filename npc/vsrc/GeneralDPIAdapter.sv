@@ -20,6 +20,14 @@ module GeneralDPIAdapter (
     input  [3:0]  uart_write_writeDataStrobe,
     input  [31:0] uart_write_writeData,
 
+    input         clint_read_readEnable,
+    input  [31:0] clint_read_readAddress,
+    output [31:0] clint_read_readData,
+    input         clint_write_writeEnable,
+    input  [31:0] clint_write_writeAddress,
+    input  [3:0]  clint_write_writeDataStrobe,
+    input  [31:0] clint_write_writeData,
+
     input  [31:0] gpr_gprs_0,
     input  [31:0] gpr_gprs_1,
     input  [31:0] gpr_gprs_2,
@@ -99,6 +107,10 @@ module GeneralDPIAdapter (
     initial uart_readData = 32'h0;
     assign uart_read_readData = uart_readData;
 
+    logic [31:0] clint_readData;
+    initial clint_readData = 32'h0;
+    assign clint_read_readData = clint_readData;
+
     /**
      * 终止仿真
      */
@@ -136,6 +148,9 @@ module GeneralDPIAdapter (
 
     import "DPI-C" function bit [31:0] dpi_uart_onReadEnable(input logic uart_read_readEnable);
     import "DPI-C" function void       dpi_uart_onWriteEnable(input logic uart_write_writeEnable);
+
+    import "DPI-C" function bit [31:0] dpi_clint_onReadEnable(input logic clint_read_readEnable);
+    import "DPI-C" function void       dpi_clint_onWriteEnable(input logic clint_write_writeEnable);
 
     always_ff @( posedge halt ) begin : call_dpi_halt
         dpi_halt(halt);
@@ -185,5 +200,12 @@ module GeneralDPIAdapter (
     end
     always_ff @( posedge uart_write_writeEnable ) begin : call_dpi_uart_onWriteEnable
         dpi_uart_onWriteEnable(uart_write_writeEnable);
+    end
+
+    always_ff @( posedge clint_read_readEnable ) begin : call_dpi_clint_onReadEnable
+        clint_readData <= dpi_clint_onReadEnable(clint_read_readEnable);
+    end
+    always_ff @( posedge clint_write_writeEnable ) begin : call_dpi_clint_onWriteEnable
+        dpi_clint_onWriteEnable(clint_write_writeEnable);
     end
 endmodule

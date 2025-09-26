@@ -7,6 +7,7 @@
 #include <memory.hpp>
 #include <utils.hpp>
 #include <utils/Stage.hpp>
+#include <utils/timer.hpp>
 
 extern "C" void dpi_halt(bool halt) {
     sim_halt = halt;
@@ -328,4 +329,37 @@ extern "C" void dpi_uart_onWriteEnable(bool _uart_write_writeEnable) {
     char c = static_cast<char>(data & 0xFF);
     std::cerr << c;
     std::flush(std::cerr);
+}
+
+extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
+    bool clint_read_readEnable = top->ioDPI_clint_read_readEnable;
+    if (!clint_read_readEnable) {
+        return 0;
+    }
+
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] read from CLINT..." << std::endl;
+    }
+
+    uint64_t us = timer_getTimeElapsedUSec();
+    uint32_t result = 0;
+    addr_t addr = top->ioDPI_clint_read_readAddress;
+    if (addr == 0xa0000048) {
+        result = (uint32_t) us;
+    } else if (addr == 0xa000004c) {
+        result = (uint32_t) (us >> 32);
+    }
+    top->ioDPI_clint_read_readData = result;
+    return result;
+}
+
+extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
+    bool clint_write_writeEnable = top->ioDPI_clint_write_writeEnable;
+    if (!clint_write_writeEnable) {
+        return;
+    }
+
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] write to CLINT..." << std::endl;
+    }
 }
