@@ -298,3 +298,34 @@ extern "C" void dpi_onPosEdge_upcu_pcOutput_valid(bool _upcu_pcOutput_valid) {
         std::cout << "[sim] upcu_pcOutput_valid posedge detected." << std::endl;
     }
 }
+
+extern "C" word_t dpi_uart_onReadEnable(bool _uart_read_readEnable) {
+    bool uart_read_readEnable = top->ioDPI_uart_read_readEnable;
+    if (!uart_read_readEnable) {
+        return 0;
+    }
+
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] read from UART..." << std::endl;
+    }
+
+    word_t result = 0xDEADBEEF;
+    top->ioDPI_uart_read_readData = result;
+    return result;
+}
+
+extern "C" void dpi_uart_onWriteEnable(bool _uart_write_writeEnable) {
+    bool uart_write_writeEnable = top->ioDPI_uart_write_writeEnable;
+    if (!uart_write_writeEnable) {
+        return;
+    }
+
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] write to UART..." << std::endl;
+    }
+
+    word_t data = top->ioDPI_uart_write_writeData;
+    char c = static_cast<char>(data & 0xFF);
+    std::cerr << c;
+    std::flush(std::cerr);
+}
