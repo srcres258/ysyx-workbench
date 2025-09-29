@@ -19,12 +19,19 @@ ExecInfo simExecInfo = {
     .inst = 0
 };
 
-VProcessorCore *top = nullptr;
+VysyxSoCFull *top = nullptr;
 static VerilatedFstC *tfp = nullptr;
 bool sim_halt = false;
 
 static uint64_t execCount = 0;
 static uint64_t execCountClockPeriod = 0;
+
+/**
+ * @brief 获取 DPI 模块, 以便读取被仿真模块的信号.
+ */
+VysyxSoCFull_GeneralDPIAdapter *getDPIModule() {
+    return top->ysyxSoCFull->asic->cpu->cpu->dpi;
+}
 
 /**
  * @brief 执行一步仿真 (执行一个时钟周期).
@@ -58,10 +65,10 @@ void simStep() {
             break;
         }
 
-        if (top->ioDPI_core_executing && !executionBegun) {
+        if (getDPIModule()->core_executing && !executionBegun) {
             executionBegun = true;
         }
-    } while (!executionBegun || (executionBegun && top->ioDPI_core_executing));
+    } while (!executionBegun || (executionBegun && getDPIModule()->core_executing));
 }
 
 /**
@@ -87,7 +94,8 @@ bool simExecOnce() {
     if (sim_config.config_debugOutput)
         std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
 
-    simExecInfo.pc = top->ioDPI_core_pc;
+    auto *dpi = getDPIModule();
+    simExecInfo.pc = dpi->core_pc;
     if (sim_config.config_debugOutput)
         std::cout << "当前PC: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << simExecInfo.pc << std::endl;
@@ -101,7 +109,7 @@ bool simExecOnce() {
     simExecInfo.inst = 0x00000000;
     if (sim_config.config_debugOutput)
         std::cout << "正在从内存中读指令..." << std::endl;
-    addr = top->ioDPI_core_pc;
+    addr = dpi->core_pc;
     if (addr >= MEMORY_OFFSET) {
         data = readMemory(addr, sizeof(word_t));
         if (sim_config.config_debugOutput)
@@ -166,7 +174,7 @@ bool simExecOnce() {
  */
 static void traceAndDiffTest() {
     if (sim_config.config_difftest) {
-        difftest_dut_step(simExecInfo.pc, top->ioDPI_core_pc);
+        difftest_dut_step(simExecInfo.pc, getDPIModule()->core_pc);
     }
     sdb_evalAndUpdateWP();
 }
@@ -186,7 +194,7 @@ static void execute(uint64_t n) {
         }
         if (sim_halt) {
             sim_state.state = SIM_END;
-            sim_state.haltPC = top->ioDPI_core_pc;
+            sim_state.haltPC = getDPIModule()->core_pc;
         }
         traceAndDiffTest();
         if (sim_state.state != SIM_RUNNING) {
@@ -244,7 +252,7 @@ void simExec(uint64_t n) {
             break;
         case SIM_END:
         case SIM_ABORT:
-            halt_ret = top->ioDPI_gpr_gprs_0;
+            halt_ret = getDPIModule()->gpr_gprs_0;
             std::cout << "仿真: " << (sim_state.state == SIM_ABORT ?
                     ANSI_FMT("ABORT", ANSI_FG_RED) :
                     ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
@@ -281,7 +289,7 @@ bool simulate(bool sdbEnabled) {
     }
     sim_state_ofstream_init();
 
-    top = new VProcessorCore(verContext);
+    top = new VysyxSoCFull(verContext);
 
     if (sim_config.config_wave) {
         tfp = new VerilatedFstC;
@@ -321,7 +329,7 @@ bool simulate(bool sdbEnabled) {
 
     if (sim_config.config_debugOutput)
         std::cout << "仿真结束." << std::endl;
-    halt_ret = top->ioDPI_gpr_gprs_0;
+    halt_ret = getDPIModule()->gpr_gprs_0;
     delete top;
 
     if (sim_config.config_itrace) {

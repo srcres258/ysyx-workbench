@@ -9,8 +9,10 @@ CCACHE ?= ccache
 CC = $(CCACHE) gcc
 CXX = $(CCACHE) g++
 
-TOPNAME = ProcessorCore
-NXDC_FILES = constr/ProcessorCore.nxdc
+YSYXSOC_PATH ?= ../ysyxSoC
+
+TOPNAME = ysyxSoCFull
+NXDC_FILES = constr/ysyxSoCFull.nxdc
 INC_PATH ?= $(abspath ./include/)
 INC_PATH += $(abspath $(VERILATOR_HOME)/include/)
 INC_PATH += $(abspath $(VERILATOR_HOME)/include/vltstd/)
@@ -43,7 +45,8 @@ INC_PATH += $(abspath $(VERILATOR_MDIR))
 VERILATED_LIB = $(VERILATOR_MDIR)/V$(TOPNAME)__ALL.a
 
 # project sources
-VSRCS = $(shell find vsrc -name "*.v" -or -name "*.sv")
+VSRCS = $(shell find vsrc -name "*.v" -or -name "*.sv") $(shell find $(YSYXSOC_PATH)/perip -name "*.v")
+VSRCS += $(YSYXSOC_PATH)/build/$(TOPNAME).v
 CSRCS = $(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 CSRCS += $(SRC_AUTO_BIND)
 # project static libraries
@@ -74,7 +77,9 @@ $(VERILATED_LIB): $(VSRCS)
 	$(VERILATOR) $(VERILATOR_CFLAGS) \
 		--top-module $(TOPNAME) \
 		--Mdir $(OBJ_DIR) --cc $^ \
-		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
+		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated) \
+		-I$(abspath $(YSYXSOC_PATH)/perip/uart16550/rtl) -I$(abspath $(YSYXSOC_PATH)/perip/spi/rtl) \
+		--timescale "1ns/1ns" --no-timing
 	make -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
 
 # 链接所有 .o 文件与 Verilated 库生成最终仿真程序
@@ -158,6 +163,8 @@ clean:
 # 生成 C++ 头文件，以便编写基于 Verilator 的 C++ Testbench
 gen_header:
 	$(VERILATOR) --top-module $(TOPNAME) --Mdir $(OBJ_DIR) --cc $(VSRCS) \
-		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated)
+		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated) \
+		-I$(abspath $(YSYXSOC_PATH)/perip/uart16550/rtl) -I$(abspath $(YSYXSOC_PATH)/perip/spi/rtl) \
+		--timescale "1ns/1ns" --no-timing
 
 .PHONY: default all clean run git_commit_sim auto_bind gen_header

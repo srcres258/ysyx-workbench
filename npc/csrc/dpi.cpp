@@ -9,6 +9,10 @@
 #include <utils/Stage.hpp>
 #include <utils/timer.hpp>
 
+static auto *dpi() {
+    return getDPIModule();
+}
+
 extern "C" void dpi_halt(bool halt) {
     sim_halt = halt;
 
@@ -44,7 +48,8 @@ static bool tryRecord(CallType type, addr_t pc, addr_t destAddr) {
 }
 
 extern "C" void dpi_onInst_jal(bool _trig) {
-    bool trig = top->ioDPI_idu_inst_jal;
+    auto *dpi = getDPIModule();
+    bool trig = dpi->idu_inst_jal;
     // 检测是否触发该指令，未触发则不执行操作
     if (!trig) {
         return;
@@ -54,9 +59,9 @@ extern "C" void dpi_onInst_jal(bool _trig) {
         word_t imm;
         uint8_t rd;
         addr_t pc, destAddr;
-        imm = top->ioDPI_idu_imm;
-        rd = top->ioDPI_idu_rd;
-        pc = top->ioDPI_core_pc;
+        imm = dpi->idu_imm;
+        rd = dpi->idu_rd;
+        pc = dpi->core_pc;
         destAddr = pc + imm;
 
         if (rd == 1) {
@@ -74,7 +79,8 @@ extern "C" void dpi_onInst_jal(bool _trig) {
 }
 
 extern "C" void dpi_onInst_jalr(bool _trig) {
-    bool trig = top->ioDPI_idu_inst_jalr;
+    auto *dpi = getDPIModule();
+    bool trig = dpi->idu_inst_jalr;
     // 检测是否触发该指令，未触发则不执行操作
     if (!trig) {
         return;
@@ -84,11 +90,11 @@ extern "C" void dpi_onInst_jalr(bool _trig) {
         word_t src1, imm;
         uint8_t rd, rs1;
         addr_t pc, destAddr;
-        src1 = top->ioDPI_idu_rs1Data;
-        imm = top->ioDPI_idu_imm;
-        rd = top->ioDPI_idu_rd;
-        rs1 = top->ioDPI_idu_rs1;
-        pc = top->ioDPI_core_pc;
+        src1 = dpi->idu_rs1Data;
+        imm = dpi->idu_imm;
+        rd = dpi->idu_rd;
+        rs1 = dpi->idu_rs1;
+        pc = dpi->core_pc;
         destAddr = src1 + imm;
 
         if (isAddrFuncSymStart(destAddr) || (rd == 1 && rs1 == 1)) {
@@ -145,7 +151,8 @@ extern "C" void dpi_onMemWriteEnable(bool _memWriteEnable) {
     addr_t addr;
     word_t data;
 
-    bool memWriteEnable = top->ioDPI_physicalRAM_write_writeEnable;
+    auto *dpi = getDPIModule();
+    bool memWriteEnable = dpi->physicalRAM_write_writeEnable;
     if (!memWriteEnable) {
         return;
     }
@@ -153,15 +160,15 @@ extern "C" void dpi_onMemWriteEnable(bool _memWriteEnable) {
     if (sim_config.config_debugOutput)
         std::cout << "[sim] 处理器置写使能，将向主存写入数据..." << std::endl;
 
-    addr = top->ioDPI_physicalRAM_write_writeAddress;
+    addr = dpi->physicalRAM_write_writeAddress;
     if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
-        data = top->ioDPI_physicalRAM_write_writeData;
+        data = dpi->physicalRAM_write_writeData;
         if (sim_config.config_debugOutput)
             std::cout << "地址: 0x" << std::setfill('0') <<
                 std::setw(8) << std::hex << addr <<
                 ", 数据: 0x" << std::setfill('0') <<
                 std::setw(8) << std::hex << data << std::endl;
-        size_t len = dataStrobeToSize(top->ioDPI_physicalRAM_write_writeDataStrobe);
+        size_t len = dataStrobeToSize(dpi->physicalRAM_write_writeDataStrobe);
         if (sim_config.config_debugOutput)
             std::cout << "[sim] 长度: " << std::dec << len << std::endl;
         writeMemory(addr, len, data);
@@ -169,7 +176,7 @@ extern "C" void dpi_onMemWriteEnable(bool _memWriteEnable) {
         if (sim_config.config_mtrace) {
             std::string mtraceContent = std::format(
                 "0x{:08x}: Memory write at 0x{:08x}, len {}, data 0x{:08x}",
-                top->ioDPI_core_pc, addr, len, data
+                dpi->core_pc, addr, len, data
             );
             sim_state.mtrace_ofs << mtraceContent << std::endl;
             std::flush(sim_state.mtrace_ofs);
@@ -187,7 +194,8 @@ extern "C" word_t dpi_onMemReadEnable(bool _memReadEnable) {
     addr_t addr;
     word_t data, readData;
     
-    bool memReadEnable = top->ioDPI_physicalRAM_read_readEnable;
+    auto *dpi = getDPIModule();
+    bool memReadEnable = dpi->physicalRAM_read_readEnable;
 
     if (!memReadEnable) {
         return 0;
@@ -196,7 +204,7 @@ extern "C" word_t dpi_onMemReadEnable(bool _memReadEnable) {
     if (sim_config.config_debugOutput)
         std::cout << "[sim] 处理器置读使能，将从主存读取数据..." << std::endl;
 
-    addr = top->ioDPI_physicalRAM_read_readAddress;
+    addr = dpi->physicalRAM_read_readAddress;
     if (sim_config.config_debugOutput)
         std::cout << "[sim] 地址: 0x" << std::setfill('0') <<
                 std::setw(8) << std::hex << addr << std::endl;
@@ -214,7 +222,7 @@ extern "C" word_t dpi_onMemReadEnable(bool _memReadEnable) {
         if (sim_config.config_mtrace) {
             std::string mtraceContent = std::format(
                 "0x{:08x}: Memory read at 0x{:08x}, len {}, data 0x{:08x}",
-                top->ioDPI_core_pc, addr, len, data
+                dpi->core_pc, addr, len, data
             );
             sim_state.mtrace_ofs << mtraceContent << std::endl;
             std::flush(sim_state.mtrace_ofs);
@@ -228,15 +236,15 @@ extern "C" word_t dpi_onMemReadEnable(bool _memReadEnable) {
         readData = 0;
     }
 
-    top->ioDPI_physicalRAM_read_readData = readData;
     return readData;
 }
 
 extern "C" void dpi_onEcallEnable(bool _ecallEnable) {
-    bool ecallEnable = top->ioDPI_exu_ecallEnable;
+    auto *dpi = getDPIModule();
+    bool ecallEnable = dpi->exu_ecallEnable;
     if (ecallEnable && sim_config.config_etrace) {
         // 记录 etrace
-        std::string message = std::format("0x{:08x}: ecall detected", top->ioDPI_core_pc);
+        std::string message = std::format("0x{:08x}: ecall detected", dpi->core_pc);
         sim_state.etrace_ofs << message << std::endl;
         if (sim_config.config_debugOutput) {
             std::cout << "[sim] etrace: " << message << std::endl;
@@ -245,7 +253,7 @@ extern "C" void dpi_onEcallEnable(bool _ecallEnable) {
 }
 
 extern "C" void dpi_onPosEdge_ifuInputValid(bool _ifuInputValid) {
-    bool ifuInputValid = top->ioDPI_core_ifuInputValid;
+    bool ifuInputValid = dpi()->core_ifuInputValid;
 
     if (ifuInputValid && sim_config.config_debugOutput) {
         std::cout << "[sim] ifuInputValid posedge detected." << std::endl;
@@ -253,7 +261,7 @@ extern "C" void dpi_onPosEdge_ifuInputValid(bool _ifuInputValid) {
 }
 
 extern "C" void dpi_onPosEdge_if_nextStage_valid(bool _if_nextStage_valid) {
-    bool if_nextStage_valid = top->ioDPI_ifu_if_nextStage_valid;
+    bool if_nextStage_valid = dpi()->ifu_if_nextStage_valid;
 
     if (if_nextStage_valid && sim_config.config_debugOutput) {
         std::cout << "[sim] if_nextStage_valid posedge detected." << std::endl;
@@ -261,7 +269,7 @@ extern "C" void dpi_onPosEdge_if_nextStage_valid(bool _if_nextStage_valid) {
 }
 
 extern "C" void dpi_onPosEdge_id_nextStage_valid(bool _id_nextStage_valid) {
-    bool id_nextStage_valid = top->ioDPI_idu_id_nextStage_valid;
+    bool id_nextStage_valid = dpi()->idu_id_nextStage_valid;
 
     if (id_nextStage_valid && sim_config.config_debugOutput) {
         std::cout << "[sim] id_nextStage_valid posedge detected." << std::endl;
@@ -269,7 +277,7 @@ extern "C" void dpi_onPosEdge_id_nextStage_valid(bool _id_nextStage_valid) {
 }
 
 extern "C" void dpi_onPosEdge_ex_nextStage_valid(bool _ex_nextStage_valid) {
-    bool ex_nextStage_valid = top->ioDPI_exu_ex_nextStage_valid;
+    bool ex_nextStage_valid = dpi()->exu_ex_nextStage_valid;
 
     if (ex_nextStage_valid && sim_config.config_debugOutput) {
         std::cout << "[sim] ex_nextStage_valid posedge detected." << std::endl;
@@ -277,7 +285,7 @@ extern "C" void dpi_onPosEdge_ex_nextStage_valid(bool _ex_nextStage_valid) {
 }
 
 extern "C" void dpi_onPosEdge_ma_nextStage_valid(bool _ma_nextStage_valid) {
-    bool ma_nextStage_valid = top->ioDPI_mau_ma_nextStage_valid;
+    bool ma_nextStage_valid = dpi()->mau_ma_nextStage_valid;
 
     if (ma_nextStage_valid && sim_config.config_debugOutput) {
         std::cout << "[sim] ma_nextStage_valid posedge detected." << std::endl;
@@ -285,7 +293,7 @@ extern "C" void dpi_onPosEdge_ma_nextStage_valid(bool _ma_nextStage_valid) {
 }
 
 extern "C" void dpi_onPosEdge_wb_nextStage_valid(bool _wb_nextStage_valid) {
-    bool wb_nextStage_valid = top->ioDPI_wbu_wb_nextStage_valid;
+    bool wb_nextStage_valid = dpi()->wbu_wb_nextStage_valid;
 
     if (wb_nextStage_valid && sim_config.config_debugOutput) {
         std::cout << "[sim] wb_nextStage_valid posedge detected." << std::endl;
@@ -293,7 +301,7 @@ extern "C" void dpi_onPosEdge_wb_nextStage_valid(bool _wb_nextStage_valid) {
 }
 
 extern "C" void dpi_onPosEdge_upcu_pcOutput_valid(bool _upcu_pcOutput_valid) {
-    bool upcu_pcOutput_valid = top->ioDPI_upcu_upcu_pcOutput_valid;
+    bool upcu_pcOutput_valid = dpi()->upcu_upcu_pcOutput_valid;
 
     if (upcu_pcOutput_valid && sim_config.config_debugOutput) {
         std::cout << "[sim] upcu_pcOutput_valid posedge detected." << std::endl;
@@ -301,7 +309,7 @@ extern "C" void dpi_onPosEdge_upcu_pcOutput_valid(bool _upcu_pcOutput_valid) {
 }
 
 extern "C" word_t dpi_uart_onReadEnable(bool _uart_read_readEnable) {
-    bool uart_read_readEnable = top->ioDPI_uart_read_readEnable;
+    bool uart_read_readEnable = dpi()->uart_read_readEnable;
     if (!uart_read_readEnable) {
         return 0;
     }
@@ -311,12 +319,12 @@ extern "C" word_t dpi_uart_onReadEnable(bool _uart_read_readEnable) {
     }
 
     word_t result = 0xDEADBEEF;
-    top->ioDPI_uart_read_readData = result;
     return result;
 }
 
 extern "C" void dpi_uart_onWriteEnable(bool _uart_write_writeEnable) {
-    bool uart_write_writeEnable = top->ioDPI_uart_write_writeEnable;
+    auto *dpi = getDPIModule();
+    bool uart_write_writeEnable = dpi->uart_write_writeEnable;
     if (!uart_write_writeEnable) {
         return;
     }
@@ -325,14 +333,15 @@ extern "C" void dpi_uart_onWriteEnable(bool _uart_write_writeEnable) {
         std::cout << "[sim] write to UART..." << std::endl;
     }
 
-    word_t data = top->ioDPI_uart_write_writeData;
+    word_t data = dpi->uart_write_writeData;
     char c = static_cast<char>(data & 0xFF);
     std::cerr << c;
     std::flush(std::cerr);
 }
 
 extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
-    bool clint_read_readEnable = top->ioDPI_clint_read_readEnable;
+    auto *dpi = getDPIModule();
+    bool clint_read_readEnable = dpi->clint_read_readEnable;
     if (!clint_read_readEnable) {
         return 0;
     }
@@ -343,18 +352,17 @@ extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
 
     uint64_t us = timer_getTimeElapsedUSec();
     uint32_t result = 0;
-    addr_t addr = top->ioDPI_clint_read_readAddress;
+    addr_t addr = dpi->clint_read_readAddress;
     if (addr == 0xa0000048) {
         result = (uint32_t) us;
     } else if (addr == 0xa000004c) {
         result = (uint32_t) (us >> 32);
     }
-    top->ioDPI_clint_read_readData = result;
     return result;
 }
 
 extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
-    bool clint_write_writeEnable = top->ioDPI_clint_write_writeEnable;
+    bool clint_write_writeEnable = dpi()->clint_write_writeEnable;
     if (!clint_write_writeEnable) {
         return;
     }
@@ -363,3 +371,7 @@ extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
         std::cout << "[sim] write to CLINT..." << std::endl;
     }
 }
+
+extern "C" void flash_read(int32_t addr, int32_t *data) { assert(0); }
+
+extern "C" void mrom_read(int32_t addr, int32_t *data) { assert(0); }

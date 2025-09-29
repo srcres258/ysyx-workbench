@@ -4,7 +4,7 @@
 #include <verilated.h>
 #include <common.hpp>
 
-#include "VProcessorCore.h"
+#include "VysyxSoCFull__Syms.h"
 
 /**
  * @brief 仿真环境执行一条指令的信息。
@@ -20,10 +20,15 @@ struct ExecInfo {
 extern ExecInfo simExecInfo;
 
 extern VerilatedContext *verContext;
-extern VProcessorCore *top;
+extern VysyxSoCFull *top;
 extern bool sim_halt;
 
 #define DEFAULT_BIN_PATH "build/program.bin"
+
+/**
+ * @brief 获取 DPI 模块, 以便读取被仿真模块的信号.
+ */
+VysyxSoCFull_GeneralDPIAdapter *getDPIModule();
 
 /**
  * @brief 执行一步仿真 (执行一个时钟周期).

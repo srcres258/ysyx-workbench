@@ -44,50 +44,51 @@ void ProcessorState::dump() const {
  * @return ProcessorState 处理器状态
  */
 ProcessorState getProcessorState() {
+    auto *dpi = getDPIModule();
     ProcessorState state = {
         .gpr = {
-            top->ioDPI_gpr_gprs_0,
-            top->ioDPI_gpr_gprs_1,
-            top->ioDPI_gpr_gprs_2,
-            top->ioDPI_gpr_gprs_3,
-            top->ioDPI_gpr_gprs_4,
-            top->ioDPI_gpr_gprs_5,
-            top->ioDPI_gpr_gprs_6,
-            top->ioDPI_gpr_gprs_7,
-            top->ioDPI_gpr_gprs_8,
-            top->ioDPI_gpr_gprs_9,
-            top->ioDPI_gpr_gprs_10,
-            top->ioDPI_gpr_gprs_11,
-            top->ioDPI_gpr_gprs_12,
-            top->ioDPI_gpr_gprs_13,
-            top->ioDPI_gpr_gprs_14,
-            top->ioDPI_gpr_gprs_15,
+            dpi->gpr_gprs_0,
+            dpi->gpr_gprs_1,
+            dpi->gpr_gprs_2,
+            dpi->gpr_gprs_3,
+            dpi->gpr_gprs_4,
+            dpi->gpr_gprs_5,
+            dpi->gpr_gprs_6,
+            dpi->gpr_gprs_7,
+            dpi->gpr_gprs_8,
+            dpi->gpr_gprs_9,
+            dpi->gpr_gprs_10,
+            dpi->gpr_gprs_11,
+            dpi->gpr_gprs_12,
+            dpi->gpr_gprs_13,
+            dpi->gpr_gprs_14,
+            dpi->gpr_gprs_15,
 #ifndef CONFIG_RVE
-            top->ioDPI_gpr_gprs_16,
-            top->ioDPI_gpr_gprs_17,
-            top->ioDPI_gpr_gprs_18,
-            top->ioDPI_gpr_gprs_19,
-            top->ioDPI_gpr_gprs_20,
-            top->ioDPI_gpr_gprs_21,
-            top->ioDPI_gpr_gprs_22,
-            top->ioDPI_gpr_gprs_23,
-            top->ioDPI_gpr_gprs_24,
-            top->ioDPI_gpr_gprs_25,
-            top->ioDPI_gpr_gprs_26,
-            top->ioDPI_gpr_gprs_27,
-            top->ioDPI_gpr_gprs_28,
-            top->ioDPI_gpr_gprs_29,
-            top->ioDPI_gpr_gprs_30,
-            top->ioDPI_gpr_gprs_31
+            dpi->gpr_gprs_16,
+            dpi->gpr_gprs_17,
+            dpi->gpr_gprs_18,
+            dpi->gpr_gprs_19,
+            dpi->gpr_gprs_20,
+            dpi->gpr_gprs_21,
+            dpi->gpr_gprs_22,
+            dpi->gpr_gprs_23,
+            dpi->gpr_gprs_24,
+            dpi->gpr_gprs_25,
+            dpi->gpr_gprs_26,
+            dpi->gpr_gprs_27,
+            dpi->gpr_gprs_28,
+            dpi->gpr_gprs_29,
+            dpi->gpr_gprs_30,
+            dpi->gpr_gprs_31
 #endif
         },
-        .pc = top->ioDPI_core_pc,
+        .pc = dpi->core_pc,
         .csr = { 0 }
     };
-    state.csr[CSR_MSTATUS] = top->ioDPI_csr_csr_mstatus;
-    state.csr[CSR_MTVEC] = top->ioDPI_csr_csr_mtvec;
-    state.csr[CSR_MEPC] = top->ioDPI_csr_csr_mepc;
-    state.csr[CSR_MCAUSE] = top->ioDPI_csr_csr_mcause;
-    state.csr[CSR_MTVAL] = top->ioDPI_csr_csr_mtval;
+    state.csr[CSR_MSTATUS] = dpi->csr_csr_mstatus;
+    state.csr[CSR_MTVEC] = dpi->csr_csr_mtvec;
+    state.csr[CSR_MEPC] = dpi->csr_csr_mepc;
+    state.csr[CSR_MCAUSE] = dpi->csr_csr_mcause;
+    state.csr[CSR_MTVAL] = dpi->csr_csr_mtval;
     return std::move(state);
 };
