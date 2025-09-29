@@ -88,8 +88,8 @@ void simReset(int n) {
  * @brief 执行一条指令的仿真。
  */
 bool simExecOnce() {
-    addr_t addr;
-    word_t data;
+    // addr_t addr;
+    // word_t data;
 
     if (sim_config.config_debugOutput)
         std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
@@ -109,20 +109,20 @@ bool simExecOnce() {
     simExecInfo.inst = 0x00000000;
     if (sim_config.config_debugOutput)
         std::cout << "正在从内存中读指令..." << std::endl;
-    addr = dpi->core_pc;
-    if (addr >= MEMORY_OFFSET) {
-        data = readMemory(addr, sizeof(word_t));
-        if (sim_config.config_debugOutput)
-            std::cout << "地址: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << addr <<
-                ", 指令: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << data << std::endl;
-        simExecInfo.inst = data;
-    } else {
-        if (sim_config.config_debugOutput)
-            std::cerr << "地址尚未初始化，仿真无法继续，只能异常退出！" << std::endl;
-        return false;
-    }
+    // addr = dpi->core_pc;
+    // if (addr >= MEMORY_OFFSET) {
+    //     data = readMemory(addr, sizeof(word_t));
+    //     if (sim_config.config_debugOutput)
+    //         std::cout << "地址: 0x" << std::setfill('0') <<
+    //             std::setw(8) << std::hex << addr <<
+    //             ", 指令: 0x" << std::setfill('0') <<
+    //             std::setw(8) << std::hex << data << std::endl;
+    //     simExecInfo.inst = data;
+    // } else {
+    //     if (sim_config.config_debugOutput)
+    //         std::cerr << "地址尚未初始化，仿真无法继续，只能异常退出！" << std::endl;
+    //     return false;
+    // }
 
     // 解析指令
     if (sim_config.config_debugOutput)

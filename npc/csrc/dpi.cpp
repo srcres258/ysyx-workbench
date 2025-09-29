@@ -372,6 +372,11 @@ extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
     }
 }
 
-extern "C" void flash_read(int32_t addr, int32_t *data) { assert(0); }
+extern "C" void flash_read(addr_t addr, word_t *data) { assert(0); }
 
-extern "C" void mrom_read(int32_t addr, int32_t *data) { assert(0); }
+extern "C" void mrom_read(addr_t addr, word_t *data) {
+    std::cout << "[sim] read from MROM..." << std::endl;
+
+    // 直接返回一条 ebreak 指令.
+    *data = 0x00100073;
+}
