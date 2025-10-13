@@ -179,7 +179,7 @@ size_t binFileSize = 0;
  * @return int 程序退出状态码
  */
 int main(int argc, const char *argv[]) {
-    const char *binPath, *sdbEnabled;
+    const char *sdbEnabled;
     bool sdb, result;
 
     Verilated::commandArgs(argc, argv);
@@ -188,12 +188,7 @@ int main(int argc, const char *argv[]) {
     verContext->commandArgs(argc, argv);
     
     std::cout << "正在加载配置选项..." << std::endl;
-    binPath = std::getenv("NPC_BIN_PATH");
     sdbEnabled = std::getenv("NPC_SDB_ENABLED");
-    if (!binPath) {
-        std::cerr << "未通过 NPC_BIN 环境变量指定二进制文件路径，将使用默认路径" DEFAULT_BIN_PATH << std::endl;
-        binPath = DEFAULT_BIN_PATH;
-    }
     if (sdbEnabled && strcmp(sdbEnabled, "true") == 0) {
         std::cout << "SDB 已启用!" << std::endl;
         sdb = true;
