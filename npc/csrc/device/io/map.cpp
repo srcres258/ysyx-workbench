@@ -2,29 +2,32 @@
 #include <macro-def.hpp>
 #include <difftest/dut.hpp>
 #include <sim_top.hpp>
-#include <memory.hpp>
-#include <device/map.hpp>
+#include <device/io/map.hpp>
 
+// IO space size: 32 MB
 #define IO_SPACE_MAX (32 * 1024 * 1024)
 
 static uint8_t *ioSpace = nullptr;
 static uint8_t *pSpace = nullptr;
 
-uint8_t *device_map_newSpace(int size) {
+uint8_t *device_io_map_newSpace(int size) {
     uint8_t *p = pSpace;
-    // page aligned
-    size = (size + (PAGE_SIZE - 1)) & ~PAGE_MASK;
-    pSpace += size;
+    // ensure memory page alignment
+    int sizeAligned = (size + (MEMORY_PAGE_SIZE - 1)) & MEMORY_PAGE_MASK;
+    pSpace += sizeAligned;
     Assert(pSpace - ioSpace < IO_SPACE_MAX);
+
     return p;
 }
 
-int device_map_findMapIdByAddr(const IOMap *maps, int size, addr_t addr) {
+int device_io_map_findMapIdByAddr(const IOMap *maps, int size, addr_t addr) {
     int i;
 
     for (i = 0; i < size; i++) {
         if (maps[i].isInside(addr)) {
-            difftest_dut_skipRef();
+            if (sim_config.config_difftest) {
+                difftest_dut_skipRef();
+            }
             return i;
         }
     }
@@ -59,7 +62,7 @@ static void invokeCallback(io_callback_t c, addr_t offset, int len, bool isWrite
 }
 
 static void dtraceRecord(
-    addr_t addr,int len, word_t data,
+    addr_t addr, int len, word_t data,
     const IOMap *map, std::string type
 ) {
     auto content = std::format(
@@ -67,12 +70,13 @@ static void dtraceRecord(
         dpi()->core_pc, map->name, type, addr, len, data
     );
     sim_state.dtrace_ofs << content << std::endl;
-    if (sim_config.config_debugOutput)
+    if (sim_config.config_debugOutput) {
         std::cout << "[sim] dtrace: " << content << std::endl;
+    }
 }
 
 bool IOMap::isInside(addr_t addr) const {
-    return addr >= low && addr <= high;
+    return addr >= low && addr < high;
 }
 
 word_t IOMap::read(addr_t addr, int len) const {
@@ -80,10 +84,11 @@ word_t IOMap::read(addr_t addr, int len) const {
     checkBound(this, addr);
     addr_t offset = addr - low;
     invokeCallback(callback, offset, len, false);
-    word_t ret = memoryHostRead(space + offset, len);
+    word_t ret = memoryHostRead(ioSpace + offset, len);
     if (sim_config.config_dtrace) {
         dtraceRecord(addr, len, ret, this, "read");
     }
+
     return ret;
 }
 
@@ -91,14 +96,14 @@ void IOMap::write(addr_t addr, int len, word_t data) const {
     Assert(len >= 1 && len <= 8);
     checkBound(this, addr);
     addr_t offset = addr - low;
-    memoryHostWrite(space + offset, len, data);
+    memoryHostWrite(ioSpace + offset, len, data);
     invokeCallback(callback, offset, len, true);
     if (sim_config.config_dtrace) {
         dtraceRecord(addr, len, data, this, "write");
     }
 }
 
-void device_map_init() {
+void device_io_map_init() {
     ioSpace = new uint8_t[IO_SPACE_MAX];
     Assert(ioSpace);
     pSpace = ioSpace;

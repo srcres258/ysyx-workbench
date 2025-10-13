@@ -2,7 +2,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <sim_top.hpp>
-#include <memory.hpp>
 #include <utils.hpp>
 
 VerilatedContext *verContext = nullptr;
@@ -118,12 +117,20 @@ static void loadConfig() {
             sim_config.config_etraceOutFilePath << std::endl;
     }
     
-    env = std::getenv("NPC_CONFIG_ELF_FILE_PATH");
+    env = std::getenv("NPC_CONFIG_MROM_BIN_FILE_PATH");
     if (env) {
-        sim_config.config_elfFilePath =
+        sim_config.config_mromBinFilePath =
             std::move(std::string(env));
-        std::cout << "[config] 二进制文件路径已指定为: " <<
-            sim_config.config_elfFilePath << std::endl;
+        std::cout << "[config] MROM BIN 文件路径已指定为: " <<
+            sim_config.config_mromBinFilePath << std::endl;
+    }
+    
+    env = std::getenv("NPC_CONFIG_MROM_ELF_FILE_PATH");
+    if (env) {
+        sim_config.config_mromElfFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] MROM ELF 文件路径已指定为: " <<
+            sim_config.config_mromElfFilePath << std::endl;
     }
     
     env = std::getenv("NPC_CONFIG_DIFFTEST_SO_FILE_PATH");
@@ -150,8 +157,12 @@ static void loadConfig() {
  * @return false 存在未设置的必需配置选项
  */
 static bool checkRequiredConfig() {
-    if (sim_config.config_elfFilePath.empty()) {
-        std::cerr << "未指定 NPC_CONFIG_ELF_FILE_PATH 环境变量, 请指定二进制文件路径!" << std::endl;
+    if (sim_config.config_mromBinFilePath.empty()) {
+        std::cerr << "未指定 NPC_CONFIG_MROM_BIN_FILE_PATH 环境变量, 请指定 MROM BIN 文件路径!" << std::endl;
+        return false;
+    }
+    if (sim_config.config_mromElfFilePath.empty()) {
+        std::cerr << "未指定 NPC_CONFIG_MROM_ELF_FILE_PATH 环境变量, 请指定 MROM ELF 文件路径!" << std::endl;
         return false;
     }
 
@@ -193,14 +204,6 @@ int main(int argc, const char *argv[]) {
     if (!checkRequiredConfig()) {
         return EXIT_FAILURE;
     }
-
-    std::cout << "正在加载二进制文件到主存..." << std::endl;
-    if (!initMemory(binPath, &binFileSize)) {
-        std::cerr << "二进制文件加载失败，退出..." << std::endl;
-        return EXIT_FAILURE;
-    }
-    std::cout << "二进制文件加载成功，大小为 " <<
-        std::dec << binFileSize << " 字节" << std::endl;
 
     result = simulate(sdb);
 

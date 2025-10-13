@@ -31,8 +31,10 @@ SimConfig sim_config = {
         std::move(std::string(DEFAULT_DTRACE_OUT_FILE_PATH)),
     .config_etraceOutFilePath =
         std::move(std::string(DEFAULT_ETRACE_OUT_FILE_PATH)),
-    .config_elfFilePath =
-        std::move(std::string(DEFAULT_ELF_FILE_PATH)),
+    .config_mromBinFilePath =
+        std::move(std::string(DEFAULT_MROM_BIN_FILE_PATH)),
+    .config_mromElfFilePath =
+        std::move(std::string(DEFAULT_MROM_ELF_FILE_PATH)),
     .config_difftestSoFilePath =
         std::move(std::string(DEFAULT_DIFFTEST_SO_FILE_PATH)),
     .config_waveFilePath =
@@ -138,20 +140,21 @@ bool sim_state_ftrace_funcSyms_init() {
         return false;
     }
 
-    fd = open(sim_config.config_elfFilePath.c_str(), O_RDONLY);
+    std::string elfFilePath(sim_config.config_mromElfFilePath);
+    fd = open(elfFilePath.c_str(), O_RDONLY);
     if (fd < 0) {
-        std::cerr << "Failed to open ELF file: " << sim_config.config_elfFilePath << std::endl;
+        std::cerr << "Failed to open ELF file: " << elfFilePath << std::endl;
         return false;
     }
     elf = elf_begin(fd, ELF_C_READ_MMAP, nullptr);
     if (!elf) {
-        std::cerr << "Failed to load ELF file: " << sim_config.config_elfFilePath << std::endl;
+        std::cerr << "Failed to load ELF file: " << elfFilePath << std::endl;
         close(fd);
         return false;
     }
     // 确定文件类型是否是ELF文件
     if (elf_kind(elf) != ELF_K_ELF) {
-        std::cerr << "Not an ELF file: " << sim_config.config_elfFilePath << std::endl;
+        std::cerr << "Not an ELF file: " << elfFilePath << std::endl;
         elf_end(elf);
         close(fd);
         return false;
@@ -160,7 +163,7 @@ bool sim_state_ftrace_funcSyms_init() {
     elf_end(elf);
     close(fd);
     std::cout << "Loaded " << size << " function symbols from ELF file: " <<
-        sim_config.config_elfFilePath << std::endl;
+        elfFilePath << std::endl;
 
     return true;
 }

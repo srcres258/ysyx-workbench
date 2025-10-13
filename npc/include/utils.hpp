@@ -25,7 +25,8 @@ enum SimStateEnum { SIM_RUNNING, SIM_STOP, SIM_END, SIM_ABORT, SIM_QUIT };
 #define DEFAULT_FTRACE_OUT_FILE_PATH "build/ftrace.log"
 #define DEFAULT_DTRACE_OUT_FILE_PATH "build/dtrace.log"
 #define DEFAULT_ETRACE_OUT_FILE_PATH "build/etrace.log"
-#define DEFAULT_ELF_FILE_PATH "build/program.elf"
+#define DEFAULT_MROM_BIN_FILE_PATH "build/mrom.bin"
+#define DEFAULT_MROM_ELF_FILE_PATH "build/mrom.elf"
 #define DEFAULT_DIFFTEST_SO_FILE_PATH "build/riscv32-nemu-interpreter-so"
 #define DEFAULT_WAVE_FILE_PATH "build/sim.fst"
 
@@ -47,7 +48,8 @@ struct SimConfig {
     std::string config_ftraceOutFilePath;
     std::string config_dtraceOutFilePath;
     std::string config_etraceOutFilePath;
-    std::string config_elfFilePath;
+    std::string config_mromBinFilePath;
+    std::string config_mromElfFilePath;
     std::string config_difftestSoFilePath;
     std::string config_waveFilePath;
 };

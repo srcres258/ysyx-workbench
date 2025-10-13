@@ -5,10 +5,10 @@
 #include <regex>
 #include <memory>
 #include <iomanip>
-#include <memory.hpp>
 #include <isa.hpp>
 #include <sim_top.hpp>
 #include <utils.hpp>
+#include <device/io/mmio.hpp>
 #include <sdb.hpp>
 
 #define NR_WP 32
@@ -231,7 +231,7 @@ public:
                 success = false;
                 return 0;
             }
-            int64_t val = readMemory((addr_t) mem_addr, sizeof(word_t));
+            int64_t val = device_io_mmio_read((addr_t) mem_addr, sizeof(word_t));
             success = true;
             return val;
         } else if (checkParentheses(p, q)) {
@@ -576,8 +576,12 @@ static int cmd_x(char *args) {
     printf("Memory scan: addr=0x%08x, N=%d\n", addr, N);
     cur_addr = addr;
     for (i = 0; i < N; i++) {
-        value = readMemory(cur_addr, sizeof(word_t));
-        printf("0x%08X: %08X\n", cur_addr, value);
+        if (device_io_mmio_isAddrValid(cur_addr)) {
+            value = device_io_mmio_read(cur_addr, sizeof(word_t));
+            printf("0x%08X: %08X\n", cur_addr, value);
+        } else {
+            printf("0x%08X: N/A\n", cur_addr);
+        }
         cur_addr += 4;
     }
 

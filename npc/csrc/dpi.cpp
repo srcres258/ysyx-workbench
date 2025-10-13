@@ -4,10 +4,10 @@
 #include <format>
 #include <print>
 #include <sim_top.hpp>
-#include <memory.hpp>
 #include <utils.hpp>
 #include <utils/Stage.hpp>
 #include <utils/timer.hpp>
+#include <device/mrom.hpp>
 
 static auto *dpi() {
     return getDPIModule();
@@ -147,98 +147,6 @@ static size_t dataStrobeToSize(uint8_t dataStrobe) {
     return 0;
 }
 
-extern "C" void dpi_onMemWriteEnable(bool _memWriteEnable) {
-    addr_t addr;
-    word_t data;
-
-    auto *dpi = getDPIModule();
-    bool memWriteEnable = dpi->physicalRAM_write_writeEnable;
-    if (!memWriteEnable) {
-        return;
-    }
-
-    if (sim_config.config_debugOutput)
-        std::cout << "[sim] 处理器置写使能，将向主存写入数据..." << std::endl;
-
-    addr = dpi->physicalRAM_write_writeAddress;
-    if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
-        data = dpi->physicalRAM_write_writeData;
-        if (sim_config.config_debugOutput)
-            std::cout << "地址: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << addr <<
-                ", 数据: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << data << std::endl;
-        size_t len = dataStrobeToSize(dpi->physicalRAM_write_writeDataStrobe);
-        if (sim_config.config_debugOutput)
-            std::cout << "[sim] 长度: " << std::dec << len << std::endl;
-        writeMemory(addr, len, data);
-
-        if (sim_config.config_mtrace) {
-            std::string mtraceContent = std::format(
-                "0x{:08x}: Memory write at 0x{:08x}, len {}, data 0x{:08x}",
-                dpi->core_pc, addr, len, data
-            );
-            sim_state.mtrace_ofs << mtraceContent << std::endl;
-            std::flush(sim_state.mtrace_ofs);
-            if (sim_config.config_debugOutput)
-                std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
-        }
-    } else {
-        if (sim_config.config_debugOutput)
-            std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
-                << addr << " 尚未初始化，跳过..." << std::endl;
-    }
-}
-
-extern "C" word_t dpi_onMemReadEnable(bool _memReadEnable) {
-    addr_t addr;
-    word_t data, readData;
-    
-    auto *dpi = getDPIModule();
-    bool memReadEnable = dpi->physicalRAM_read_readEnable;
-
-    if (!memReadEnable) {
-        return 0;
-    }
-
-    if (sim_config.config_debugOutput)
-        std::cout << "[sim] 处理器置读使能，将从主存读取数据..." << std::endl;
-
-    addr = dpi->physicalRAM_read_readAddress;
-    if (sim_config.config_debugOutput)
-        std::cout << "[sim] 地址: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << addr << std::endl;
-    readData = 0;
-    if (addr >= MEMORY_OFFSET && addr < MEMORY_OFFSET + MEMORY_SIZE) {
-        size_t len = 4;
-        data = readMemory(addr, len);
-        if (sim_config.config_debugOutput) {
-            std::cout << "[sim] 数据: 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << data << std::endl;
-            std::cout << "[sim] 长度: " << std::dec << len << std::endl;
-        }
-        readData = data;
-
-        if (sim_config.config_mtrace) {
-            std::string mtraceContent = std::format(
-                "0x{:08x}: Memory read at 0x{:08x}, len {}, data 0x{:08x}",
-                dpi->core_pc, addr, len, data
-            );
-            sim_state.mtrace_ofs << mtraceContent << std::endl;
-            std::flush(sim_state.mtrace_ofs);
-            if (sim_config.config_debugOutput)
-                std::cout << "[sim] mtrace: " << mtraceContent << std::endl;
-        }
-    } else {
-        if (sim_config.config_debugOutput)
-            std::cerr << "[sim] 地址 0x" << std::setfill('0') << std::setw(8) << std::hex
-                << addr << " 尚未初始化，跳过..." << std::endl;
-        readData = 0;
-    }
-
-    return readData;
-}
-
 extern "C" void dpi_onEcallEnable(bool _ecallEnable) {
     auto *dpi = getDPIModule();
     bool ecallEnable = dpi->exu_ecallEnable;
@@ -308,37 +216,6 @@ extern "C" void dpi_onPosEdge_upcu_pcOutput_valid(bool _upcu_pcOutput_valid) {
     }
 }
 
-extern "C" word_t dpi_uart_onReadEnable(bool _uart_read_readEnable) {
-    bool uart_read_readEnable = dpi()->uart_read_readEnable;
-    if (!uart_read_readEnable) {
-        return 0;
-    }
-
-    if (sim_config.config_debugOutput) {
-        std::cout << "[sim] read from UART..." << std::endl;
-    }
-
-    word_t result = 0xDEADBEEF;
-    return result;
-}
-
-extern "C" void dpi_uart_onWriteEnable(bool _uart_write_writeEnable) {
-    auto *dpi = getDPIModule();
-    bool uart_write_writeEnable = dpi->uart_write_writeEnable;
-    if (!uart_write_writeEnable) {
-        return;
-    }
-
-    if (sim_config.config_debugOutput) {
-        std::cout << "[sim] write to UART..." << std::endl;
-    }
-
-    word_t data = dpi->uart_write_writeData;
-    char c = static_cast<char>(data & 0xFF);
-    std::cerr << c;
-    std::flush(std::cerr);
-}
-
 extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
     auto *dpi = getDPIModule();
     bool clint_read_readEnable = dpi->clint_read_readEnable;
@@ -375,8 +252,14 @@ extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
 extern "C" void flash_read(addr_t addr, word_t *data) { assert(0); }
 
 extern "C" void mrom_read(addr_t addr, word_t *data) {
-    std::cout << "[sim] read from MROM..." << std::endl;
+    if (sim_config.config_debugOutput) {
+        std::string message = std::format("[sim] read from MROM, addr = 0x{:08x}", addr);
+        std::cout << message << std::endl;
+    }
 
-    // 直接返回一条 ebreak 指令.
-    *data = 0x00100073;
+    *data = device_mrom_read(addr, 4);
+    if (sim_config.config_debugOutput) {
+        std::string message = std::format("[sim] data = 0x{:08x}", *data);
+        std::cout << message << std::endl;
+    }
 }

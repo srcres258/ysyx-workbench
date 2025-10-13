@@ -4,4 +4,5 @@
 
 [submodule "ysyxSoC"]
 	path = ysyxSoC
-	url = https://github.com/OSCPU/ysyxSoC.git
+	url = https://github.com/srcres258/ysyx-ysyxSoC.git
+	branch = ysyx6-own

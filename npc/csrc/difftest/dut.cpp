@@ -4,7 +4,6 @@
 #include <print>
 #include <cstring>
 #include <difftest/dut.hpp>
-#include <memory.hpp>
 #include <processor.hpp>
 #include <isa.hpp>
 #include <utils.hpp>
@@ -80,7 +79,8 @@ void difftest_dut_init(const char *refSoFile, size_t imgSize, int port) {
     ref_difftest_init(port);
 
     std::println("[difftest] 正在将初始数据同步给 REF...");
-    ref_difftest_memcpy(MEMORY_OFFSET, memory, imgSize, DIFFTEST_TO_REF);
+    // TODO: reimplement data sync to REF
+    // ref_difftest_memcpy(MEMORY_OFFSET, memory, imgSize, DIFFTEST_TO_REF);
     difftest_dut_syncCurrentProcessorState();
 }
 
