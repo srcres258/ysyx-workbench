@@ -169,8 +169,6 @@ static bool checkRequiredConfig() {
     return true;
 }
 
-size_t binFileSize = 0;
-
 /**
  * @brief 程序的入口函数。
  * 

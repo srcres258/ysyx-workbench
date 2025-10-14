@@ -3,10 +3,11 @@
 #include <cassert>
 #include <print>
 #include <cstring>
-#include <difftest/dut.hpp>
 #include <processor.hpp>
 #include <isa.hpp>
 #include <utils.hpp>
+#include <macro-def.hpp>
+#include <difftest/dut.hpp>
 
 using ref_difftest_memcpy_f_t = void (*)(
     addr_t addr, void *buf, size_t n, bool direction
@@ -64,7 +65,9 @@ static void loadRefSymbols(void *dlHandle) {
     assert(ref_difftest_init);
 }
 
-void difftest_dut_init(const char *refSoFile, size_t imgSize, int port) {
+extern void *mrom_io_base;
+
+void difftest_dut_init(const char *refSoFile, int port) {
     assert(refSoFile != nullptr);
     std::println("[difftest] DiffTest 已启用! 目标 REF: {}", refSoFile);
 
@@ -79,8 +82,7 @@ void difftest_dut_init(const char *refSoFile, size_t imgSize, int port) {
     ref_difftest_init(port);
 
     std::println("[difftest] 正在将初始数据同步给 REF...");
-    // TODO: reimplement data sync to REF
-    // ref_difftest_memcpy(MEMORY_OFFSET, memory, imgSize, DIFFTEST_TO_REF);
+    ref_difftest_memcpy(MROM_ADDR, mrom_io_base, MROM_LEN, DIFFTEST_TO_REF);
     difftest_dut_syncCurrentProcessorState();
 }
 

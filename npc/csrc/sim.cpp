@@ -87,9 +87,6 @@ void simReset(int n) {
  * @brief 执行一条指令的仿真。
  */
 bool simExecOnce() {
-    // addr_t addr;
-    // word_t data;
-
     if (sim_config.config_debugOutput)
         std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
 
@@ -106,6 +103,11 @@ bool simExecOnce() {
 
     // 执行下一步
     simStep();
+    simExecInfo.inst = getDPIModule()->ifu_instData;
+    if (sim_config.config_debugOutput) {
+        std::cout << "当前指令: 0x" << std::setfill('0') <<
+            std::setw(8) << std::hex << simExecInfo.inst << std::endl;
+    }
 
     if (sim_config.config_itrace) {
         char pbuf[128];
@@ -242,8 +244,6 @@ void simExec(uint64_t n) {
     }
 }
 
-extern size_t binFileSize;
-
 /**
  * @brief 开始仿真主流程。
  * 
@@ -278,17 +278,11 @@ bool simulate(bool sdbEnabled) {
 
     if (sim_config.config_debugOutput)
         std::cout << "正在重置处理器..." << std::endl;
-    simReset(1);
-
-    if (sim_config.config_difftest) {
-        if (sim_config.config_debugOutput)
-            std::cout << "正在加载 DiffTest..." << std::endl;
-        difftest_dut_init(
-            sim_config.config_difftestSoFilePath.c_str(),
-            binFileSize,
-            sim_config.config_difftestPort
-        );
-    }
+    // ysyxSoC 中, CPU 核心电路部分会在上电后的第 10 个时钟周期时自动强行触发一个 reset 信号.
+    // 所以为保险起见, 这里对整体电路维持 reset 信号 15 个时钟周期,
+    // 以确保电路各部分正常 reset 完成之后再开始工作,
+    // 避免工作到中途遇到 reset 信号导致状态被重置.
+    simReset(15);
 
     if (sim_config.config_device) {
         if (sim_config.config_debugOutput)
@@ -297,6 +291,15 @@ bool simulate(bool sdbEnabled) {
             std::cerr << "外部设备加载失败! 退出..." << std::endl;
             return false;
         }
+    }
+
+    if (sim_config.config_difftest) {
+        if (sim_config.config_debugOutput)
+            std::cout << "正在加载 DiffTest..." << std::endl;
+        difftest_dut_init(
+            sim_config.config_difftestSoFilePath.c_str(),
+            sim_config.config_difftestPort
+        );
     }
 
     if (sim_config.config_debugOutput)

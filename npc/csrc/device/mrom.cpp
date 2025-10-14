@@ -6,7 +6,7 @@
 #include <device/io/map.hpp>
 #include <device/mrom.hpp>
 
-static void *mrom_io_base = nullptr;
+void *mrom_io_base = nullptr;
 
 #define IFDBG if (sim_config.config_debugOutput)
 

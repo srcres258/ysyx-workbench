@@ -39,11 +39,9 @@ void difftest_dut_attach();
  * @brief DiffTest dut: 初始化 DiffTest 执行环境。
  * 
  * @param refSoFile REF 的动态链接库文件路径。
- * @param imgSize 将要同步运行的源程序指令数据大小。将从 DUT 的主存上
- * 拷贝该大小的程序指令数据给 REF 以供执行。
  * @param port DUT 用于与 REF 通信的端口号。需要提前确保端口号未被占用。
  */
-void difftest_dut_init(const char *refSoFile, size_t imgSize, int port);
+void difftest_dut_init(const char *refSoFile, int port);
 
 /**
  * @brief DiffTest dut: 在 DUT 上已完成一步指令执行，通知 REF 同步执行
