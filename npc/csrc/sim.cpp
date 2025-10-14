@@ -232,10 +232,11 @@ void simExec(uint64_t n) {
             break;
         case SIM_END:
         case SIM_ABORT:
-            halt_ret = getDPIModule()->gpr_gprs_0;
+            halt_ret = getDPIModule()->gpr_gprs_10; // a0 寄存器是 x10
             std::cout << "仿真: " << (sim_state.state == SIM_ABORT ?
                     ANSI_FMT("ABORT", ANSI_FG_RED) :
-                    ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN)) <<
+                    (halt_ret == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN) :
+                        ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))) <<
                 " at pc = 0x" << std::setfill('0') <<
                 std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
                 ", 结果: " << halt_ret << std::endl;

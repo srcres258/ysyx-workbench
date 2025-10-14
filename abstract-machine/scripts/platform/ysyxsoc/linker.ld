@@ -6,7 +6,7 @@ SECTIONS {
     SRAM 区域, 大小 8 KB.
     因为比较小, 所以只有 2 KB 分配给 .data 和 .bss 段,
     剩余部分为堆和栈的共用空间.
-    其中栈给 2 KB, 剩下的都给堆.
+    其中堆的起始地址为剩余内存部分的最低地址处, 栈的起始地址为剩余内存部分的最高地址处.
     */
     . = _sram_start;
     .data : {
@@ -20,10 +20,10 @@ SECTIONS {
         *(.sbss*)
         *(.scommon)
     }
-    _stack_top = ALIGN(2 * 1024);
-    . = _stack_top + 2 * 1024;
+    _heap_start = _sram_start + 2 * 1024;
+    . =  _sram_start + 8 * 1024;
+    _stack_top = .;
     _stack_pointer = .;
-    _heap_start = .;
 
     /*
     MROM 区域, 大小 4 KB.
@@ -39,7 +39,7 @@ SECTIONS {
     .rodata : {
         *(.rodata*)
     }
-    . = ALIGN(4 * 1024);
+    . = _mrom_start + 4 * 1024;
     end = .;
     _end = .;
 }
