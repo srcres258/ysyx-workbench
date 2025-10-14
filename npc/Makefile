@@ -63,6 +63,10 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 INCFLAGS = -I. $(addprefix -I, $(INC_PATH))
 CXXFLAGS += $(INCFLAGS) -g -std=c++26
 LDFLAGS += -lz -lelf -fsanitize=address
+VERILATOR_INC_PATH ?= $(abspath ./vsrc) $(shell find $(abspath ./vsrc/generated) -type d) \
+	$(abspath $(YSYXSOC_PATH)/perip/uart16550/rtl) $(abspath $(YSYXSOC_PATH)/perip/spi/rtl)
+VERILATOR_INCFLAGS = -I. $(addprefix -I, $(VERILATOR_INC_PATH))
+VERILATOR_CFLAGS += $(VERILATOR_INCFLAGS)
 
 # 规则：将 csrc/.../xxx.cpp -> obj_dir/.../xxx.o
 $(OBJ_DIR)/%.o: csrc/%.cpp
@@ -75,8 +79,6 @@ $(VERILATED_LIB): $(VSRCS)
 	$(VERILATOR) $(VERILATOR_CFLAGS) \
 		--top-module $(TOPNAME) \
 		--Mdir $(OBJ_DIR) --cc $^ \
-		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated) \
-		-I$(abspath $(YSYXSOC_PATH)/perip/uart16550/rtl) -I$(abspath $(YSYXSOC_PATH)/perip/spi/rtl) \
 		--timescale "1ns/1ns" --no-timing
 	make -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
 
@@ -161,9 +163,7 @@ clean:
 
 # 生成 C++ 头文件，以便编写基于 Verilator 的 C++ Testbench
 gen_header:
-	$(VERILATOR) --top-module $(TOPNAME) --Mdir $(OBJ_DIR) --cc $(VSRCS) \
-		-I$(abspath ./vsrc) -I$(abspath ./vsrc/generated) \
-		-I$(abspath $(YSYXSOC_PATH)/perip/uart16550/rtl) -I$(abspath $(YSYXSOC_PATH)/perip/spi/rtl) \
+	$(VERILATOR) $(VERILATOR_CFLAGS) --top-module $(TOPNAME) --Mdir $(OBJ_DIR) --cc $(VSRCS) \
 		--timescale "1ns/1ns" --no-timing
 
 .PHONY: default all clean run git_commit_sim auto_bind gen_header
