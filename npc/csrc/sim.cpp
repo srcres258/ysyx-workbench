@@ -160,6 +160,14 @@ static void traceAndDiffTest() {
 }
 
 /**
+ * @brief 刷新到终端的输出流 (stdout 和 stderr) 的缓冲区, 以便待显示的信息能够及时呈现.
+ */
+static void flushOutput() {
+    fflush(stdout);
+    fflush(stderr);
+}
+
+/**
  * @brief 进行真正的硬件仿真动作。
  * 
  * @param n 需要进行仿真的时钟周期数
@@ -172,6 +180,7 @@ static void execute(uint64_t n) {
             sim_state.state = SIM_ABORT;
             break;
         }
+        flushOutput();
         if (sim_halt) {
             sim_state.state = SIM_END;
             sim_state.haltPC = getDPIModule()->core_pc;
