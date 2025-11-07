@@ -31,6 +31,8 @@ SimConfig sim_config = {
         std::move(std::string(DEFAULT_DTRACE_OUT_FILE_PATH)),
     .config_etraceOutFilePath =
         std::move(std::string(DEFAULT_ETRACE_OUT_FILE_PATH)),
+    .config_flashBinFilePath =
+        std::move(std::string(DEFAULT_FLASH_BIN_FILE_PATH)),
     .config_mromBinFilePath =
         std::move(std::string(DEFAULT_MROM_BIN_FILE_PATH)),
     .config_mromElfFilePath =

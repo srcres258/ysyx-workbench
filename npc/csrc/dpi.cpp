@@ -8,6 +8,8 @@
 #include <utils/Stage.hpp>
 #include <utils/timer.hpp>
 #include <device/mrom.hpp>
+#include <device/flash.hpp>
+#include <macro-def.hpp>
 
 static auto *dpi() {
     return getDPIModule();
@@ -249,17 +251,30 @@ extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
     }
 }
 
-extern "C" void flash_read(addr_t addr, word_t *data) { assert(0); }
+extern "C" void flash_read(addr_t addr, word_t *data) {
+    addr_t realAddr = FLASH_ADDR + addr;
+    if (sim_config.config_debugOutput) {
+        std::string message = std::format(
+            "[sim] read from FLASH, addr = 0x{:08x}, realAddr = 0x{:08x}",
+            addr, realAddr
+        );
+        std::cout << message << std::endl;
+    }
+    *data = device_flash_read(realAddr, 4);
+    if (sim_config.config_debugOutput) {
+        std::string message = std::format("[sim] read from FLASH, data = 0x{:08x}", *data);
+        std::cout << message << std::endl;
+    }
+}
 
 extern "C" void mrom_read(addr_t addr, word_t *data) {
     if (sim_config.config_debugOutput) {
         std::string message = std::format("[sim] read from MROM, addr = 0x{:08x}", addr);
         std::cout << message << std::endl;
     }
-
     *data = device_mrom_read(addr, 4);
     if (sim_config.config_debugOutput) {
-        std::string message = std::format("[sim] data = 0x{:08x}", *data);
+        std::string message = std::format("[sim] read from MROM, data = 0x{:08x}", *data);
         std::cout << message << std::endl;
     }
 }

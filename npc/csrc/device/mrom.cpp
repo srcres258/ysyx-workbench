@@ -14,17 +14,17 @@ static bool initMROMMemory(std::string filename, size_t *fileSize) {
     size_t size;
 
     std::ifstream f(filename, std::ios::binary | std::ios::ate);
-
     if (!f) {
         std::cerr << "Failed to open file: " << filename << std::endl;
         return false;
     }
+
     IFDBG std::cout << "Loading MROM from file: " << filename << std::endl;
     size = f.tellg();
     IFDBG std::cout << "File size is " << size << " bytes." << std::endl;
     if (size > MROM_LEN) {
         std::cerr << "MROM file is too large, size is " << size <<
-            " bytes, but MROM is only " << MROM_LEN << " bytes." << std::endl;
+            " bytes, but maximum is only " << MROM_LEN << " bytes." << std::endl;
         return false;
     }
     f.seekg(0, std::ios::beg);
@@ -57,25 +57,34 @@ bool device_mrom_init() {
         return false;
     }
     IFDBG std::cout << "Finished initializing MROM, size is " << fileSize << " bytes." << std::endl;
+
     return true;
 }
 
 word_t device_mrom_read(addr_t addr, int len) {
-    uint32_t result;
+    word_t result;
 
-    result = 0;
+    const addr_t baseAddr = MROM_ADDR;
+    const addr_t baseLen = MROM_LEN;
+    Assert(
+        addr >= baseAddr && addr < baseAddr + baseLen,
+        "MROM: invalid memory read address: " FMT_ADDR "\n",
+        addr
+    );
+    Assert(
+        len == 1 || len == 2 || len == 4,
+        "MROM: invalid memory read length: %d\n",
+        len
+    );
 
-    Assert(len == 1 || len == 2 || len == 4, "Invalid memory read length");
-
-    const addr_t offset = MROM_ADDR;
     uint8_t *mromMemory = (uint8_t *) mrom_io_base;
-    result |= mromMemory[addr - offset];
+    result = mromMemory[addr - baseAddr];
     if (len >= 2) {
-        result |= mromMemory[addr - offset + 1] << 8;
+        result |= mromMemory[addr - baseAddr + 1] << 8;
     }
     if (len >= 4) {
-        result |= mromMemory[addr - offset + 2] << 16;
-        result |= mromMemory[addr - offset + 3] << 24;
+        result |= mromMemory[addr - baseAddr + 2] << 16;
+        result |= mromMemory[addr - baseAddr + 3] << 24;
     }
 
     return result;

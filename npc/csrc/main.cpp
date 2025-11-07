@@ -117,6 +117,14 @@ static void loadConfig() {
             sim_config.config_etraceOutFilePath << std::endl;
     }
     
+    env = std::getenv("NPC_CONFIG_FLASH_BIN_FILE_PATH");
+    if (env) {
+        sim_config.config_flashBinFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] FLASH BIN 文件路径已指定为: " <<
+            sim_config.config_flashBinFilePath << std::endl;
+    }
+    
     env = std::getenv("NPC_CONFIG_MROM_BIN_FILE_PATH");
     if (env) {
         sim_config.config_mromBinFilePath =

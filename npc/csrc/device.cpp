@@ -6,6 +6,7 @@
 #include <device.hpp>
 
 #include <device/mrom.hpp>
+#include <device/flash.hpp>
 
 void device_update() {
     // TODO: currently no device update needed.
@@ -15,6 +16,8 @@ bool device_init() {
     device_io_map_init();
 
     if (!device_mrom_init())
+        return false;
+    if (!device_flash_init())
         return false;
 
     return true;
