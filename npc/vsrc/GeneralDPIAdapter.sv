@@ -52,6 +52,8 @@ module GeneralDPIAdapter (
     input  [31:0] csr_csr_mepc /*verilator public*/,
     input  [31:0] csr_csr_mcause /*verilator public*/,
     input  [31:0] csr_csr_mtval /*verilator public*/,
+    input  [31:0] csr_csr_mvendorid /*verilator public*/,
+    input  [31:0] csr_csr_marchid /*verilator public*/,
 
     input         ifu_if_nextStage_valid /*verilator public*/,
     input  [31:0] ifu_instData /*verilator public*/,

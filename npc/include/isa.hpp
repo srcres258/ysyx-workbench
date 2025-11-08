@@ -11,6 +11,8 @@
 #define CSR_MEPC 0x341
 #define CSR_MCAUSE 0x342
 #define CSR_MTVAL 0x343
+#define CSR_MVENDORID 0xF11
+#define CSR_MARCHID 0xF12
 
 /**
  * @brief 根据寄存器索引，读取寄存器的值。

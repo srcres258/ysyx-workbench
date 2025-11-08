@@ -36,6 +36,12 @@ void ProcessorState::dump() const {
     std::cout << std::setfill(' ') << std::setw(4) << "mtval" <<
         ": 0x" << std::setfill('0') << std::setw(8) <<
         std::hex << csr[CSR_MTVAL] << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mvendorid" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << csr[CSR_MVENDORID] << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "marchid" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << csr[CSR_MARCHID] << std::dec << std::endl;
 }
 
 /**
@@ -90,5 +96,7 @@ ProcessorState getProcessorState() {
     state.csr[CSR_MEPC] = dpi->csr_csr_mepc;
     state.csr[CSR_MCAUSE] = dpi->csr_csr_mcause;
     state.csr[CSR_MTVAL] = dpi->csr_csr_mtval;
+    state.csr[CSR_MVENDORID] = dpi->csr_csr_mvendorid;
+    state.csr[CSR_MARCHID] = dpi->csr_csr_marchid;
     return std::move(state);
 };

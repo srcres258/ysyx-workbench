@@ -145,6 +145,12 @@ void isaRegDisplay() {
     std::cout << std::setfill(' ') << std::setw(4) << "mtval" <<
         ": 0x" << std::setfill('0') << std::setw(8) <<
         std::hex << dpi->csr_csr_mtval << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mvendorid" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << dpi->csr_csr_mvendorid << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "marchid" <<
+        ": 0x" << std::setfill('0') << std::setw(8) <<
+        std::hex << dpi->csr_csr_marchid << std::dec << std::endl;
 }
 
 /**
