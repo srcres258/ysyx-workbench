@@ -49,14 +49,16 @@ bool device_mrom_init() {
     mrom_io_base = device_io_map_newSpace(MROM_LEN);
     device_io_addMMIOMap("mrom", MROM_ADDR, mrom_io_base, MROM_LEN, mrom_io_handler);
 
-    IFDBG std::cout << "Initializing MROM from bin file..." << std::endl;
-    std::string filename(sim_config.config_mromBinFilePath);
-    size_t fileSize;
-    if (!initMROMMemory(filename, &fileSize)) {
-        std::cerr << "Failed to initialize MROM from bin file: " << filename << std::endl;
-        return false;
+    if (sim_config.config_mrom) {
+        IFDBG std::cout << "Initializing MROM from bin file..." << std::endl;
+        std::string filename(sim_config.config_mromBinFilePath);
+        size_t fileSize;
+        if (!initMROMMemory(filename, &fileSize)) {
+            std::cerr << "Failed to initialize MROM from bin file: " << filename << std::endl;
+            return false;
+        }
+        IFDBG std::cout << "Finished initializing MROM, size is " << fileSize << " bytes." << std::endl;
     }
-    IFDBG std::cout << "Finished initializing MROM, size is " << fileSize << " bytes." << std::endl;
 
     return true;
 }

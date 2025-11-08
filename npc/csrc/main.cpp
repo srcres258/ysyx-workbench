@@ -66,6 +66,12 @@ static void loadConfig() {
         std::cout << "[config] 调试信息输出已启用" << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_MROM");
+    sim_config.config_mrom = env && strcmp(env, "on") == 0;
+    if (sim_config.config_mrom) {
+        std::cout << "[config] MROM 已启用" << std::endl;
+    }
+
     env = std::getenv("NPC_CONFIG_DIFFTEST_PORT");
     try {
         sim_config.config_difftestPort = env ? std::stoi(env) : 0;
@@ -124,6 +130,14 @@ static void loadConfig() {
         std::cout << "[config] FLASH BIN 文件路径已指定为: " <<
             sim_config.config_flashBinFilePath << std::endl;
     }
+
+    env = std::getenv("NPC_CONFIG_FLASH_ELF_FILE_PATH");
+    if (env) {
+        sim_config.config_flashElfFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] FLASH ELF 文件路径已指定为: " <<
+            sim_config.config_flashElfFilePath << std::endl;
+    }
     
     env = std::getenv("NPC_CONFIG_MROM_BIN_FILE_PATH");
     if (env) {
@@ -131,14 +145,6 @@ static void loadConfig() {
             std::move(std::string(env));
         std::cout << "[config] MROM BIN 文件路径已指定为: " <<
             sim_config.config_mromBinFilePath << std::endl;
-    }
-    
-    env = std::getenv("NPC_CONFIG_MROM_ELF_FILE_PATH");
-    if (env) {
-        sim_config.config_mromElfFilePath =
-            std::move(std::string(env));
-        std::cout << "[config] MROM ELF 文件路径已指定为: " <<
-            sim_config.config_mromElfFilePath << std::endl;
     }
     
     env = std::getenv("NPC_CONFIG_DIFFTEST_SO_FILE_PATH");
@@ -165,11 +171,11 @@ static void loadConfig() {
  * @return false 存在未设置的必需配置选项
  */
 static bool checkRequiredConfig() {
-    if (sim_config.config_mromBinFilePath.empty()) {
+    if (sim_config.config_flashBinFilePath.empty()) {
         std::cerr << "未指定 NPC_CONFIG_MROM_BIN_FILE_PATH 环境变量, 请指定 MROM BIN 文件路径!" << std::endl;
         return false;
     }
-    if (sim_config.config_mromElfFilePath.empty()) {
+    if (sim_config.config_flashElfFilePath.empty()) {
         std::cerr << "未指定 NPC_CONFIG_MROM_ELF_FILE_PATH 环境变量, 请指定 MROM ELF 文件路径!" << std::endl;
         return false;
     }

@@ -18,6 +18,7 @@ SimConfig sim_config = {
     .config_device = false,
     .config_wave = false,
     .config_debugOutput = false,
+    .config_mrom = false,
 
     .config_difftestPort = DEFAULT_DIFFTEST_PORT,
 
@@ -33,10 +34,10 @@ SimConfig sim_config = {
         std::move(std::string(DEFAULT_ETRACE_OUT_FILE_PATH)),
     .config_flashBinFilePath =
         std::move(std::string(DEFAULT_FLASH_BIN_FILE_PATH)),
+    .config_flashElfFilePath =
+        std::move(std::string(DEFAULT_FLASH_ELF_FILE_PATH)),
     .config_mromBinFilePath =
         std::move(std::string(DEFAULT_MROM_BIN_FILE_PATH)),
-    .config_mromElfFilePath =
-        std::move(std::string(DEFAULT_MROM_ELF_FILE_PATH)),
     .config_difftestSoFilePath =
         std::move(std::string(DEFAULT_DIFFTEST_SO_FILE_PATH)),
     .config_waveFilePath =
@@ -142,7 +143,7 @@ bool sim_state_ftrace_funcSyms_init() {
         return false;
     }
 
-    std::string elfFilePath(sim_config.config_mromElfFilePath);
+    std::string elfFilePath(sim_config.config_flashElfFilePath);
     fd = open(elfFilePath.c_str(), O_RDONLY);
     if (fd < 0) {
         std::cerr << "Failed to open ELF file: " << elfFilePath << std::endl;

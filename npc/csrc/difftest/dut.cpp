@@ -65,7 +65,7 @@ static void loadRefSymbols(void *dlHandle) {
     assert(ref_difftest_init);
 }
 
-extern void *mrom_io_base;
+extern void *flash_io_base;
 
 void difftest_dut_init(const char *refSoFile, int port) {
     assert(refSoFile != nullptr);
@@ -82,7 +82,7 @@ void difftest_dut_init(const char *refSoFile, int port) {
     ref_difftest_init(port);
 
     std::println("[difftest] 正在将初始数据同步给 REF...");
-    ref_difftest_memcpy(MROM_ADDR, mrom_io_base, MROM_LEN, DIFFTEST_TO_REF);
+    ref_difftest_memcpy(FLASH_ADDR, flash_io_base, FLASH_LEN, DIFFTEST_TO_REF);
     difftest_dut_syncCurrentProcessorState();
 }
 

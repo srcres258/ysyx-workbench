@@ -1,9 +1,17 @@
 AM_SRCS := riscv/ysyxsoc/start.S \
-           riscv/ysyxsoc/trm.c
+           riscv/ysyxsoc/trm.c \
+           riscv/ysyxsoc/ioe.c \
+           riscv/ysyxsoc/timer.c \
+           riscv/ysyxsoc/input.c \
+           riscv/ysyxsoc/gpu.c \
+           riscv/ysyxsoc/cte.c \
+           riscv/ysyxsoc/trap.S \
+           riscv/ysyxsoc/vme.c \
+           riscv/ysyxsoc/mpe.c
 
 CFLAGS    += -fdata-sections -ffunction-sections
 LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker.ld
-LDFLAGS   += --defsym=_sram_start=0x0f000000 --defsym=_mrom_start=0x20000000
+LDFLAGS   += --defsym=_sram_start=0x0f000000 --defsym=_mrom_start=0x20000000 --defsym=_flash_start=0x30000000
 LDFLAGS   += --gc-sections -e _start
 
 MAINARGS_MAX_LEN = 64
@@ -28,8 +36,9 @@ CONFIG_DIFFTEST ?= on
 CONFIG_DEVICE ?= on
 CONFIG_WAVE ?= on
 CONFIG_DEBUG_OUTPUT ?= on
+CONFIG_MROM ?= off
 CONFIG_DIFFTEST_PORT ?= 12345
-CONFIG_FLASH_BIN_FILE_PATH ?= flash.bin
+CONFIG_MROM_BIN_FILE_PATH ?= mrom.bin
 
 TRACE_LOG_DIR = $(abspath ./build/trace-logs)
 
@@ -49,9 +58,9 @@ RUN_ARGS = RUN_SDB_ENABLED=$(CONFIG_SDB_ENABLED) \
 	RUN_CONFIG_FTRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/ftrace.log) \
 	RUN_CONFIG_DTRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/dtrace.log) \
 	RUN_CONFIG_ETRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/etrace.log) \
-	RUN_CONFIG_FLASH_BIN_FILE_PATH=$(abspath $(CONFIG_FLASH_BIN_FILE_PATH)) \
-	RUN_CONFIG_MROM_BIN_FILE_PATH=$(abspath $(IMAGE).bin) \
-	RUN_CONFIG_MROM_ELF_FILE_PATH=$(abspath $(IMAGE).elf) \
+	RUN_CONFIG_FLASH_BIN_FILE_PATH=$(abspath $(IMAGE).bin) \
+	RUN_CONFIG_FLASH_ELF_FILE_PATH=$(abspath $(IMAGE).elf) \
+	RUN_CONFIG_MROM_BIN_FILE_PATH=$(abspath $(CONFIG_MROM_BIN_FILE_PATH)) \
 	RUN_CONFIG_DIFFTEST_SO_FILE_PATH=$(abspath $(NEMU_HOME)/build/riscv32-nemu-interpreter-so) \
 	RUN_CONFIG_WAVE_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/sim.fst)
 
