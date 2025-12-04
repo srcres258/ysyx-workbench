@@ -9,6 +9,7 @@
 #include <utils/timer.hpp>
 #include <device/mrom.hpp>
 #include <device/flash.hpp>
+#include <device/psram.hpp>
 #include <macro-def.hpp>
 
 static auto *dpi() {
@@ -277,4 +278,14 @@ extern "C" void mrom_read(addr_t addr, word_t *data) {
         std::string message = std::format("[sim] read from MROM, data = 0x{:08x}", *data);
         std::cout << message << std::endl;
     }
+}
+
+extern "C" void psram_read(uint32_t addr, uint8_t *data) {
+    addr_t realAddr = PSRAM_ADDR + addr;
+    *data = uint8_t(device_psram_read(realAddr, 1));
+}
+
+extern "C" void psram_write(uint32_t addr, uint8_t data) {
+    addr_t realAddr = PSRAM_ADDR + addr;
+    device_psram_write(realAddr, 1, data);
 }

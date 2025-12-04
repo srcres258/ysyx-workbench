@@ -25,6 +25,9 @@
 #define FLASH_ADDR 0x30000000
 #define FLASH_LEN  0x1000000
 
+#define PSRAM_ADDR 0x80000000
+#define PSRAM_LEN  0x400000
+
 #define TIMER_HZ 60
 
 #define VGA_SCREEN_W 400
