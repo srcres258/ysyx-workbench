@@ -16,29 +16,27 @@
       gcc
       gnumake
       pkg-config
+
+      verilator
     ];
     runtimeDeps = with pkgs; [
-      zlib
-      openssl
-      libxml2
-      curl
+      SDL2
     ];
   in {
     devShells.default = my-system.devShells.${system}.srcres-full.overrideAttrs (old: {
-      nativeBuildInputs = buildDeps;
+      nativeBuildInputs = (old.nativeBuildInputs or []) ++ buildDeps;
       buildInputs = (old.buildInputs or []) ++ runtimeDeps;
-      # buildInputs = runtimeDeps;
 
       hardeningDisable = [ "all" ];
 
-      packages = (old.packages or []) ++ (with pkgs; [
-        # TODO
-      ]);
-
-      shellHook = (old.shellHook or "") + ''
+      shellHook = ''
         export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" runtimeDeps}"
         export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeDeps}:$LD_LIBRARY_PATH"
-      '';
+
+        export NVBOARD_HOME="${builtins.getEnv "PWD"}/nvboard"
+        export AM_HOME="${builtins.getEnv "PWD"}/abstract-machine"
+        export NPC_HOME="${builtins.getEnv "PWD"}/npc"
+      '' + (old.shellHook or "");
     });
   });
 }
