@@ -127,7 +127,7 @@ void sim_state_ofstream_finalise() {
 /**
  * @brief 根据相关配置，加载程序中的函数符号信息。
  * 需提前确保 sim_config 中相关配置信息已正确填入。
- * 
+ *
  * @return true 加载成功
  * @return false 加载失败
  */
@@ -149,7 +149,7 @@ bool sim_state_ftrace_funcSyms_init() {
         std::cerr << "Failed to open ELF file: " << elfFilePath << std::endl;
         return false;
     }
-    elf = elf_begin(fd, ELF_C_READ_MMAP, nullptr);
+    elf = elf_begin(fd, ELF_C_READ, nullptr);
     if (!elf) {
         std::cerr << "Failed to load ELF file: " << elfFilePath << std::endl;
         close(fd);
@@ -210,7 +210,7 @@ void disasm_init() {
 
 /**
  * @brief 使用反汇编工具反汇编一段代码。
- * 
+ *
  * @param str 输出目的字符串缓冲区
  * @param size 字符串缓冲区大小
  * @param pc 程序计数器

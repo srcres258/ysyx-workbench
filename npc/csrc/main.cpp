@@ -122,7 +122,7 @@ static void loadConfig() {
         std::cout << "[config] etrace 输出路径已指定为: " <<
             sim_config.config_etraceOutFilePath << std::endl;
     }
-    
+
     env = std::getenv("NPC_CONFIG_FLASH_BIN_FILE_PATH");
     if (env) {
         sim_config.config_flashBinFilePath =
@@ -138,7 +138,7 @@ static void loadConfig() {
         std::cout << "[config] FLASH ELF 文件路径已指定为: " <<
             sim_config.config_flashElfFilePath << std::endl;
     }
-    
+
     env = std::getenv("NPC_CONFIG_MROM_BIN_FILE_PATH");
     if (env) {
         sim_config.config_mromBinFilePath =
@@ -146,7 +146,7 @@ static void loadConfig() {
         std::cout << "[config] MROM BIN 文件路径已指定为: " <<
             sim_config.config_mromBinFilePath << std::endl;
     }
-    
+
     env = std::getenv("NPC_CONFIG_DIFFTEST_SO_FILE_PATH");
     if (env) {
         sim_config.config_difftestSoFilePath =
@@ -154,7 +154,7 @@ static void loadConfig() {
         std::cout << "[config] DiffTest 动态链接库文件路径已指定为: " <<
             sim_config.config_difftestSoFilePath << std::endl;
     }
-    
+
     env = std::getenv("NPC_CONFIG_WAVE_FILE_PATH");
     if (env) {
         sim_config.config_waveFilePath =
@@ -166,7 +166,7 @@ static void loadConfig() {
 
 /**
  * @brief 检查必需的配置选项是否均已设置。
- * 
+ *
  * @return true 必需的配置选项已设置
  * @return false 存在未设置的必需配置选项
  */
@@ -185,7 +185,7 @@ static bool checkRequiredConfig() {
 
 /**
  * @brief 程序的入口函数。
- * 
+ *
  * @param argc 程序参数数量
  * @param argv 程序参数
  * @return int 程序退出状态码
@@ -198,7 +198,7 @@ int main(int argc, const char *argv[]) {
 
     verContext = new VerilatedContext;
     verContext->commandArgs(argc, argv);
-    
+
     std::cout << "正在加载配置选项..." << std::endl;
     sdbEnabled = std::getenv("NPC_SDB_ENABLED");
     if (sdbEnabled && strcmp(sdbEnabled, "true") == 0) {
