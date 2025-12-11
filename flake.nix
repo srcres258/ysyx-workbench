@@ -18,6 +18,7 @@
       pkg-config
 
       verilator
+      gtkwave
     ];
     runtimeDeps = with pkgs; [
       SDL2
