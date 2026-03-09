@@ -4,12 +4,10 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
-
-    my-system.url = "github:srcres258/my-nixos-config";
   };
 
   outputs = {
-    self, nixpkgs, flake-utils, my-system
+    self, nixpkgs, flake-utils
   }: flake-utils.lib.eachDefaultSystem (system: let
     pkgs = nixpkgs.legacyPackages.${system};
     buildDeps = with pkgs; [
@@ -19,6 +17,7 @@
 
       verilator
       gtkwave
+      circt
     ];
     runtimeDeps = with pkgs; [
       SDL2
@@ -33,9 +32,9 @@
       capstone
     ];
   in {
-    devShells.default = my-system.devShells.${system}.srcres-full.overrideAttrs (old: {
-      nativeBuildInputs = (old.nativeBuildInputs or []) ++ buildDeps;
-      buildInputs = (old.buildInputs or []) ++ runtimeDeps;
+    devShells.default = pkgs.mkShell {
+      nativeBuildInputs = buildDeps;
+      buildInputs = runtimeDeps;
 
       hardeningDisable = [ "all" ];
 
@@ -56,8 +55,8 @@
         export VERILATOR_HOME="${pkgs.verilator}/share/verilator"
         export NEMU_HOME="${builtins.getEnv "PWD"}/nemu"
         export YSYX_HOME="${builtins.getEnv "PWD"}"
-      '' + (old.shellHook or "");
-    });
+      '';
+    };
   });
 }
 
