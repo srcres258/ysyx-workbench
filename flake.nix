@@ -18,6 +18,7 @@
       verilator
       gtkwave
       circt
+      iverilog
     ];
     runtimeDeps = with pkgs; [
       SDL2
