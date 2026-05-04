@@ -47,15 +47,12 @@
         export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" runtimeDeps}"
         export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeDeps}:$LD_LIBRARY_PATH"
 
-        #export CPATH="${pkgs.verilator}/share/verilator/include:$CPATH"
-        #export LIBRARY_PATH="${pkgs.verilator}/lib:$LIBRARY_PATH"
-
-        export NVBOARD_HOME="${builtins.getEnv "PWD"}/nvboard"
-        export AM_HOME="${builtins.getEnv "PWD"}/abstract-machine"
-        export NPC_HOME="${builtins.getEnv "PWD"}/npc"
+        export NVBOARD_HOME="$PWD/nvboard"
+        export AM_HOME="$PWD/abstract-machine"
+        export NPC_HOME="$PWD/npc"
         export VERILATOR_HOME="${pkgs.verilator}/share/verilator"
-        export NEMU_HOME="${builtins.getEnv "PWD"}/nemu"
-        export YSYX_HOME="${builtins.getEnv "PWD"}"
+        export NEMU_HOME="$PWD/nemu"
+        export YSYX_HOME="$PWD"
       '';
     };
   });
