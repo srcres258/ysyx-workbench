@@ -11,6 +11,11 @@ CXX = $(CCACHE) g++
 
 YSYXSOC_PATH ?= ../ysyxSoC
 
+# Chisel RTL generation (npc/vsrc-chisel/ → npc/vsrc/generated/)
+CHISEL_DIR = $(abspath ./vsrc-chisel)
+CHISEL_GEN_OUT = $(CHISEL_DIR)/generated
+NPC_GEN_DIR = $(abspath ./vsrc/generated)
+
 TOPNAME = ysyxSoCFull
 NXDC_FILES = constr/ysyxSoCFull.nxdc
 INC_PATH ?= $(abspath ./include/)
@@ -37,6 +42,19 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
 auto_bind: $(SRC_AUTO_BIND)
 
+# Chisel RTL generation — build vsrc-chisel, then clear & copy to vsrc/generated/
+chisel-gen:
+	@echo "[Chisel] Building RTL from vsrc-chisel..."
+	@$(MAKE) -C $(CHISEL_DIR) mill-run
+	@echo "[Chisel] Copying generated SystemVerilog to $(NPC_GEN_DIR)..."
+	@rm -rf $(NPC_GEN_DIR)
+	@cp -r $(CHISEL_GEN_OUT) $(NPC_GEN_DIR)
+	@echo "[Chisel] Done. Generated $$(find $(NPC_GEN_DIR) -name '*.sv' | wc -l) .sv files."
+
+chisel-clean:
+	rm -rf $(CHISEL_GEN_OUT)
+	rm -rf $(NPC_GEN_DIR)
+
 # Verilated 生成的代码输出目录
 VERILATOR_MDIR = $(OBJ_DIR)
 INC_PATH += $(abspath $(VERILATOR_MDIR))
@@ -45,8 +63,12 @@ INC_PATH += $(abspath $(VERILATOR_MDIR))
 VERILATED_LIB = $(VERILATOR_MDIR)/V$(TOPNAME)__ALL.a
 
 # project sources
-VSRCS = $(shell find vsrc -name "*.v" -or -name "*.sv") $(shell find $(YSYXSOC_PATH)/perip -name "*.v")
-VSRCS += $(YSYXSOC_PATH)/build/$(TOPNAME).v
+# Static (hand-written) RTL — always present, safe to discover at parse time
+VSRCS_HANDWRITTEN = $(shell find vsrc -maxdepth 1 -name "*.v" -or -name "*.sv")
+VSRCS_PERIP = $(shell find $(YSYXSOC_PATH)/perip -name "*.v")
+VSRCS_SOC_TOP = $(YSYXSOC_PATH)/build/$(TOPNAME).v
+VSRCS = $(VSRCS_HANDWRITTEN) $(VSRCS_PERIP) $(VSRCS_SOC_TOP)
+# Generated RTL (from Chisel) is discovered at recipe-time via: $$(find $(NPC_GEN_DIR) ...)
 CSRCS = $(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 CSRCS += $(SRC_AUTO_BIND)
 # project static libraries
@@ -63,7 +85,8 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 INCFLAGS = -I. $(addprefix -I, $(INC_PATH))
 CXXFLAGS += $(INCFLAGS) -g -std=c++26
 LDFLAGS += -lz -lelf -fsanitize=address
-VERILATOR_INC_PATH ?= $(abspath ./vsrc) $(shell find $(abspath ./vsrc/generated) -type d) \
+VERILATOR_GEN_INC = $(shell [ -d $(NPC_GEN_DIR) ] && find $(NPC_GEN_DIR) -type d 2>/dev/null || true)
+VERILATOR_INC_PATH ?= $(abspath ./vsrc) $(VERILATOR_GEN_INC) \
 	$(abspath $(YSYXSOC_PATH)/perip/uart16550/rtl) $(abspath $(YSYXSOC_PATH)/perip/spi/rtl)
 VERILATOR_INCFLAGS = -I. $(addprefix -I, $(VERILATOR_INC_PATH))
 VERILATOR_CFLAGS += $(VERILATOR_INCFLAGS)
@@ -74,13 +97,15 @@ $(OBJ_DIR)/%.o: csrc/%.cpp
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # 规则：用 Verilator 生成仿真代码（不自动编译 C++ 源文件）
-$(VERILATED_LIB): $(VSRCS)
+# Prerequisite chisel-gen ensures generated RTL exists before Verilator runs.
+# Generated sources are discovered at recipe-time via shell $$(find ...).
+$(VERILATED_LIB): chisel-gen $(VSRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(VERILATOR) $(VERILATOR_CFLAGS) \
 		--top-module $(TOPNAME) \
-		--Mdir $(OBJ_DIR) --cc $^ \
+		--Mdir $(OBJ_DIR) --cc $(VSRCS) $$(find $(NPC_GEN_DIR) -name "*.v" -or -name "*.sv" 2>/dev/null) \
 		--timescale "1ns/1ns" --no-timing
-	make -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
+	$(MAKE) -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
 
 # 链接所有 .o 文件与 Verilated 库生成最终仿真程序
 $(BIN): $(LIBS) $(COBJS)
@@ -163,10 +188,13 @@ gdb: $(BIN) git_commit_sim
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf $(NPC_GEN_DIR)
+	rm -rf $(CHISEL_GEN_OUT)
 
 # 生成 C++ 头文件，以便编写基于 Verilator 的 C++ Testbench
-gen_header:
+gen_header: chisel-gen
 	$(VERILATOR) $(VERILATOR_CFLAGS) --top-module $(TOPNAME) --Mdir $(OBJ_DIR) --cc $(VSRCS) \
+		$$(find $(NPC_GEN_DIR) -name "*.v" -or -name "*.sv" 2>/dev/null) \
 		--timescale "1ns/1ns" --no-timing
 
-.PHONY: default all clean run git_commit_sim auto_bind gen_header
+.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean
