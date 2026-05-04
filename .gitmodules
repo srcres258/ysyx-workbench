@@ -6,3 +6,6 @@
 	path = ysyxSoC
 	url = https://github.com/srcres258/ysyx-ysyxSoC.git
 	branch = ysyx6-own
+[submodule "npc/vsrc-chisel"]
+	path = npc/vsrc-chisel
+	url = https://github.com/srcres258/chisel-ysyx-cpu.git
