@@ -9,6 +9,7 @@
 !/npc-chisel/*
 !Makefile
 !README.md
+!AGENTS.md
 !learning_record.md
 !.gitignore
 !init.sh
