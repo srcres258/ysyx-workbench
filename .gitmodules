@@ -9,3 +9,6 @@
 [submodule "npc/vsrc-chisel"]
 	path = npc/vsrc-chisel
 	url = https://github.com/srcres258/chisel-ysyx-cpu.git
+[submodule "rt-thread"]
+	path = rt-thread
+	url = https://github.com/srcres258/rt-thread-am

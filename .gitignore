@@ -18,3 +18,4 @@
 !LICENSE.txt
 !flake.nix
 !flake.lock
+!/rt-thread
