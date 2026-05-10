@@ -10,7 +10,11 @@ AM_SRCS := riscv/ysyxsoc/start.S \
            riscv/ysyxsoc/mpe.c
 
 CFLAGS    += -fdata-sections -ffunction-sections
-LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker.ld
+ifeq ($(USE_PSRAM),1)
+  LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-psram.ld
+else
+  LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker.ld
+endif
 LDFLAGS   += --defsym=_psram_start=0x80000000 --defsym=_sram_start=0x0f000000 --defsym=_mrom_start=0x20000000 --defsym=_flash_start=0x30000000
 LDFLAGS   += --gc-sections -e _start
 
