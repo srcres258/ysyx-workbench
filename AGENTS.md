@@ -9,7 +9,7 @@
 nix develop
 # ↑ This also sets all env vars (NEMU_HOME, AM_HOME, NPC_HOME, etc.) via shellHook.
 
-# Or manually (fish shell; note: config.fish is INCOMPLETE — missing NEMU_HOME, YSYX_HOME):
+# Or manually (fish shell; note: config.fish is INCOMPLETE — missing NEMU_HOME, YSYX_HOME, VERILATOR_HOME; also uses bash-style `$(pwd)` instead of fish-style `(pwd)`):
 export NEMU_HOME=$(pwd)/nemu
 export AM_HOME=$(pwd)/abstract-machine
 export NPC_HOME=$(pwd)/npc
@@ -18,7 +18,7 @@ export YSYX_HOME=$(pwd)
 export VERILATOR_HOME=$(nix-shell -p verilator --run 'echo $out')/share/verilator
 ```
 
-Dependencies managed via `flake.nix`: verilator, gtkwave, circt, iverilog, SDL2 (+ image + ttf), capstone, libelf, libz, gcc, gnumake, pkg-config. The shellHook also sets `PKG_CONFIG_PATH` and `LD_LIBRARY_PATH`.
+Dependencies managed via `flake.nix`: verilator, gtkwave, circt, iverilog, SDL2 (+ image + ttf), SDL3 (+ image + ttf), capstone, libelf, libz, gcc, gnumake, pkg-config. The shellHook also sets `PKG_CONFIG_PATH` and `LD_LIBRARY_PATH`.
 
 ## Repository Architecture
 
@@ -138,7 +138,7 @@ make ARCH=riscv32e-npc run
 - **AM_HOME validation**: The Makefile checks `$(AM_HOME)/am/include/am.h` exists. Set AM_HOME or builds fail.
 - **ARCH auto-validation**: Automatically checks `$(ARCH)` against the list of `scripts/*.mk` files.
 - **Memory map (NEMU/NPC)**: Physical memory at `0x80000000`, 128MB. Devices at `0xa0000000` (serial `+0x3f8`, RTC `+0x48`, keyboard `+0x60`, VGA `+0x100`).
-- **Memory map (ysyxsoc)**: Three-zone model — SRAM at `0x0f000000` (8KB), MROM at `0x20000000` (4KB), FLASH at `0x30000000` (16MB). Uses a completely different linker script at `scripts/platform/ysyxsoc/linker.ld` with `MEMORY` regions (not the flat `scripts/linker.ld`).
+- **Memory map (ysyxsoc)**: Three-zone model — SRAM at `0x0f000000` (8KB), MROM at `0x20000000` (4KB), PSRAM at `0x80000000` (4MB), FLASH at `0x30000000` (16MB). Uses a completely different linker script at `scripts/platform/ysyxsoc/linker.ld` with `MEMORY` regions (not the flat `scripts/linker.ld`). Note the ysyxsoc platform file (`scripts/platform/ysyxsoc.mk`) is the preferred way to set `RUN_CONFIG_*` vars — it properly sets all trace paths and separates DTRACE/ETRACE logs unlike NPC's own Makefile defaults.
 - **Halt mechanism**: AM calls `nemu_trap(code)` → on RISC-V: `mv a0, code; ebreak`. NEMU detects ebreak and exits.
 - **Cross-compiler**: RISC-V uses `riscv64-unknown-linux-gnu-` prefix (set in `scripts/isa/riscv.mk`). For RV32E: `-march=rv32e_zicsr -mabi=ilp32e`. Note: `riscv32e-nemu` uses `-march=rv32em_zicsr` (includes M extension); minirv variants use a different compiler (`minirv-gcc`).
 - **Linker script**: `scripts/linker.ld` — entry at `_pmem_start + _entry_offset`, stack 32KB after `.bss`, heap starts page-aligned after end. For the ysyxsoc platform, the linker script is `scripts/platform/ysyxsoc/linker.ld` — completely different `MEMORY`-based layout with separate flash/sram regions.
@@ -184,10 +184,13 @@ make -C npc clean
 
 **CRITICAL: NPC does NOT use an `ARCH` variable.** The `TOPNAME` is hardcoded to `ysyxSoCFull` (line 19 of Makefile). There is **no Kconfig, no DEFCONFIG, no menuconfig** in npc/. All configuration is via Makefile variables with `RUN_CONFIG_*` prefix.
 
-- **Build flow**: Verilator converts Verilog/SystemVerilog → C++ model → g++ compiles with C++ testbench → native binary at `build/ysyxSoCFull`.
-- **Source files**: `.v` and `.sv` from `vsrc/` + Verilog peripherals from `$(YSYXSOC_PATH)/perip/` + the elaborated `$(YSYXSOC_PATH)/build/ysyxSoCFull.v`. C++ sources (`.cpp`) from `csrc/`.
+- **Build flow**: 
+  1. `chisel-gen` — Builds Chisel CPU frontend (`vsrc-chisel/` via Mill) → generates SystemVerilog into `vsrc/generated/`
+  2. Verilator converts all Verilog/SystemVerilog → C++ model
+  3. g++ compiles with C++ testbench → native binary at `build/ysyxSoCFull`
+- **Source files**: Hand-written RTL from `vsrc/` (flat `.v`/`.sv`) + generated RTL from `vsrc/generated/` (auto-created by `chisel-gen`, do NOT manually edit) + Verilog peripherals from `$(YSYXSOC_PATH)/perip/` + the elaborated `$(YSYXSOC_PATH)/build/ysyxSoCFull.v`. C++ sources (`.cpp`) from `csrc/`.
 - **C++ standard**: C++26 (`-std=c++26`).
-- **Sanitizers**: Address sanitizer enabled (`-fsanitize=address`).
+- **Sanitizers**: Address sanitizer enabled (`-fsanitize=address` in LDFLAGS; NOT in CXXFLAGS).
 - **`VERILATOR_HOME` required**: NPC uses `$(VERILATOR_HOME)/include/` and `$(VERILATOR_HOME)/include/vltstd/`.
 - **`NVBOARD_HOME` required**: Included via `$(NVBOARD_HOME)/scripts/nvboard.mk`.
 
@@ -209,9 +212,9 @@ RUN_CONFIG_WAVE ?= off             # FST waveform output
 RUN_CONFIG_DEBUG_OUTPUT ?= off     # Debug output
 RUN_CONFIG_DIFFTEST_PORT ?= 12345  # Difftest port
 RUN_CONFIG_FLASH_BIN_FILE_PATH ?= build/flash.bin
-RUN_CONFIG_FLASH_ELF_FILE_PATH ?=  # Optional ELF (for metadata)
+RUN_CONFIG_FLASH_ELF_FILE_PATH ?= build/flash.elf
 RUN_CONFIG_MROM_BIN_FILE_PATH ?= build/mrom.bin
-RUN_CONFIG_MROM_ELF_FILE_PATH ?=   # Optional ELF
+RUN_CONFIG_MROM_ELF_FILE_PATH ?= build/mrom.elf
 RUN_CONFIG_DIFFTEST_SO_FILE_PATH ?= build/riscv32-nemu-interpreter-so
 RUN_CONFIG_WAVE_FILE_PATH ?= build/sim.fst
 
@@ -231,19 +234,20 @@ NPC_CONFIG_DIFFTEST=on NPC_CONFIG_ITRACE=on ./build/ysyxSoCFull
 
 ### NPC Known Bugs (as of current codebase)
 
-1. **`checkRequiredConfig()` error messages are wrong** (`csrc/main.cpp`): When flash paths are missing, error messages say "MROM" instead of "FLASH":
+1. **`checkRequiredConfig()` error messages are wrong** (`csrc/main.cpp`, lines 173–184): When flash paths are missing, error messages say "MROM" instead of "FLASH":
    ```
    "未指定 NPC_CONFIG_MROM_BIN_FILE_PATH" — actually checking config_flashBinFilePath
    "未指定 NPC_CONFIG_MROM_ELF_FILE_PATH" — actually checking config_flashElfFilePath
    ```
-2. **`RUN_CONFIG_FLASH_ELF_FILE_PATH` has no Makefile `?=` default** — referenced in RUN_ARGS but never declared. The C++ fallback in `utils.hpp` is `DEFAULT_FLASH_ELF_FILE_PATH = "build/flash.elf"`.
-3. **`NPC_CONFIG_MROM` is parsed in C++** (`main.cpp` line 69) but **never passed via Makefile RUN_ARGS or GDB_ARGS**. Setting `RUN_CONFIG_DEVICE=on` from Makefile does NOT enable MROM — must set env var `NPC_CONFIG_MROM=on` directly on the binary.
-4. **`NPC_CONFIG_MROM_ELF_FILE_PATH` is in GDB_ARGS but NOT in RUN_ARGS** — `make gdb` passes it but `make run` does not.
-5. **`CONFIG_RVE`/`CONFIG_RV64` control GPR count** (16 vs 32) and word size in C++ code, but are NOT passed via CXXFLAGS in the Makefile. They come from the Verilator-generated C++ wrapper.
+2. **`NPC_CONFIG_MROM` is parsed in C++** (`main.cpp` line 69) but **never passed via Makefile RUN_ARGS or GDB_ARGS**. There is no `RUN_CONFIG_MROM` variable at all. Setting `RUN_CONFIG_DEVICE=on` from Makefile does NOT enable MROM — must set env var `NPC_CONFIG_MROM=on` directly on the binary.
+3. **GDB_ARGS is missing `NPC_CONFIG_FLASH_ELF_FILE_PATH`** — RUN_ARGS includes it (line 157), but GDB_ARGS (lines 183–187) jumps from `FLASH_BIN_FILE_PATH` directly to `MROM_BIN_FILE_PATH`, omitting `FLASH_ELF_FILE_PATH`. This means `make gdb` with ftrace or ELF-dependent features will fail silently.
+4. **ETRACE default output path inconsistency**: The Makefile default for `RUN_CONFIG_ETRACE_OUT_FILE_PATH` is `build/dtrace.log` (line 132), the **same path** as `RUN_CONFIG_DTRACE_OUT_FILE_PATH` (line 131) — both traces share one file. Meanwhile the C++ default in `include/utils.hpp` (line 27) is `"build/etrace.log"`. The C++ and Makefile defaults disagree.
+5. **`CONFIG_RVE`/`CONFIG_RV64` control GPR count** (16 vs 32) and word size in C++ code (in `include/macro-def.hpp` and `include/common.hpp`), but are NOT passed via CXXFLAGS in the Makefile. They come from the Verilator-generated C++ wrapper.
 
 ### NPC Gotchas
 
 - **`NPC_CONFIG_MROM` cannot be set via Makefile command line** — it's parsed in `main.cpp` but never translated from any `RUN_CONFIG_*` variable. Use the binary directly: `NPC_CONFIG_MROM=on ./build/ysyxSoCFull`.
+- **`-fsanitize=address` is only in LDFLAGS** (link step), NOT in `CXXFLAGS` (compile step). ASan instrumentation is partial.
 - The `constr/ysyxSoCFull.nxdc` file contains **only `top=ysyxSoCFull`** — no pin bindings. NVBoard is compiled in but never called in the sim loop. To activate: add pin bindings to the `.nxdc`, then add `nvboard_init()`/`nvboard_update()` to `csrc/sim.cpp`.
 
 - **SDB (Simple Debugger)**: Interactive prompt with `si N`, `info r`, `info w`, `x N EXPR`, `p EXPR`, `c`, `q`. Enable with `RUN_SDB_ENABLED=true`.
@@ -258,7 +262,7 @@ NPC_CONFIG_DIFFTEST=on NPC_CONFIG_ITRACE=on ./build/ysyxSoCFull
   - `constr/ysyxSoCFull.nxdc` — placeholder (only `top=ysyxSoCFull`, no pin bindings)
   - `constr/top.nxdc` — working example with pin bindings (a,b→switches, f→LEDs)
   To activate NVBoard: add pin bindings to `ysyxSoCFull.nxdc`, then call `nvboard_init()`, `nvboard_update()` in `csrc/sim.cpp`.
-- **Generated code**: `vsrc/generated/` contains auto-generated CPU RTL files — do NOT manually edit these.
+- **Generated code**: `vsrc/generated/` contains auto-generated CPU RTL files — do NOT manually edit these. These are produced by the `chisel-gen` Makefile target which builds `npc/vsrc-chisel/` and copies output to `vsrc/generated/`.
 - **Formal verification**: Assert/assume/cover properties in `vsrc/generated/verification/`.
 
 ### Flash Binary Workflow
@@ -279,6 +283,15 @@ make run \
   RUN_CONFIG_DIFFTEST=on \
   RUN_CONFIG_ITRACE=on \
   RUN_CONFIG_DEVICE=on
+```
+
+**Preferred (single-step) method via ysyxsoc platform:**
+
+```bash
+# The ysyxsoc.mk platform file properly passes all RUN_CONFIG_* vars
+# including correct DTRACE/ETRACE log paths:
+cd am-kernels/tests/cpu-tests
+make ARCH=riscv32e-ysyxsoc run
 ```
 
 **Note**: Use `riscv32e-ysyxsoc` ARCH (AXI4 variant) NOT `riscv32e-npc` (plain memory variant) when running on the ysyxSoC-based NPC.
@@ -308,7 +321,7 @@ make run \
   3. Applies `sed` transformations to clean up generated Verilog (AXI signal renaming, removing black box resource lines)
 
 - **CPU BlackBox**: `src/CPU.scala` wraps student's Verilog core as `class ysyx_25070190 extends BlackBox`. The Verilog file must be `ysyx_25070190.v` (matching the 8-digit student ID). Interface spec at `spec/cpu-interface.md` — requires AXI4 master + AXI4 slave ports + clock, reset, interrupt.
-- **Peripherals** (`perip/`): UART 16550, SPI+XIP flash, GPIO, PS/2, VGA, SDRAM, PSRAM — all plain Verilog, wrapped as Chisel BlackBoxes in `src/device/`.
+- **Peripherals** (`perip/`): UART 16550, SPI+XIP flash, SPI bus, GPIO, PS/2, VGA, SDRAM, PSRAM, AMBA (AXI infrastructure), bitrev (utility) — all plain Verilog, wrapped as Chisel BlackBoxes in `src/device/`.
 - **Config flags** in `src/Top.scala`: `Config.hasChipLink`, `Config.sdramUseAXI`.
 - **Pre-built D-stage**: `ready-to-run/D-stage/ysyxSoCFull.v` is a SimpleBus version for early-stage students.
 
@@ -320,7 +333,7 @@ make run \
 
 ## Top-Level Conventions
 
-- **`.gitignore` is whitelist-based**: Ignores `*.*` and `*`, then whitelists specific directories/files (`!/nemu/*`, `!/npc/*`, `!Makefile`, `!README.md`, `!.gitignore`, etc.). Adding new files to the root requires updating `.gitignore`. Submodules don't need gitignore entries.
+- **`.gitignore` is whitelist-based**: Ignores `*.*` and `*`, then whitelists specific directories/files via `!` patterns. The whitelist includes legacy entries (`nexus-am/`, `nanos-lite/`, `navy-apps/`, `npc-chisel/`) from earlier project versions that no longer exist. `abstract-machine/` and `nvboard/` are NOT explicitly whitelisted — they were force-tracked via `init.sh`. Adding new files to the root requires updating `.gitignore`. Submodules (am-kernels, ysyxSoC, npc/vsrc-chisel) don't need gitignore entries.
 - **Top-level `Makefile`** is NOT for building — it manages a git tracer branch for the course submission system. It captures every `make run` into a separate git branch (`tracer-ysyx`). NPC's Makefile and NEMU's `native.mk` both `include ../Makefile` for this. **Run `make` inside subprojects only.**
 - **Student ID**: `ysyx_25070190` (in root `Makefile` and `ysyxSoC/src/CPU.scala`). Change in your fork with `sed`.
 - **`init.sh`** is the initial setup script — clones missing subprojects from GitHub and sets env vars in `~/.bashrc`.
