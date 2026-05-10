@@ -104,7 +104,7 @@ $(VERILATED_LIB): chisel-gen $(VSRCS)
 	@mkdir -p $(BUILD_DIR)
 	$(VERILATOR) $(VERILATOR_CFLAGS) \
 		--top-module $(TOPNAME) \
-		--Mdir $(OBJ_DIR) --cc $(VSRCS) $$(find $(NPC_GEN_DIR) -name "*.v" -or -name "*.sv" 2>/dev/null) \
+		--Mdir $(OBJ_DIR) --cc $(VSRCS) $$(find $(NPC_GEN_DIR) \( -name "*.v" -or -name "*.sv" \) -not -path "*/verification/assert/*" 2>/dev/null) \
 		--timescale "1ns/1ns" --no-timing
 	$(MAKE) -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
 
@@ -197,7 +197,7 @@ clean:
 # 生成 C++ 头文件，以便编写基于 Verilator 的 C++ Testbench
 gen_header: chisel-gen
 	$(VERILATOR) $(VERILATOR_CFLAGS) --top-module $(TOPNAME) --Mdir $(OBJ_DIR) --cc $(VSRCS) \
-		$$(find $(NPC_GEN_DIR) -name "*.v" -or -name "*.sv" 2>/dev/null) \
+		$$(find $(NPC_GEN_DIR) \( -name "*.v" -or -name "*.sv" \) -not -path "*/verification/assert/*" 2>/dev/null) \
 		--timescale "1ns/1ns" --no-timing
 
 .PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean
