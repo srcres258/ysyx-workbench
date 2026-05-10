@@ -7,6 +7,7 @@
 
 #include <device/mrom.hpp>
 #include <device/flash.hpp>
+#include <device/psram.hpp>
 
 void device_update() {
     // TODO: currently no device update needed.
@@ -18,6 +19,8 @@ bool device_init() {
     if (!device_mrom_init())
         return false;
     if (!device_flash_init())
+        return false;
+    if (!device_psram_init())
         return false;
 
     return true;

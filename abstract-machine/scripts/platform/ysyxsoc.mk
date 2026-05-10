@@ -11,7 +11,7 @@ AM_SRCS := riscv/ysyxsoc/start.S \
 
 CFLAGS    += -fdata-sections -ffunction-sections
 LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker.ld
-LDFLAGS   += --defsym=_sram_start=0x0f000000 --defsym=_mrom_start=0x20000000 --defsym=_flash_start=0x30000000
+LDFLAGS   += --defsym=_psram_start=0x80000000 --defsym=_sram_start=0x0f000000 --defsym=_mrom_start=0x20000000 --defsym=_flash_start=0x30000000
 LDFLAGS   += --gc-sections -e _start
 
 MAINARGS_MAX_LEN = 64
@@ -24,7 +24,7 @@ insert-arg: image
 image: image-dep
 	@$(OBJDUMP) -d $(IMAGE).elf > $(IMAGE).txt
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
-	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -j .text -j .rodata -O binary $(IMAGE).elf $(IMAGE).bin
+	@$(OBJCOPY) -S -R .bss -R .comment -R .riscv.attributes -O binary $(IMAGE).elf $(IMAGE).bin
 
 CONFIG_SDB_ENABLED ?= true
 CONFIG_ITRACE ?= on
