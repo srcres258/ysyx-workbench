@@ -1,6 +1,5 @@
 #include <am.h>
 #include <stdint.h>
-#include <stdbool.h>
 #include <klib-macros.h>
 #include <riscv/riscv.h>
 
@@ -19,8 +18,6 @@ static const char mainargs[MAINARGS_MAX_LEN] = TOSTRING(MAINARGS_PLACEHOLDER); /
 #define SYSTEM_CLOCK_FREQ 10000000
 #define UART_BAUD_RATE 115200
 
-extern char _data_lma;
-extern char _data_start, _data_end;
 extern char _bss_start, _bss_end;
 extern char _heap_start, _heap_end;
 
@@ -97,28 +94,11 @@ static void zero_bss_section(void) {
     }
 }
 
-static void load_data_section(void) {
-    volatile const uint8_t *src;
-    volatile const uint8_t *dst_end;
-    volatile uint8_t *dst;
-
-    uintptr_t len = (uintptr_t) &_data_end - (uintptr_t) &_data_start;
-
-    src = (volatile const uint8_t *) (intptr_t) &_data_lma;
-    dst_end = (volatile const uint8_t *) ((intptr_t) &_data_start + len);
-    dst = (volatile uint8_t *) (intptr_t) &_data_start;
-
-    for (; dst < dst_end; src++, dst++) {
-        *dst = *src;
-    }
-}
-
 void _trm_init(void) {
     int ret;
 
     init_uart();
     zero_bss_section();
-    load_data_section();
     ret = main(mainargs);
     halt(ret);
 }

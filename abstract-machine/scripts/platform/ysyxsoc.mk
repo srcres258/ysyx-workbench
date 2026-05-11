@@ -1,4 +1,5 @@
 AM_SRCS := riscv/ysyxsoc/start.S \
+           riscv/ysyxsoc/ssbl.c \
            riscv/ysyxsoc/trm.c \
            riscv/ysyxsoc/ioe.c \
            riscv/ysyxsoc/timer.c \
@@ -11,7 +12,7 @@ AM_SRCS := riscv/ysyxsoc/start.S \
 
 CFLAGS    += -fdata-sections -ffunction-sections
 ifeq ($(USE_PSRAM),1)
-  LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-psram.ld
+  LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-fsbl-ssbl.ld
 else
   LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker.ld
 endif
