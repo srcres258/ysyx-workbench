@@ -313,12 +313,49 @@ static size_t _ntoa_long(
 
   // write if precision != 0 and value is != 0
   if (!(flags & FLAGS_PRECISION) || value) {
-    do {
-      const char digit = ((char) (value % base));
-      buf[len++] = digit < 10 ? '0' + digit :
-          (flags & FLAGS_UPPERCASE ? 'A' : 'a') + digit - 10;
-      value /= base;
-    } while (value && len < PRINTF_NTOA_BUFFER_SIZE);
+    if (base == 16U) {
+      do {
+        const char digit = ((char) (value & 0xFU));
+        buf[len++] = digit < 10 ? '0' + digit :
+            (flags & FLAGS_UPPERCASE ? 'A' : 'a') + digit - 10;
+        value >>= 4U;
+      } while (value && len < PRINTF_NTOA_BUFFER_SIZE);
+    } else if (base == 10U) {
+      static const unsigned int pow10[] = {
+        1U, 10U, 100U, 1000U, 10000U,
+        100000U, 1000000U, 10000000U,
+        100000000U, 1000000000U
+      };
+      int i;
+      int started = 0;
+      unsigned int pow10_len = 10U;
+      for (i = (int)(pow10_len - 1U); i >= 0; i--) {
+        unsigned int p = pow10[(unsigned int)i];
+        unsigned int d = 0U;
+        while (value >= p) {
+          value -= p;
+          d++;
+        }
+        if (started || d > 0U || i == 0) {
+          buf[len++] = (char)('0' + d);
+          started = 1;
+        }
+      }
+      // buf is already in MSB-first order; reverse for _ntoa_format
+      {
+        char tmp_buf[PRINTF_NTOA_BUFFER_SIZE];
+        size_t j;
+        for (j = 0U; j < len; j++) tmp_buf[j] = buf[len - 1U - j];
+        for (j = 0U; j < len; j++) buf[j] = tmp_buf[j];
+      }
+    } else {
+      do {
+        const char digit = ((char) (value % base));
+        buf[len++] = digit < 10 ? '0' + digit :
+            (flags & FLAGS_UPPERCASE ? 'A' : 'a') + digit - 10;
+        value /= base;
+      } while (value && len < PRINTF_NTOA_BUFFER_SIZE);
+    }
   }
 
   return _ntoa_format(out, buffer, idx, maxlen, buf, len,
