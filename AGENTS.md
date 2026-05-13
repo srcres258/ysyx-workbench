@@ -27,12 +27,11 @@ This is a **meta-repo with 4 git submodules** (not tracked in the top-level repo
 | Submodule | Remote (fork) | Upstream | Branch |
 |-----------|--------------|----------|--------|
 | `am-kernels/` | srcres258/ysyx-am-kernels | NJU-ProjectN/am-kernels | master |
-| `fceux-am/` | NJU-ProjectN/fceux-am (direct) | — | ics2021 (frozen clone) |
 | `npc/vsrc-chisel/` | srcres258/chisel-ysyx-cpu | — | npc-b2 |
-| `rt-thread/` | srcres258/rt-thread-am | RT-Thread/rt-thread | master |
+| `rt-thread/` | srcres258/rt-thread-am | fork of RT-Thread/rt-thread | master |
 | `ysyxSoC/` | srcres258/ysyx-ysyxSoC | OSCPU/ysyxSoC | ysyx6-own |
 
-**Note**: `fceux-am/` is NOT a submodule — it was cloned directly by `init.sh` with its `.git` stripped. `nemu/`, `abstract-machine/`, `npc/`, `nvboard/` are also direct directories, initialized via `init.sh`.
+**Note**: `fceux-am/` is an **independent git repo** (NOT a submodule) — cloned directly by `init.sh` with its `.git` preserved and gitignored by line 16 of `.gitignore`. `nemu/`, `abstract-machine/`, `npc/`, `nvboard/` are direct directories tracked by the top-level repo, initialized via `init.sh`.
 
 
 ## Subproject Map
@@ -265,6 +264,7 @@ NPC_CONFIG_DIFFTEST=on NPC_CONFIG_ITRACE=on ./build/ysyxSoCFull
 7. **`checkRequiredConfig()` only validates FLASH, not MROM**: If you enable MROM but forget `NPC_CONFIG_MROM_BIN_FILE_PATH`, no error is raised — the simulation proceeds and may crash deeper in the code.
 8. **DTRACE/ETRACE collision when both enabled**: If you run with `RUN_CONFIG_DTRACE=on RUN_CONFIG_ETRACE=on` without overriding either output path, both traces write to `build/dtrace.log` producing interleaved/corrupted output.
 9. **No `RUN_CONFIG_MROM` (on/off flag)**: Every other config on/off flag has a `RUN_CONFIG_*` → `NPC_CONFIG_*` mapping. `NPC_CONFIG_MROM` is the only flag that must be set directly on the binary as an env var.
+10. **`NPC_CONFIG_MROM_ELF_FILE_PATH` passed but never read**: The Makefile defines `RUN_CONFIG_MROM_ELF_FILE_PATH` and passes `NPC_CONFIG_MROM_ELF_FILE_PATH` in both RUN_ARGS (line 159) and GDB_ARGS (line 185), but `main.cpp` never reads this env var — the `SimConfig` struct has no `config_mromElfFilePath` field (only `config_mromBinFilePath`).
 
 ### NPC Gotchas
 
@@ -350,7 +350,7 @@ make ARCH=riscv32e-ysyxsoc run
 
 ## fceux-am — NES Emulator (FCEUX) Ported to AM
 
-- NOT a submodule — cloned directly by `init.sh` (see below), with `.git` stripped. Branch `ics2021` (frozen).
+- **Independent git repo** (NOT a submodule) — cloned directly by `init.sh`, `.git` preserved and gitignored by top-level (line 16 of `.gitignore`). Branch `ics2021` (frozen).
 - Full FCEUX emulator ported to the AbstractMachine runtime (CPU, PPU, APU, cart mapper, input).
 - **Build**: `make -C fceux-am ARCH=native run mainargs=mario`
 - **ROMs**: 22 NES ROMs in `nes/rom/` (Mario, Tetris, Contra, etc.). Pre-generated C arrays in `nes/gen/`.
@@ -381,7 +381,7 @@ make ARCH=riscv32e-ysyxsoc run
 
 ## Top-Level Conventions
 
-- **`.gitignore` is whitelist-based**: Ignores `*.*` and `*`, then whitelists specific directories/files via `!` patterns. The whitelist includes legacy entries (`nexus-am/`, `nanos-lite/`, `navy-apps/`, `npc-chisel/`) from earlier project versions that no longer exist, and a legacy re-ignore `/fceux-am` line from the former `init.sh`-managed fceux-am directory. `abstract-machine/` and `nvboard/` are NOT explicitly whitelisted — they were force-tracked via `init.sh`. Adding new files to the root requires updating `.gitignore`. Submodules (am-kernels, ysyxSoC, npc/vsrc-chisel, rt-thread) generally don't need gitignore entries, though `rt-thread` has `!/rt-thread` as a whitelist entry.
+- **`.gitignore` is whitelist-based**: Ignores `*.*` and `*`, then whitelists specific directories/files via `!` patterns. The whitelist includes legacy entries (`nexus-am/`, `nanos-lite/`, `navy-apps/`, `npc-chisel/`) from earlier project versions that no longer exist, and a re-ignore `/fceux-am` line for the independent fceux-am git repo. `abstract-machine/` and `nvboard/` are NOT explicitly whitelisted — they were force-tracked via `init.sh`. Adding new files to the root requires updating `.gitignore`. Submodules (am-kernels, ysyxSoC, npc/vsrc-chisel, rt-thread) generally don't need gitignore entries, though `rt-thread` has `!/rt-thread` as a whitelist entry.
 - **Top-level `Makefile`** is NOT for building — it manages a git tracer branch for the course submission system. It captures every `make run` into a separate git branch (`tracer-ysyx`). NPC's Makefile and NEMU's `native.mk` both `include ../Makefile` for this. **Run `make` inside subprojects only.**
 - **Student ID**: `ysyx_25070190` (in root `Makefile` and `ysyxSoC/src/CPU.scala`). Change in your fork with `sed`.
 - **`init.sh`** is the initial setup script — clones missing subprojects from GitHub and sets env vars in `~/.bashrc`.
