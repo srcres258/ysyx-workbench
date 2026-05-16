@@ -26,6 +26,10 @@ void Term::init_dirty(bool val) {
 
 Term::~Term() {
   SDL_DestroyTexture(cursor_texture);
+  SDL_DestroyTexture(get_focus_cursor_texture);
+  delete [] dirty_line;
+  delete [] dirty_char;
+  for (auto l : lines) delete [] l;
 }
 
 void Term::clear_screen() {

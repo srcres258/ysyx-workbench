@@ -16,6 +16,9 @@ enum {
 };
 
 class Component{
+public:
+  virtual ~Component() = default;
+
 private:
   SDL_Renderer *m_renderer;
   int m_component_type;

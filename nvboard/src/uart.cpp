@@ -32,6 +32,7 @@ UART::UART(SDL_Renderer *rend, int cnt, int init_val, int ct, int x, int y, int 
 
 UART::~UART() {
   SDL_DestroyTexture(get_texture(0));
+  delete term;
 }
 
 void UART::update_gui() { // everything is done in update_state()
