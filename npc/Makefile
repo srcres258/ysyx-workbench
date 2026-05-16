@@ -25,7 +25,7 @@ INC_PATH += $(abspath $(VERILATOR_HOME)/include/vltstd/)
 VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD -O3 --x-assign fast \
 					--x-initial fast --noassert \
-					--trace-fst --debug \
+					--trace-fst \
 					-Wno-WIDTHEXPAND
 
 BUILD_DIR = ./build
