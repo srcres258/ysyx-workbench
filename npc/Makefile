@@ -109,8 +109,10 @@ $(VERILATED_LIB): chisel-gen $(VSRCS)
 	$(MAKE) -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
 
 # 链接所有 .o 文件与 Verilated 库生成最终仿真程序
+# NOTE: 对象文件必须放在静态库之前，否则链接器无法解析库中的符号。
+# --start-group/--end-group 处理可能存在的循环依赖。
 $(BIN): $(LIBS) $(COBJS)
-	$(CXX) $(CXXFLAGS) $^ -o $@ \
+	$(CXX) $(CXXFLAGS) $(COBJS) -Wl,--start-group $(LIBS) -Wl,--end-group -o $@ \
 		-L$(VERILATOR_MDIR) -lverilated -lV$(TOPNAME) \
 		$(LDFLAGS)
 

@@ -1,4 +1,5 @@
 #include <verilated_fst_c.h>
+#include <nvboard.h>
 #include <iostream>
 #include <fstream>
 #include <cstdint>
@@ -286,6 +287,18 @@ bool simulate(bool sdbEnabled) {
         tfp->open(sim_config.config_waveFilePath.c_str());
     }
 
+    if (sim_config.config_device) {
+        // 初始化 NVBoard 虚拟 FPGA 板卡
+        // 必须在 simReset() 之前完成，因为 simStepClockPeriod() 调用
+        // nvboard_update() (通过 device_update())，
+        // 而 nvboard_update() 依赖 NVBoard 已初始化。
+        extern void nvboard_bind_all_pins(VysyxSoCFull* top);
+        nvboard_bind_all_pins(top);
+        nvboard_init();
+        if (sim_config.config_debugOutput)
+            std::cout << "NVBoard 已初始化." << std::endl;
+    }
+
     if (sim_config.config_debugOutput)
         std::cout << "正在重置处理器..." << std::endl;
     // ysyxSoC 中, CPU 核心电路部分会在上电后的第 10 个时钟周期时自动强行触发一个 reset 信号.
@@ -324,6 +337,7 @@ bool simulate(bool sdbEnabled) {
     if (sim_config.config_debugOutput)
         std::cout << "仿真结束." << std::endl;
     halt_ret = getDPIModule()->gpr_gprs_0;
+    nvboard_quit();
     delete top;
 
     if (sim_config.config_itrace) {

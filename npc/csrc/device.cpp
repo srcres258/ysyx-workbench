@@ -1,5 +1,6 @@
 #include <SDL2/SDL.h>
 #include <macro-def.hpp>
+#include <nvboard.h>
 #include <utils/timer.hpp>
 #include <utils.hpp>
 #include <device/io/map.hpp>
@@ -10,7 +11,7 @@
 #include <device/psram.hpp>
 
 void device_update() {
-    // TODO: currently no device update needed.
+    nvboard_update();
 }
 
 bool device_init() {
