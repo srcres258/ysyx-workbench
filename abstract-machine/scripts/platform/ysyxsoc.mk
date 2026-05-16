@@ -11,12 +11,14 @@ AM_SRCS := riscv/ysyxsoc/start.S \
            riscv/ysyxsoc/mpe.c
 
 CFLAGS    += -fdata-sections -ffunction-sections
-ifeq ($(USE_PSRAM),1)
+ifeq ($(USE_SDRAM),1)
+  LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-fsbl-ssbl-sdram.ld
+else ifeq ($(USE_PSRAM),1)
   LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-fsbl-ssbl.ld
 else
   LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker.ld
 endif
-LDFLAGS   += --defsym=_psram_start=0x80000000 --defsym=_sram_start=0x0f000000 --defsym=_mrom_start=0x20000000 --defsym=_flash_start=0x30000000
+LDFLAGS   += --defsym=_psram_start=0x80000000 --defsym=_sdram_start=0xa0000000 --defsym=_sram_start=0x0f000000 --defsym=_mrom_start=0x20000000 --defsym=_flash_start=0x30000000
 LDFLAGS   += --gc-sections -e _start
 
 MAINARGS_MAX_LEN = 64
@@ -31,16 +33,16 @@ image: image-dep
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S -R .bss -R .comment -R .riscv.attributes -O binary $(IMAGE).elf $(IMAGE).bin
 
-CONFIG_SDB_ENABLED ?= true
+CONFIG_SDB_ENABLED ?= false
 CONFIG_ITRACE ?= on
 CONFIG_MTRACE ?= on
 CONFIG_FTRACE ?= on
 CONFIG_DTRACE ?= on
 CONFIG_ETRACE ?= on
-CONFIG_DIFFTEST ?= on
+CONFIG_DIFFTEST ?= off
 CONFIG_DEVICE ?= on
 CONFIG_WAVE ?= on
-CONFIG_DEBUG_OUTPUT ?= on
+CONFIG_DEBUG_OUTPUT ?= off
 CONFIG_MROM ?= off
 CONFIG_DIFFTEST_PORT ?= 12345
 CONFIG_MROM_BIN_FILE_PATH ?= mrom.bin
