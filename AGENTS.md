@@ -15,7 +15,7 @@ export AM_HOME=$(pwd)/abstract-machine
 export NPC_HOME=$(pwd)/npc
 export NVBOARD_HOME=$(pwd)/nvboard
 export YSYX_HOME=$(pwd)
-export VERILATOR_HOME=$(nix-shell -p verilator --run 'echo $out')/share/verilator
+export VERILATOR_HOME=$(nix build --no-link --print-out-paths nixpkgs#verilator)/share/verilator
 ```
 
 Dependencies managed via `flake.nix`: verilator, gtkwave, circt, iverilog, SDL2 (+ image + ttf), SDL3 (+ image + ttf), capstone, libelf, libz, gcc, gnumake, pkg-config. The shellHook also sets `PKG_CONFIG_PATH` and `LD_LIBRARY_PATH`.
@@ -92,7 +92,7 @@ make -C nemu help           # show config help
 - **`NEMU_HOME` required**: Sanity-checks `$(NEMU_HOME)/src/nemu-main.c` exists. Set it or builds fail.
 - **`build/program.elf` required for `make run`**: Usually a symlink to your kernel ELF. Path is `--elf=$(BUILD_DIR)/program.elf`.
 - **DiffTest shared lib**: For NPC difftest, NEMU must be built as a `.so` via `TARGET_SHARE` in Kconfig. NPC expects the file at `build/riscv32-nemu-interpreter-so` by default.
-- **`.gitignore`**: Whitelist-based — ignores everything then whitelists source patterns. `build/` is tracked, not ignored.
+- **`.gitignore`**: Whitelist-based — ignores everything then whitelists source patterns. `build/` is NOT gitignored (can be tracked if committed), but is not currently in the git tree.
 - **Supported ISAs**: x86, mips32, riscv32, riscv64 (select riscv ISA + enable RV64), loongarch32r.
 - **Debugging tools** in `tools/`: `spike-diff/`, `qemu-diff/`, `kvm-diff/` (differential testing helpers), `kconfig/` (build-time), `fixdep/`, `gen-expr/`.
 
@@ -163,7 +163,7 @@ am-kernels/
 │   └── klib-tests/# Library tests
 ```
 
-**How cpu-tests work**: The parent Makefile dynamically generates per-test Makefiles from `tests/*.c` files, runs each test, and reports PASS/FAIL. Tests are NOT flat `.c` files in a single directory — each is in its own subdirectory under `tests/`.
+**How cpu-tests work**: The parent Makefile dynamically generates per-test Makefiles from `tests/*.c` files, runs each test, and reports PASS/FAIL. Tests are flat `.c` files (36 total) in a single `tests/` directory. Key files: `add.c`, `bit.c`, `bubble-sort.c`, `fib.c`, `prime.c`, `quick-sort.c`, `string.c`, `sum.c`, etc.
 
 ```bash
 # Run all cpu-tests on NEMU (auto-builds + runs each test):
@@ -345,7 +345,7 @@ make ARCH=riscv32e-ysyxsoc run
 
 - **CPU BlackBox**: `src/CPU.scala` wraps student's Verilog core as `class ysyx_25070190 extends BlackBox`. The Verilog file must be `ysyx_25070190.v` (matching the 8-digit student ID). Interface spec at `spec/cpu-interface.md` — requires AXI4 master + AXI4 slave ports + clock, reset, interrupt.
 - **Peripherals** (`perip/`): UART 16550, SPI+XIP flash, SPI bus, GPIO, PS/2, VGA, SDRAM, PSRAM, AMBA (AXI infrastructure), bitrev (utility) — all plain Verilog, wrapped as Chisel BlackBoxes in `src/device/`.
-- **Config flags** in `src/Top.scala`: `Config.hasChipLink`, `Config.sdramUseAXI`.
+- **Config flags** used in `src/SoC.scala`: `Config.hasChipLink`, `Config.sdramUseAXI`.
 - **Pre-built D-stage**: `ready-to-run/D-stage/ysyxSoCFull.v` is a SimpleBus version for early-stage students.
 
 ## fceux-am — NES Emulator (FCEUX) Ported to AM
