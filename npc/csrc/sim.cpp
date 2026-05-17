@@ -264,6 +264,7 @@ void simExec(uint64_t n) {
  */
 bool simulate(bool sdbEnabled) {
     word_t halt_ret;
+    bool success = true;
 
     timer_initRand();
     disasm_init();
@@ -273,7 +274,8 @@ bool simulate(bool sdbEnabled) {
     if (sim_config.config_ftrace) {
         if (!sim_state_ftrace_funcSyms_init()) {
             std::cerr << "函数符号表加载失败，请确保 ELF 文件路径正确！" << std::endl;
-            return false;
+            success = false;
+            goto sim_cleanup;
         }
     }
     sim_state_ofstream_init();
@@ -314,7 +316,8 @@ bool simulate(bool sdbEnabled) {
             std::cout << "正在加载外部设备..." << std::endl;
         if (!device_init()) {
             std::cerr << "外部设备加载失败! 退出..." << std::endl;
-            return false;
+            success = false;
+            goto sim_cleanup;
         }
     }
 
@@ -339,6 +342,8 @@ bool simulate(bool sdbEnabled) {
     if (sim_config.config_debugOutput)
         std::cout << "仿真结束." << std::endl;
     halt_ret = getDPIModule()->gpr_gprs_0;
+
+sim_cleanup:
     if (sim_config.config_nvboard) {
         nvboard_quit();
     }
@@ -354,5 +359,5 @@ bool simulate(bool sdbEnabled) {
         delete tfp;
     }
 
-    return halt_ret == 0;
+    return success && (halt_ret == 0);
 }
