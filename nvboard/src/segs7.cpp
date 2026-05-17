@@ -48,7 +48,7 @@ SEGS7::SEGS7(SDL_Renderer *rend, int cnt, int init_val, int ct, bool is_len8)
 void SEGS7::update_gui() {
   int newval = get_state();
   for (int i = 0; i < 8; ++i) {
-    int texture_idx = (7 - i) * 2 + (((newval >> i) & 1) ? 0 : 1);
+    int texture_idx = (7 - i) * 2 + (((newval >> i) & 1) ? 1 : 0);
     SDL_RenderCopy(get_renderer(), get_texture(texture_idx), NULL, get_rect(texture_idx));
   }
   set_redraw();
