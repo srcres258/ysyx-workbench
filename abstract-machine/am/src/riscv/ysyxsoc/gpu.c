@@ -1,8 +1,8 @@
 #include <am.h>
 #include <riscv/riscv.h>
 
-#define VGA_CTL_MMIO_ADDR   0xa0000100
-#define VGA_FB_MMIO_ADDR    0xa1000000
+#define VGA_CTL_MMIO_ADDR   0x21000000
+#define VGA_FB_MMIO_ADDR    0x21000008
 
 #define SYNC_ADDR (VGA_CTL_MMIO_ADDR + 4)
 
