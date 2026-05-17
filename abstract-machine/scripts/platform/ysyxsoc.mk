@@ -1,6 +1,10 @@
-AM_SRCS := riscv/ysyxsoc/start.S \
-           riscv/ysyxsoc/ssbl.c \
-           riscv/ysyxsoc/trm.c \
+ifeq ($(USE_FLASH_XIP),1)
+  AM_SRCS := riscv/ysyxsoc/start-flash-xip.S
+else
+  AM_SRCS := riscv/ysyxsoc/start.S \
+             riscv/ysyxsoc/ssbl.c
+endif
+AM_SRCS += riscv/ysyxsoc/trm.c \
            riscv/ysyxsoc/ioe.c \
            riscv/ysyxsoc/uart.c \
            riscv/ysyxsoc/timer.c \
@@ -12,7 +16,9 @@ AM_SRCS := riscv/ysyxsoc/start.S \
            riscv/ysyxsoc/mpe.c
 
 CFLAGS    += -fdata-sections -ffunction-sections
-ifeq ($(USE_SDRAM),1)
+ifeq ($(USE_FLASH_XIP),1)
+  LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-flash-xip.ld
+else ifeq ($(USE_SDRAM),1)
   LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-fsbl-ssbl-sdram.ld
 else ifeq ($(USE_PSRAM),1)
   LDSCRIPTS += $(AM_HOME)/scripts/platform/ysyxsoc/linker-fsbl-ssbl.ld
@@ -25,6 +31,10 @@ LDFLAGS   += --gc-sections -e _start
 MAINARGS_MAX_LEN = 64
 MAINARGS_PLACEHOLDER = the_insert-arg_rule_in_Makefile_will_insert_mainargs_here
 CFLAGS += -DMAINARGS_MAX_LEN=$(MAINARGS_MAX_LEN) -DMAINARGS_PLACEHOLDER=$(MAINARGS_PLACEHOLDER)
+
+ifeq ($(USE_FLASH_XIP),1)
+  CFLAGS += -DFLASH_XIP_BOOT
+endif
 
 insert-arg: image
 	@python $(AM_HOME)/tools/insert-arg.py $(IMAGE).bin $(MAINARGS_MAX_LEN) $(MAINARGS_PLACEHOLDER) "$(mainargs)"
@@ -48,6 +58,11 @@ CONFIG_DEBUG_OUTPUT ?= off
 CONFIG_MROM ?= off
 CONFIG_DIFFTEST_PORT ?= 12345
 CONFIG_MROM_BIN_FILE_PATH ?= mrom.bin
+
+# Flash XIP 模式下每次取指都触发 flash_read() DPI 调用, dtrace 会产生海量日志
+ifeq ($(USE_FLASH_XIP),1)
+  CONFIG_DTRACE ?= off
+endif
 
 TRACE_LOG_DIR = $(abspath ./build/trace-logs)
 

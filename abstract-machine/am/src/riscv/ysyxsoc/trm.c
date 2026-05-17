@@ -84,6 +84,7 @@ void halt(int code) {
     while (1);
 }
 
+#ifndef FLASH_XIP_BOOT
 static void zero_bss_section(void) {
     volatile uint8_t *p;
 
@@ -93,12 +94,15 @@ static void zero_bss_section(void) {
         *p = 0;
     }
 }
+#endif
 
 void _trm_init(void) {
     int ret;
 
     init_uart();
+#ifndef FLASH_XIP_BOOT
     zero_bss_section();
+#endif
     ret = main(mainargs);
     halt(ret);
 }

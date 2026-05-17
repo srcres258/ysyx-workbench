@@ -117,9 +117,10 @@ $(DST_DIR)/%.o: %.S
 
 ifeq ($(MAKECMDGOALS),archive)
 ### Rule (archive): objects (`*.o`) -> `ARCHIVE.a` (ar)
-$(ARCHIVE): $(OBJS)
+$(ARCHIVE): $(OBJS) force
 	@echo + AR "->" $(shell realpath $@ --relative-to .)
-	@$(AR) rcs $@ $^
+	@rm -f $@
+	@$(AR) rcs $@ $(filter-out force,$^)
 else
 # $(1): library name
 define LIB_TEMPLATE =
