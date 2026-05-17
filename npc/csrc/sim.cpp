@@ -50,6 +50,12 @@ void simStepClockPeriod() {
         tfp->dump(verContext->time());
     }
 
+    // 每时钟周期更新一次 UART 采样 (仅在 NVBoard 启用且非 reset 期间)
+    if (!top->reset && sim_config.config_nvboard) {
+        extern void nvboard_uart_update(void);
+        nvboard_uart_update();
+    }
+
     execCountClockPeriod++;
 }
 
@@ -298,6 +304,21 @@ bool simulate(bool sdbEnabled) {
             extern void nvboard_bind_all_pins(VysyxSoCFull* top);
             nvboard_bind_all_pins(top);
             nvboard_init();
+
+            // 配置 NVBoard UART 除数.
+            //
+            // 由于 nvboard_uart_update() 在 simStepClockPeriod() 中每时钟周期调用,
+            // divisor 表示多少个时钟周期采样一次 UART TX 引脚.
+            //
+            // UART16550 参数:
+            //   系统时钟频率 = 10 MHz
+            //   UART16550 DLL = 10_000_000 / (16 × 115_200) ≈ 5
+            //   实际每比特周期 = 16 × DLL = 80 个时钟周期
+            //
+            // NVBoard divisor = 80 (每个 UART 比特恰好采样一次)
+            extern void uart_set_divisor(uint16_t d);
+            uart_set_divisor(80);
+
             if (sim_config.config_debugOutput)
                 std::cout << "NVBoard 已初始化." << std::endl;
         }

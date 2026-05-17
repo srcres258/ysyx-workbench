@@ -14,8 +14,7 @@ void set_redraw() { need_redraw = true; }
 
 void vga_update();
 void kb_update();
-void uart_tx_receive();
-void uart_rx_send();
+// UART 更新已移至 nvboard_uart_update() (在 simStepClockPeriod() 中每周期调用)
 
 void nvboard_update() {
   extern uint8_t *vga_blank_n_ptr;
@@ -23,13 +22,6 @@ void nvboard_update() {
 
   extern bool is_kb_idle;
   if (unlikely(!is_kb_idle)) kb_update();
-
-  extern int16_t uart_divisor_cnt;
-  extern bool is_uart_rx_idle;
-  if (unlikely((-- uart_divisor_cnt) < 0)) {
-    uart_tx_receive();
-    if (unlikely(!is_uart_rx_idle)) uart_rx_send();
-  }
 
   static uint64_t last = 0;
   static int cpf = 1; // count per frame

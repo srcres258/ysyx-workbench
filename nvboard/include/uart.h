@@ -27,4 +27,9 @@ public:
   void term_focus(bool v);
 };
 
+void uart_set_divisor(uint16_t d);
+
+// 每时钟周期调用一次的轻量级 UART 更新 (不含 GUI 渲染)
+void nvboard_uart_update(void);
+
 #endif

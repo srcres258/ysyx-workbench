@@ -1,5 +1,6 @@
 #include <nvboard.h>
 #include <uart.h>
+#include <macro.h>
 
 // There is no need to update TX too frequently
 #define UART_TX_FPS 5
@@ -142,4 +143,21 @@ void uart_rx_getchar(uint8_t ch) {
 
 void uart_term_focus(bool v) {
   uart->term_focus(v);
+}
+
+void uart_set_divisor(uint16_t d) {
+  if (uart) {
+    uart->set_divisor(d);
+  }
+}
+
+// 每时钟周期调用一次的轻量级 UART 更新
+//   在 simStepClockPeriod() 中被调用, 保证 UART 采样时序与硬件一致
+void nvboard_uart_update(void) {
+  extern int16_t uart_divisor_cnt;
+  extern bool is_uart_rx_idle;
+  if (unlikely((-- uart_divisor_cnt) < 0)) {
+    uart_tx_receive();
+    if (unlikely(!is_uart_rx_idle)) uart_rx_send();
+  }
 }
