@@ -41,6 +41,7 @@ struct SimConfig {
     bool config_device;
     bool config_wave;
     bool config_debugOutput;
+    bool config_nvboard;
     bool config_mrom;
 
     int config_difftestPort;

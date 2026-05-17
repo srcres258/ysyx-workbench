@@ -288,15 +288,17 @@ bool simulate(bool sdbEnabled) {
     }
 
     if (sim_config.config_device) {
-        // 初始化 NVBoard 虚拟 FPGA 板卡
-        // 必须在 simReset() 之前完成，因为 simStepClockPeriod() 调用
-        // nvboard_update() (通过 device_update())，
-        // 而 nvboard_update() 依赖 NVBoard 已初始化。
-        extern void nvboard_bind_all_pins(VysyxSoCFull* top);
-        nvboard_bind_all_pins(top);
-        nvboard_init();
-        if (sim_config.config_debugOutput)
-            std::cout << "NVBoard 已初始化." << std::endl;
+        if (sim_config.config_nvboard) {
+            // 初始化 NVBoard 虚拟 FPGA 板卡
+            // 必须在 simReset() 之前完成，因为 simStepClockPeriod() 调用
+            // nvboard_update() (通过 device_update())，
+            // 而 nvboard_update() 依赖 NVBoard 已初始化。
+            extern void nvboard_bind_all_pins(VysyxSoCFull* top);
+            nvboard_bind_all_pins(top);
+            nvboard_init();
+            if (sim_config.config_debugOutput)
+                std::cout << "NVBoard 已初始化." << std::endl;
+        }
     }
 
     if (sim_config.config_debugOutput)
@@ -337,7 +339,9 @@ bool simulate(bool sdbEnabled) {
     if (sim_config.config_debugOutput)
         std::cout << "仿真结束." << std::endl;
     halt_ret = getDPIModule()->gpr_gprs_0;
-    nvboard_quit();
+    if (sim_config.config_nvboard) {
+        nvboard_quit();
+    }
     delete top;
 
     if (sim_config.config_itrace) {

@@ -11,7 +11,9 @@
 #include <device/psram.hpp>
 
 void device_update() {
-    nvboard_update();
+    if (sim_config.config_nvboard) {
+        nvboard_update();
+    }
 }
 
 bool device_init() {
