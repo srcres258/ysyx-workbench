@@ -233,9 +233,9 @@ extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
     uint64_t us = timer_getTimeElapsedUSec();
     uint32_t result = 0;
     addr_t addr = dpi->clint_read_readAddress;
-    if (addr == 0xa0000048) {
+    if (addr == 0x0200bff8) {
         result = (uint32_t) us;
-    } else if (addr == 0xa000004c) {
+    } else if (addr == 0x0200bffc) {
         result = (uint32_t) (us >> 32);
     }
     return result;

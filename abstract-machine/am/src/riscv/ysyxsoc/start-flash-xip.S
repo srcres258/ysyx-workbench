@@ -38,15 +38,15 @@ _start:
     j 0b
 
 1:
-    # 3. 将 .bss 节清零 (SRAM 中)
-    #    使用 sw zero 进行 32 位字清零
-    la t0, _bss_start
-    la t1, _bss_end
-2:
-    bge t0, t1, 3f
-    sw zero, 0(t0)
-    addi t0, t0, 4
-    j 2b
+#     # 3. 将 .bss 节清零 (SRAM 中)
+#     #    使用 sw zero 进行 32 位字清零
+#     la t0, _bss_start
+#     la t1, _bss_end
+# 2:
+#     bge t0, t1, 3f
+#     sw zero, 0(t0)
+#     addi t0, t0, 4
+#     j 2b
 
 3:
     # 4. 跳转到 FLASH 中的 _trm_init (也在 FLASH 中, XIP)

@@ -1,21 +1,26 @@
 #include <am.h>
 #include <riscv/riscv.h>
 
-#define RTC_MMIO_ADDR 0xa0000048
+// ACLINT MTIME 设备寄存器基地址 (ysyxSoC CLINT 空间内)
+#define ACLINT_MTIME_BASE 0x0200bff8
 
 void __am_timer_init() {
+    // MTIME 寄存器由硬件/DPI-C 自动递增，无需软件初始化
 }
 
 void __am_timer_uptime(AM_TIMER_UPTIME_T *uptime) {
-  volatile uintptr_t timer_addr;
-  uint64_t result;
+    uint32_t hi1, hi2, lo;
 
-  timer_addr = (uintptr_t) RTC_MMIO_ADDR;
-  result = 0;
-  result = inl(timer_addr + sizeof(uint32_t));    // 先访问高字
-  result <<= 32;
-  result |= inl(timer_addr);                      // 再访问低字
-  uptime->us = result;
+    // RV32 读取 64-bit MTIME 的原子性保证：
+    // 先读高位，再读低位，最后再读高位验证是否有进位
+    // 若两次高位不同，说明低位发生了向高位的进位，需要重读
+    do {
+        hi1 = inl(ACLINT_MTIME_BASE + 4);  // 读 MTIME 高 32 位 (0x0200bffc)
+        lo  = inl(ACLINT_MTIME_BASE);      // 读 MTIME 低 32 位 (0x0200bff8)
+        hi2 = inl(ACLINT_MTIME_BASE + 4);  // 再读 MTIME 高 32 位
+    } while (hi1 != hi2);
+
+    uptime->us = ((uint64_t)hi1 << 32) | lo;
 }
 
 void __am_timer_rtc(AM_TIMER_RTC_T *rtc) {
