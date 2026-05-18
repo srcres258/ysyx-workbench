@@ -362,7 +362,7 @@ bool simulate(bool sdbEnabled) {
 
     if (sim_config.config_debugOutput)
         std::cout << "仿真结束." << std::endl;
-    halt_ret = getDPIModule()->gpr_gprs_0;
+    halt_ret = getDPIModule()->gpr_gprs_10; // a0 寄存器是 x10
 
 sim_cleanup:
     if (sim_config.config_nvboard) {
