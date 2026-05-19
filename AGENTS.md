@@ -21,7 +21,7 @@ export VERILATOR_HOME=$(nix build --no-link --print-out-paths nixpkgs#verilator)
 
 Dependencies in `flake.nix`: verilator, gtkwave, circt, iverilog, SDL2 (+ image + ttf), SDL3 (+ image + ttf), capstone, libelf, libz, gcc, gnumake, pkg-config.
 
-For fish shell users: `config.fish` provides partial env setup. Prefer `nix develop`.
+For fish shell users: `config.fish` provides partial env setup (only sets NVBOARD_HOME, AM_HOME, NPC_HOME — missing NEMU_HOME, YSYX_HOME, VERILATOR_HOME). Prefer `nix develop`.
 
 ## Repository Architecture
 
@@ -34,7 +34,7 @@ This is a **meta-repo with 4 git submodules** (not tracked in the top-level repo
 | `rt-thread/` | srcres258/rt-thread-am | fork of RT-Thread/rt-thread | master |
 | `ysyxSoC/` | srcres258/ysyx-ysyxSoC | OSCPU/ysyxSoC | ysyx6-own |
 
-**Note**: `fceux-am/` is an **independent git repo** (NOT a submodule) — cloned by `init.sh`, `.git` preserved, gitignored. `nemu/`, `abstract-machine/`, `npc/`, `nvboard/` are direct directories tracked by the top-level repo, initialized via `init.sh`.
+**Note**: `fceux-am/` is an **independent git repo** (NOT a submodule) — cloned by `init.sh`, `.git` preserved, gitignored. `nemu/`, `abstract-machine/`, `npc/`, `nvboard/` are direct directories tracked by the top-level repo, initialized via `init.sh`. (Note: `abstract-machine/` and `nvboard/` aren't explicitly whitelisted in `.gitignore` but were force-added during init.)
 
 ## Subproject Map
 
@@ -83,7 +83,7 @@ make -C nemu gdb                 # Debug under GDB
 
 **Two different memory maps**:
 - **NEMU/NPC**: Physical memory at `0x80000000`, 128MB. Devices at `0xa0000000`.
-- **ysyxsoc**: SRAM `0x0f000000` (8KB), MROM `0x20000000` (4KB), PSRAM `0x80000000` (4MB), SDRAM `0xa0000000`, FLASH `0x30000000` (16MB). Uses `scripts/platform/ysyxsoc/linker.ld` with `MEMORY` regions (NOT the flat `scripts/linker.ld`). Supports `USE_PSRAM=1` and `USE_SDRAM=1` for alternative link scripts.
+- **ysyxsoc**: SRAM `0x0f000000` (8KB), MROM `0x20000000` (4KB), PSRAM `0x80000000` (4MB), SDRAM `0xa0000000`, FLASH `0x30000000` (16MB). Uses `scripts/platform/ysyxsoc/linker.ld` with `MEMORY` regions (NOT the flat `scripts/linker.ld`). Supports `USE_PSRAM=1`, `USE_SDRAM=1`, and `USE_FLASH_XIP=1` for alternative link scripts. When `USE_FLASH_XIP=1`, DTRACE is automatically disabled to avoid per-instruction flash DPI call noise.
 
 **Platform scripts** (`scripts/platform/`): `nemu.mk`, `npc.mk`, `ysyxsoc.mk`, `qemu.mk`, `logisim.mk`. The ysyxsoc platform file is the **preferred way** to set `RUN_CONFIG_*` vars — it properly sets trace paths and separates DTRACE/ETRACE logs.
 
@@ -276,12 +276,19 @@ Submodule (srcres258/rt-thread-am). AM BSP at `bsp/abstract-machine/`. Build: `m
 
 ## Top-Level Conventions
 
-- **`.gitignore` is whitelist-based** — ignores `*.*` and `*`, whitelists specific entries via `!` patterns. Adding new root-level files requires updating `.gitignore`.
+- **`.gitignore` is whitelist-based** — ignores `*.*` and `*`, whitelists specific entries via `!` patterns. Adding new root-level files requires updating `.gitignore`. **Note**: `abstract-machine/` and `nvboard/` are NOT in the whitelist but were force-added by `init.sh` (they ARE tracked by git — their tracking predates/exists alongside the whitelist rules).
 - **Top-level `Makefile` is the tracer, NOT a build system** — captures `make run` invocations into git branch `tracer-ysyx`. Always `make -C <subproject>`. Running `make` in root prints: "Please run 'make' under subprojects."
 - **Student ID**: `ysyx_25070190` (root `Makefile`, `ysyxSoC/src/CPU.scala`).
 - **No CI/CD** configured.
 - **IDE support**: `.vscode/` has VS Code settings (C++ Runner, file associations); `.metals/` has Scala Metals LSP.
-- **`.sisyphus/plans/`** contains 5 existing implementation plans: GPIO/NVBoard water light, dip switch status, SDRAM expansion (32-bit, word extension), and SDRAM bootloader. Reference these before working on related features.
+- **`.sisyphus/plans/`** contains 13 existing implementation plans:
+  - GPIO/NVBoard water light, dip switch status display
+  - SDRAM expansion (32-bit, word extension), SDRAM bootloader (FSBL/SSBL)
+  - Flash XIP direct execution, SSBL UART logging
+  - Chiplink enable and test, ACLINT/MTimer implementation
+  - PS/2 keyboard, UART RX (NVBoard + IOE), VGA/NVBoard
+  - rt-thread UART RX IOE
+  Reference these before working on related features.
 - **Utility scripts**:
   | Script | Purpose |
   |--------|---------|
