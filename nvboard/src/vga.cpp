@@ -1,6 +1,7 @@
 #include <nvboard.h>
 #include <vga.h>
 #include <macro.h>
+#include <cstdio>
 
 static VGA* vga = NULL;
 
@@ -56,11 +57,6 @@ VGA::~VGA() {
 }
 
 void VGA::update_gui() {
-#ifdef DEBUG
-  static int frames = 0;
-  frames ++;
-  printf("%d frames\n", frames);
-#endif
   SDL_Texture *vga_texture = get_texture(0);
   SDL_UpdateTexture(vga_texture, NULL, pixels, vga_screen_width * sizeof(uint32_t));
   SDL_RenderCopy(get_renderer(), vga_texture, NULL, get_rect(0));
@@ -113,15 +109,12 @@ void vga_set_clk_cycle(int cycle) {
 }
 
 static void init_render_local(SDL_Renderer *renderer) {
-  // draw line
   SDL_SetRenderDrawColor(renderer, 0xff, 0xff, 0xff, 0);
   SDL_Point p[3];
   p[0] = Point(0, WINDOW_HEIGHT / 2) + Point(30, 0) - Point(0, CH_HEIGHT);
   p[1] = p[0] - Point(16, 0);
   p[2] = Point(p[1].x,  WINDOW_HEIGHT / 2);
   draw_thicker_line(renderer, p, 3);
-
-  // draw label
   draw_str(renderer, "VGA", p[0].x + 4, p[0].y - CH_HEIGHT / 2, 0xffffff);
 }
 

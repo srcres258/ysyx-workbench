@@ -17,8 +17,8 @@ void kb_update();
 // UART 更新已移至 nvboard_uart_update() (在 simStepClockPeriod() 中每周期调用)
 
 void nvboard_update() {
-  extern uint8_t *vga_blank_n_ptr;
-  if (*vga_blank_n_ptr) vga_update();
+  // VGA 采样已移至 simStepClockPeriod() 中每周期调用
+  // 此处保留 SDL 事件轮询和帧率限制渲染
 
   extern bool is_kb_idle;
   if (unlikely(!is_kb_idle)) kb_update();

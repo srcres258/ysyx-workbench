@@ -55,6 +55,11 @@ void simStepClockPeriod() {
         extern void nvboard_uart_update(void);
         nvboard_uart_update();
     }
+    if (!top->reset && sim_config.config_nvboard) {
+        extern uint8_t *vga_blank_n_ptr;
+        extern void vga_update();
+        if (*vga_blank_n_ptr) vga_update();
+    }
 
     execCountClockPeriod++;
 }

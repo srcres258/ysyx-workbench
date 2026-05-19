@@ -11,12 +11,14 @@ static bool cached_gpu_config_available = false;
 
 static void read_gpu_config(AM_GPU_CONFIG_T *cfg) {
     uintptr_t gpu_config_addr;
+    uint32_t config;
     uint16_t width, height;
     AM_GPU_CONFIG_T result;
 
     gpu_config_addr = (uintptr_t) VGA_CTL_MMIO_ADDR;
-    width = inw(gpu_config_addr + sizeof(uint16_t));
-    height = inw(gpu_config_addr);
+    config = inl(gpu_config_addr);
+    width = config >> 16;
+    height = config & 0xFFFF;
 
     result = (AM_GPU_CONFIG_T) {
         .present = true, .has_accel = false,
