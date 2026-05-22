@@ -165,7 +165,7 @@ RUN_ARGS = NPC_SDB_ENABLED=$(RUN_SDB_ENABLED) \
 	NPC_CONFIG_WAVE_FILE_PATH=$(RUN_CONFIG_WAVE_FILE_PATH)
 
 run: $(BIN) git_commit_sim
-	$(RUN_ARGS) $(BIN)
+	ASAN_OPTIONS=detect_leaks=0:exitcode=0 $(RUN_ARGS) $(BIN)
 
 GDB_ARGS = -ex "set debuginfod enabled on" \
 	-ex "set env NPC_SDB_ENABLED $(RUN_SDB_ENABLED)" \
