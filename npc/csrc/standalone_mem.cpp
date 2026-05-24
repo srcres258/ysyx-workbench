@@ -4,6 +4,7 @@
 #include <iostream>
 #include <macro-def.hpp>
 #include <device/vga.hpp>
+#include <device/serial.hpp>
 
 #define PMEM_SIZE (128 * 1024 * 1024)  // 128 MB physical memory
 #define PMEM_BASE 0x80000000UL
@@ -26,6 +27,17 @@ int dpi_pmem_read(int addr) {
 
 void dpi_pmem_write(int addr, int data, char strb) {
     uint32_t a = (uint32_t)addr;
+    if (serial_is_in_range(a)) {
+        uint32_t wdata = (uint32_t)data;
+        uint8_t  wstrb = (uint8_t)strb;
+        for (int i = 0; i < 4; i++) {
+            if (wstrb & (1u << i)) {
+                std::cout << (char)((wdata >> (i * 8)) & 0xFF);
+            }
+        }
+        std::cout << std::flush;
+        return;
+    }
     if (vga_is_in_range(a)) { vga_write(a, (uint32_t)data, (uint8_t)strb); return; }
     if (!addr_valid(a)) return;
     uint32_t wdata = (uint32_t)data;
