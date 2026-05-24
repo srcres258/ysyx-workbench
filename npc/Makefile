@@ -18,9 +18,6 @@ NPC_GEN_DIR = $(abspath ./vsrc/generated)
 
 TOPNAME = ysyxSoCFull
 NXDC_FILES = constr/ysyxSoCFull.nxdc
-INC_PATH ?= $(abspath ./include/)
-INC_PATH += $(abspath $(VERILATOR_HOME)/include/)
-INC_PATH += $(abspath $(VERILATOR_HOME)/include/vltstd/)
 
 VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD -O3 --x-assign fast \
@@ -29,8 +26,13 @@ VERILATOR_CFLAGS += -MMD -O3 --x-assign fast \
 					-Wno-WIDTHEXPAND
 
 BUILD_DIR = ./build
-INC_PATH += $(abspath $(BUILD_DIR))
+NPC_INC = $(abspath ./include/)
+NPC_INC += $(abspath $(VERILATOR_HOME)/include/)
+NPC_INC += $(abspath $(VERILATOR_HOME)/include/vltstd/)
+NPC_INC += $(abspath $(BUILD_DIR))
 OBJ_DIR = $(BUILD_DIR)/obj_dir
+NPC_INC += $(abspath $(OBJ_DIR))
+NPC_INC += $(abspath $(NVBOARD_HOME)/usr/include)
 BIN = $(BUILD_DIR)/$(TOPNAME)
 
 default: $(BIN)
@@ -52,13 +54,21 @@ chisel-gen:
 	@cp -r $(CHISEL_GEN_OUT) $(NPC_GEN_DIR)
 	@echo "[Chisel] Done. Generated $$(find $(NPC_GEN_DIR) -name '*.sv' | wc -l) .sv files."
 
+chisel-gen-standalone:
+	@echo "[Chisel] Building Standalone RTL from vsrc-chisel..."
+	@$(MAKE) -C $(CHISEL_DIR) mill-run-standalone
+	@echo "[Chisel] Copying generated SystemVerilog to $(NPC_GEN_DIR)..."
+	@rm -rf $(NPC_GEN_DIR)
+	@cp -r $(CHISEL_GEN_OUT) $(NPC_GEN_DIR)
+	@echo "[Chisel] Done. Generated $$(find $(NPC_GEN_DIR) -name '*.sv' | wc -l) .sv files."
+
 chisel-clean:
 	rm -rf $(CHISEL_GEN_OUT)
 	rm -rf $(NPC_GEN_DIR)
 
 # Verilated 生成的代码输出目录
 VERILATOR_MDIR = $(OBJ_DIR)
-INC_PATH += $(abspath $(VERILATOR_MDIR))
+NPC_INC += $(abspath $(VERILATOR_MDIR))
 
 # Verilated 生成的静态库
 VERILATED_LIB = $(VERILATOR_MDIR)/V$(TOPNAME)__ALL.a
@@ -68,8 +78,15 @@ VERILATED_LIB = $(VERILATOR_MDIR)/V$(TOPNAME)__ALL.a
 VSRCS_HANDWRITTEN = $(shell find vsrc -maxdepth 1 -name "*.v" -or -name "*.sv")
 VSRCS_PERIP = $(shell find $(YSYXSOC_PATH)/perip -name "*.v")
 VSRCS_SOC_TOP = $(YSYXSOC_PATH)/build/$(TOPNAME).v
+# Standalone mode: no ysyxSoC peripherals, top is directly from Chisel
+ifeq ($(RUN_CONFIG_SIM_MODE),standalone)
+VSRCS = $(VSRCS_HANDWRITTEN)
+CXXFLAGS += -DNPC_STANDALONE
+TOPNAME = ysyx_25070190
+NXDC_FILES =
+else
 VSRCS = $(VSRCS_HANDWRITTEN) $(VSRCS_PERIP) $(VSRCS_SOC_TOP)
-# Generated RTL (from Chisel) is discovered at recipe-time via: $$(find $(NPC_GEN_DIR) ...)
+endif
 CSRCS = $(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 CSRCS += $(SRC_AUTO_BIND)
 # project static libraries
@@ -83,7 +100,7 @@ COBJS = $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(CSRCS))
 include $(NVBOARD_HOME)/scripts/nvboard.mk
 
 # rules for verilator
-INCFLAGS = -I. $(addprefix -I, $(INC_PATH))
+INCFLAGS = -I. $(addprefix -I, $(NPC_INC))
 CXXFLAGS += $(INCFLAGS) -g -std=c++26
 LDFLAGS += -lz -lelf -fsanitize=address
 VERILATOR_GEN_INC = $(shell [ -d $(NPC_GEN_DIR) ] && find $(NPC_GEN_DIR) -type d 2>/dev/null || true)
@@ -93,7 +110,7 @@ VERILATOR_INCFLAGS = -I. $(addprefix -I, $(VERILATOR_INC_PATH))
 VERILATOR_CFLAGS += $(VERILATOR_INCFLAGS)
 
 # 规则：将 csrc/.../xxx.cpp -> obj_dir/.../xxx.o
-$(OBJ_DIR)/%.o: csrc/%.cpp
+$(OBJ_DIR)/%.o: csrc/%.cpp | $(VERILATED_LIB)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
 
@@ -116,7 +133,9 @@ $(BIN): $(LIBS) $(COBJS)
 		-L$(VERILATOR_MDIR) -lverilated -lV$(TOPNAME) \
 		$(LDFLAGS)
 
+RUN_CONFIG_SIM_MODE ?= ysyxsoc  # "ysyxsoc" or "standalone"
 RUN_SDB_ENABLED ?= false
+RUN_CONFIG_MROM ?= off
 RUN_CONFIG_ITRACE ?= off
 RUN_CONFIG_MTRACE ?= off
 RUN_CONFIG_FTRACE ?= off
@@ -132,7 +151,7 @@ RUN_CONFIG_ITRACE_OUT_FILE_PATH ?= build/itrace.log
 RUN_CONFIG_MTRACE_OUT_FILE_PATH ?= build/mtrace.log
 RUN_CONFIG_FTRACE_OUT_FILE_PATH ?= build/ftrace.log
 RUN_CONFIG_DTRACE_OUT_FILE_PATH ?= build/dtrace.log
-RUN_CONFIG_ETRACE_OUT_FILE_PATH ?= build/dtrace.log
+RUN_CONFIG_ETRACE_OUT_FILE_PATH ?= build/etrace.log
 RUN_CONFIG_FLASH_BIN_FILE_PATH ?= build/flash.bin
 RUN_CONFIG_FLASH_ELF_FILE_PATH ?= build/flash.elf
 RUN_CONFIG_MROM_BIN_FILE_PATH ?= build/mrom.bin
@@ -151,6 +170,7 @@ RUN_ARGS = NPC_SDB_ENABLED=$(RUN_SDB_ENABLED) \
 	NPC_CONFIG_WAVE=$(RUN_CONFIG_WAVE) \
 	NPC_CONFIG_DEBUG_OUTPUT=$(RUN_CONFIG_DEBUG_OUTPUT) \
 	NPC_CONFIG_NVBOARD=$(RUN_CONFIG_NVBOARD) \
+	NPC_CONFIG_MROM=$(RUN_CONFIG_MROM) \
 	NPC_CONFIG_DIFFTEST_PORT=$(RUN_CONFIG_DIFFTEST_PORT) \
 	NPC_CONFIG_ITRACE_OUT_FILE_PATH=$(RUN_CONFIG_ITRACE_OUT_FILE_PATH) \
 	NPC_CONFIG_MTRACE_OUT_FILE_PATH=$(RUN_CONFIG_MTRACE_OUT_FILE_PATH) \
@@ -186,6 +206,7 @@ GDB_ARGS = -ex "set debuginfod enabled on" \
 	-ex "set env NPC_CONFIG_DTRACE_OUT_FILE_PATH $(RUN_CONFIG_DTRACE_OUT_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_ETRACE_OUT_FILE_PATH $(RUN_CONFIG_ETRACE_OUT_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_FLASH_BIN_FILE_PATH $(RUN_CONFIG_FLASH_BIN_FILE_PATH)" \
+	-ex "set env NPC_CONFIG_FLASH_ELF_FILE_PATH $(RUN_CONFIG_FLASH_ELF_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_MROM_BIN_FILE_PATH $(RUN_CONFIG_MROM_BIN_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_MROM_ELF_FILE_PATH $(RUN_CONFIG_MROM_ELF_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_DIFFTEST_SO_FILE_PATH $(RUN_CONFIG_DIFFTEST_SO_FILE_PATH)" \

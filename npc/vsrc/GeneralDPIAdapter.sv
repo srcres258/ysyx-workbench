@@ -69,11 +69,10 @@ module GeneralDPIAdapter (
     input         idu_id_nextStage_valid /*verilator public*/,
     input         exu_ecallEnable /*verilator public*/,
     input         exu_ex_nextStage_valid /*verilator public*/,
-    input         mau_memWriteEnable /*verilator public*/,
-    input         mau_memReadEnable /*verilator public*/,
-    input         mau_ma_nextStage_valid /*verilator public*/,
-    input         wbu_wb_nextStage_valid /*verilator public*/,
-    input         upcu_upcu_pcOutput_valid /*verilator public*/
+    input         memu_memWriteEnable /*verilator public*/,
+    input         memu_memReadEnable /*verilator public*/,
+    input         memu_mem_nextStage_valid /*verilator public*/,
+    input         wbu_wb_nextStage_valid /*verilator public*/
 );
     logic halt = core_halt;
     logic inst_jal = idu_inst_jal;
@@ -83,9 +82,8 @@ module GeneralDPIAdapter (
     logic if_nextStage_valid = ifu_if_nextStage_valid;
     logic id_nextStage_valid = idu_id_nextStage_valid;
     logic ex_nextStage_valid = exu_ex_nextStage_valid;
-    logic ma_nextStage_valid = mau_ma_nextStage_valid;
+    logic mem_nextStage_valid = memu_mem_nextStage_valid;
     logic wb_nextStage_valid = wbu_wb_nextStage_valid;
-    logic upcu_pcOutput_valid = upcu_upcu_pcOutput_valid;
 
     logic [31:0] clint_readData;
     initial clint_readData = 32'h0;
@@ -113,10 +111,8 @@ module GeneralDPIAdapter (
     import "DPI-C" function void       dpi_onPosEdge_if_nextStage_valid(input logic if_nextStage_valid);
     import "DPI-C" function void       dpi_onPosEdge_id_nextStage_valid(input logic id_nextStage_valid);
     import "DPI-C" function void       dpi_onPosEdge_ex_nextStage_valid(input logic ex_nextStage_valid);
-    import "DPI-C" function void       dpi_onPosEdge_ma_nextStage_valid(input logic ma_nextStage_valid);
+    import "DPI-C" function void       dpi_onPosEdge_mem_nextStage_valid(input logic mem_nextStage_valid);
     import "DPI-C" function void       dpi_onPosEdge_wb_nextStage_valid(input logic wb_nextStage_valid);
-    
-    import "DPI-C" function void       dpi_onPosEdge_upcu_pcOutput_valid(input logic upcu_pcOutput_valid);
 
     import "DPI-C" function bit [31:0] dpi_clint_onReadEnable(input logic clint_read_readEnable);
     import "DPI-C" function void       dpi_clint_onWriteEnable(input logic clint_write_writeEnable);
@@ -147,15 +143,11 @@ module GeneralDPIAdapter (
     always_ff @( posedge ex_nextStage_valid ) begin : call_dpi_onPosEdge_ex_nextStage_valid
         dpi_onPosEdge_ex_nextStage_valid(ex_nextStage_valid);
     end
-    always_ff @( posedge ma_nextStage_valid ) begin : call_dpi_onPosEdge_ma_nextStage_valid
-        dpi_onPosEdge_ma_nextStage_valid(ma_nextStage_valid);
+always_ff @( posedge mem_nextStage_valid ) begin : call_dpi_onPosEdge_mem_nextStage_valid
+dpi_onPosEdge_mem_nextStage_valid(mem_nextStage_valid);
     end
     always_ff @( posedge wb_nextStage_valid ) begin : call_dpi_onPosEdge_wb_nextStage_valid
         dpi_onPosEdge_wb_nextStage_valid(wb_nextStage_valid);
-    end
-
-    always_ff @( posedge upcu_pcOutput_valid ) begin : call_dpi_onPosEdge_upcu_pcOutput_valid
-        dpi_onPosEdge_upcu_pcOutput_valid(upcu_pcOutput_valid);
     end
 
     always_ff @( posedge clint_read_readEnable ) begin : call_dpi_clint_onReadEnable

@@ -19,7 +19,11 @@ ExecInfo simExecInfo = {
     .inst = 0
 };
 
+#ifdef NPC_STANDALONE
+Vysyx_25070190 *top = nullptr;
+#else
 VysyxSoCFull *top = nullptr;
+#endif
 static VerilatedFstC *tfp = nullptr;
 bool sim_halt = false;
 
@@ -29,9 +33,15 @@ static uint64_t execCountClockPeriod = 0;
 /**
  * @brief 获取 DPI 模块, 以便读取被仿真模块的信号.
  */
+#ifdef NPC_STANDALONE
+Vysyx_25070190_GeneralDPIAdapter *getDPIModule() {
+    return top->dpi;
+}
+#else
 VysyxSoCFull_GeneralDPIAdapter *getDPIModule() {
     return top->ysyxSoCFull->asic->cpu->cpu->dpi;
 }
+#endif
 
 /**
  * @brief 执行一步仿真 (执行一个时钟周期).
@@ -291,7 +301,11 @@ bool simulate(bool sdbEnabled) {
     }
     sim_state_ofstream_init();
 
+#ifdef NPC_STANDALONE
+    top = new Vysyx_25070190(verContext);
+#else
     top = new VysyxSoCFull(verContext);
+#endif
 
     if (sim_config.config_wave) {
         tfp = new VerilatedFstC;

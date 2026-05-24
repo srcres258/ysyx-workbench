@@ -50,7 +50,9 @@ __EXPORT void difftest_exec(uint64_t n) {
 }
 
 __EXPORT void difftest_raise_intr(word_t NO) {
-  assert(0); // TODO: 将来要用到的时候再实现 (功能: 触发中断)
+  cpu.csr[CSR_MEPC] = cpu.pc;
+  cpu.csr[CSR_MCAUSE] = NO;
+  cpu.pc = cpu.csr[CSR_MTVEC];
 }
 
 __EXPORT void difftest_init(int port) {

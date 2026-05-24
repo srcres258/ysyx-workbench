@@ -195,11 +195,11 @@ extern "C" void dpi_onPosEdge_ex_nextStage_valid(bool _ex_nextStage_valid) {
     }
 }
 
-extern "C" void dpi_onPosEdge_ma_nextStage_valid(bool _ma_nextStage_valid) {
-    bool ma_nextStage_valid = dpi()->mau_ma_nextStage_valid;
+extern "C" void dpi_onPosEdge_mem_nextStage_valid(bool _mem_nextStage_valid) {
+    bool mem_nextStage_valid = dpi()->memu_mem_nextStage_valid;
 
-    if (ma_nextStage_valid && sim_config.config_debugOutput) {
-        std::cout << "[sim] ma_nextStage_valid posedge detected." << std::endl;
+    if (mem_nextStage_valid && sim_config.config_debugOutput) {
+        std::cout << "[sim] mem_nextStage_valid posedge detected." << std::endl;
     }
 }
 
@@ -208,14 +208,6 @@ extern "C" void dpi_onPosEdge_wb_nextStage_valid(bool _wb_nextStage_valid) {
 
     if (wb_nextStage_valid && sim_config.config_debugOutput) {
         std::cout << "[sim] wb_nextStage_valid posedge detected." << std::endl;
-    }
-}
-
-extern "C" void dpi_onPosEdge_upcu_pcOutput_valid(bool _upcu_pcOutput_valid) {
-    bool upcu_pcOutput_valid = dpi()->upcu_upcu_pcOutput_valid;
-
-    if (upcu_pcOutput_valid && sim_config.config_debugOutput) {
-        std::cout << "[sim] upcu_pcOutput_valid posedge detected." << std::endl;
     }
 }
 

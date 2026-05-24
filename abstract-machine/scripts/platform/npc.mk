@@ -56,7 +56,7 @@ RUN_ARGS = RUN_SDB_ENABLED=$(CONFIG_SDB_ENABLED) \
 	RUN_CONFIG_FTRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/ftrace.log) \
 	RUN_CONFIG_DTRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/dtrace.log) \
 	RUN_CONFIG_ETRACE_OUT_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/etrace.log) \
-	RUN_CONFIG_ELF_FILE_PATH=$(abspath $(IMAGE).elf) \
+	RUN_CONFIG_FLASH_ELF_FILE_PATH=$(abspath $(IMAGE).elf) \
 	RUN_CONFIG_DIFFTEST_SO_FILE_PATH=$(abspath $(NEMU_HOME)/build/riscv32-nemu-interpreter-so) \
 	RUN_CONFIG_WAVE_FILE_PATH=$(abspath $(TRACE_LOG_DIR)/sim.fst)
 

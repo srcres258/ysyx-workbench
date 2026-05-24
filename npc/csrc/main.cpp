@@ -177,12 +177,15 @@ static void loadConfig() {
  * @return false 存在未设置的必需配置选项
  */
 static bool checkRequiredConfig() {
+    if (!sim_config.config_device) {
+        return true;
+    }
     if (sim_config.config_flashBinFilePath.empty()) {
-        std::cerr << "未指定 NPC_CONFIG_MROM_BIN_FILE_PATH 环境变量, 请指定 MROM BIN 文件路径!" << std::endl;
+        std::cerr << "未指定 NPC_CONFIG_FLASH_BIN_FILE_PATH 环境变量, 请指定 FLASH BIN 文件路径!" << std::endl;
         return false;
     }
     if (sim_config.config_flashElfFilePath.empty()) {
-        std::cerr << "未指定 NPC_CONFIG_MROM_ELF_FILE_PATH 环境变量, 请指定 MROM ELF 文件路径!" << std::endl;
+        std::cerr << "未指定 NPC_CONFIG_FLASH_ELF_FILE_PATH 环境变量, 请指定 FLASH ELF 文件路径!" << std::endl;
         return false;
     }
 
