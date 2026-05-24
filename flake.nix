@@ -28,6 +28,8 @@
       sdl3-ttf
       sdl3-image
 
+      ncurses
+
       libelf
       libz
       capstone
