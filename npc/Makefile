@@ -16,9 +16,6 @@ CHISEL_DIR = $(abspath ./vsrc-chisel)
 CHISEL_GEN_OUT = $(CHISEL_DIR)/generated
 NPC_GEN_DIR = $(abspath ./vsrc/generated)
 
-TOPNAME = ysyxSoCFull
-NXDC_FILES = constr/ysyxSoCFull.nxdc
-
 VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD -O3 --x-assign fast \
 					--x-initial fast --noassert \
@@ -33,9 +30,6 @@ NPC_INC += $(abspath $(BUILD_DIR))
 OBJ_DIR = $(BUILD_DIR)/obj_dir
 NPC_INC += $(abspath $(OBJ_DIR))
 NPC_INC += $(abspath $(NVBOARD_HOME)/usr/include)
-BIN = $(BUILD_DIR)/$(TOPNAME)
-
-default: $(BIN)
 
 $(shell mkdir -p $(BUILD_DIR))
 
@@ -46,9 +40,15 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 auto_bind: $(SRC_AUTO_BIND)
 
 # Chisel RTL generation — build vsrc-chisel, then clear & copy to vsrc/generated/
+ifeq ($(RUN_CONFIG_SIM_MODE),standalone)
+CHISEL_TARGET = mill-run-standalone
+else
+CHISEL_TARGET = mill-run
+endif
+
 chisel-gen:
-	@echo "[Chisel] Building RTL from vsrc-chisel..."
-	@$(MAKE) -C $(CHISEL_DIR) mill-run
+	@echo "[Chisel] Building RTL from vsrc-chisel (mode: $(RUN_CONFIG_SIM_MODE))..."
+	@$(MAKE) -C $(CHISEL_DIR) $(CHISEL_TARGET)
 	@echo "[Chisel] Copying generated SystemVerilog to $(NPC_GEN_DIR)..."
 	@rm -rf $(NPC_GEN_DIR)
 	@cp -r $(CHISEL_GEN_OUT) $(NPC_GEN_DIR)
@@ -78,6 +78,8 @@ VERILATED_LIB = $(VERILATOR_MDIR)/V$(TOPNAME)__ALL.a
 VSRCS_HANDWRITTEN = $(shell find vsrc -maxdepth 1 -name "*.v" -or -name "*.sv")
 VSRCS_PERIP = $(shell find $(YSYXSOC_PATH)/perip -name "*.v")
 VSRCS_SOC_TOP = $(YSYXSOC_PATH)/build/$(TOPNAME).v
+# Simulation mode: "standalone" or "ysyxsoc" (default)
+RUN_CONFIG_SIM_MODE ?= ysyxsoc
 # Standalone mode: no ysyxSoC peripherals, top is directly from Chisel
 ifeq ($(RUN_CONFIG_SIM_MODE),standalone)
 VSRCS = $(VSRCS_HANDWRITTEN)
@@ -85,12 +87,24 @@ CXXFLAGS += -DNPC_STANDALONE
 TOPNAME = ysyx_25070190
 NXDC_FILES =
 else
+TOPNAME = ysyxSoCFull
+NXDC_FILES = constr/ysyxSoCFull.nxdc
 VSRCS = $(VSRCS_HANDWRITTEN) $(VSRCS_PERIP) $(VSRCS_SOC_TOP)
 endif
 CSRCS = $(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+ifneq ($(RUN_CONFIG_SIM_MODE),standalone)
 CSRCS += $(SRC_AUTO_BIND)
+endif
 # project static libraries
+ifeq ($(RUN_CONFIG_SIM_MODE),standalone)
+LIBS = $(VERILATED_LIB)
+else
 LIBS = $(VERILATED_LIB) $(NVBOARD_ARCHIVE)
+endif
+
+BIN = $(BUILD_DIR)/$(TOPNAME)
+
+default: $(BIN)
 
 # C/C++ 源文件对应的 .o 文件路径（放到构建目录下的对应子目录）
 COBJS = $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(CSRCS))
@@ -133,7 +147,6 @@ $(BIN): $(LIBS) $(COBJS)
 		-L$(VERILATOR_MDIR) -lverilated -lV$(TOPNAME) \
 		$(LDFLAGS)
 
-RUN_CONFIG_SIM_MODE ?= ysyxsoc  # "ysyxsoc" or "standalone"
 RUN_SDB_ENABLED ?= false
 RUN_CONFIG_MROM ?= off
 RUN_CONFIG_ITRACE ?= off
@@ -185,7 +198,7 @@ RUN_ARGS = NPC_SDB_ENABLED=$(RUN_SDB_ENABLED) \
 	NPC_CONFIG_WAVE_FILE_PATH=$(RUN_CONFIG_WAVE_FILE_PATH)
 
 run: $(BIN) git_commit_sim
-	ASAN_OPTIONS=detect_leaks=0:exitcode=0 $(RUN_ARGS) $(BIN)
+	ASAN_OPTIONS=detect_leaks=0:exitcode=0 IMG=$(IMG) $(RUN_ARGS) $(BIN)
 
 GDB_ARGS = -ex "set debuginfod enabled on" \
 	-ex "set env NPC_SDB_ENABLED $(RUN_SDB_ENABLED)" \

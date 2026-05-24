@@ -8,6 +8,7 @@
 #include "Vysyx_25070190__Syms.h"
 extern Vysyx_25070190 *top;
 Vysyx_25070190_GeneralDPIAdapter *getDPIModule();
+void standalone_mem_loadBin(const char *path);
 #else
 #include "VysyxSoCFull__Syms.h"
 extern VysyxSoCFull *top;

@@ -1,5 +1,7 @@
 #include <verilated_fst_c.h>
+#ifndef NPC_STANDALONE
 #include <nvboard.h>
+#endif
 #include <iostream>
 #include <fstream>
 #include <cstdint>
@@ -35,7 +37,7 @@ static uint64_t execCountClockPeriod = 0;
  */
 #ifdef NPC_STANDALONE
 Vysyx_25070190_GeneralDPIAdapter *getDPIModule() {
-    return top->dpi;
+    return top->ysyx_25070190->dpi;
 }
 #else
 VysyxSoCFull_GeneralDPIAdapter *getDPIModule() {
@@ -60,6 +62,7 @@ void simStepClockPeriod() {
         tfp->dump(verContext->time());
     }
 
+#ifndef NPC_STANDALONE
     // 每时钟周期更新一次 UART 采样 (仅在 NVBoard 启用且非 reset 期间)
     if (!top->reset && sim_config.config_nvboard) {
         extern void nvboard_uart_update(void);
@@ -70,6 +73,7 @@ void simStepClockPeriod() {
         extern void vga_update();
         if (*vga_blank_n_ptr) vga_update();
     }
+#endif
 
     execCountClockPeriod++;
 }
@@ -303,6 +307,15 @@ bool simulate(bool sdbEnabled) {
 
 #ifdef NPC_STANDALONE
     top = new Vysyx_25070190(verContext);
+    {
+        // Standalone: load program binary into DPI-C memory
+        const char *imgVal = std::getenv("IMG");
+        if (imgVal) {
+            standalone_mem_loadBin(imgVal);
+        } else {
+            std::cerr << "[standalone] IMG env var not set, no binary loaded!" << std::endl;
+        }
+    }
 #else
     top = new VysyxSoCFull(verContext);
 #endif
@@ -315,32 +328,17 @@ bool simulate(bool sdbEnabled) {
     }
 
     if (sim_config.config_device) {
+#ifndef NPC_STANDALONE
         if (sim_config.config_nvboard) {
-            // 初始化 NVBoard 虚拟 FPGA 板卡
-            // 必须在 simReset() 之前完成，因为 simStepClockPeriod() 调用
-            // nvboard_update() (通过 device_update())，
-            // 而 nvboard_update() 依赖 NVBoard 已初始化。
             extern void nvboard_bind_all_pins(VysyxSoCFull* top);
             nvboard_bind_all_pins(top);
             nvboard_init();
-
-            // 配置 NVBoard UART 除数.
-            //
-            // 由于 nvboard_uart_update() 在 simStepClockPeriod() 中每时钟周期调用,
-            // divisor 表示多少个时钟周期采样一次 UART TX 引脚.
-            //
-            // UART16550 参数:
-            //   系统时钟频率 = 10 MHz
-            //   UART16550 DLL = 10_000_000 / (16 × 115_200) ≈ 5
-            //   实际每比特周期 = 16 × DLL = 80 个时钟周期
-            //
-            // NVBoard divisor = 80 (每个 UART 比特恰好采样一次)
             extern void uart_set_divisor(uint16_t d);
             uart_set_divisor(80);
-
             if (sim_config.config_debugOutput)
                 std::cout << "NVBoard 已初始化." << std::endl;
         }
+#endif
     }
 
     if (sim_config.config_debugOutput)
@@ -384,9 +382,11 @@ bool simulate(bool sdbEnabled) {
     halt_ret = getDPIModule()->gpr_gprs_10; // a0 寄存器是 x10
 
 sim_cleanup:
+#ifndef NPC_STANDALONE
     if (sim_config.config_nvboard) {
         nvboard_quit();
     }
+#endif
     delete top;
 
     if (sim_config.config_itrace) {
