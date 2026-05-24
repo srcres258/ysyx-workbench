@@ -19,6 +19,11 @@
       gtkwave
       circt
       iverilog
+
+      # needed for building NEMU kconfig tools (mconf)
+      ncurses
+      flex
+      bison
     ];
     runtimeDeps = with pkgs; [
       SDL2
@@ -28,10 +33,19 @@
       sdl3-ttf
       sdl3-image
 
-      ncurses
-
       libelf
       libz
+      capstone
+    ];
+    # Safe for LD_LIBRARY_PATH — excludes libz which conflicts with binutils' own zlib
+    runtimeLibDeps = with pkgs; [
+      SDL2
+      SDL2_image
+      SDL2_ttf
+      sdl3
+      sdl3-ttf
+      sdl3-image
+      libelf
       capstone
     ];
   in {
@@ -47,7 +61,7 @@
 
       shellHook = ''
         export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" runtimeDeps}"
-        export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeDeps}:$LD_LIBRARY_PATH"
+        export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibDeps}:$LD_LIBRARY_PATH"
 
         export NVBOARD_HOME="$PWD/nvboard"
         export AM_HOME="$PWD/abstract-machine"
