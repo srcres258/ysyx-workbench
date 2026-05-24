@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <macro-def.hpp>
+#include <device/vga.hpp>
 
 #define PMEM_SIZE (128 * 1024 * 1024)  // 128 MB physical memory
 #define PMEM_BASE 0x80000000UL
@@ -16,6 +17,7 @@ extern "C" {
 
 int dpi_pmem_read(int addr) {
     uint32_t a = (uint32_t)addr;
+    if (vga_is_in_range(a)) return (int)vga_read(a);
     if (!addr_valid(a)) return 0;
     uint32_t val;
     memcpy(&val, &pmem[a - PMEM_BASE], 4);
@@ -24,6 +26,7 @@ int dpi_pmem_read(int addr) {
 
 void dpi_pmem_write(int addr, int data, char strb) {
     uint32_t a = (uint32_t)addr;
+    if (vga_is_in_range(a)) { vga_write(a, (uint32_t)data, (uint8_t)strb); return; }
     if (!addr_valid(a)) return;
     uint32_t wdata = (uint32_t)data;
     uint8_t  wstrb = (uint8_t)strb;

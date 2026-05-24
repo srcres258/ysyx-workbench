@@ -1,6 +1,8 @@
 #include <verilated_fst_c.h>
 #ifndef NPC_STANDALONE
 #include <nvboard.h>
+#else
+#include <device/vga.hpp>
 #endif
 #include <iostream>
 #include <fstream>
@@ -72,6 +74,12 @@ void simStepClockPeriod() {
         extern uint8_t *vga_blank_n_ptr;
         extern void vga_update();
         if (*vga_blank_n_ptr) vga_update();
+    }
+#endif
+
+#ifdef NPC_STANDALONE
+    if (!top->reset) {
+        vga_update();
     }
 #endif
 
@@ -349,6 +357,10 @@ bool simulate(bool sdbEnabled) {
     // 避免工作到中途遇到 reset 信号导致状态被重置.
     simReset(15);
 
+#ifdef NPC_STANDALONE
+    vga_init();
+#endif
+
     if (sim_config.config_device) {
         if (sim_config.config_debugOutput)
             std::cout << "正在加载外部设备..." << std::endl;
@@ -386,6 +398,8 @@ sim_cleanup:
     if (sim_config.config_nvboard) {
         nvboard_quit();
     }
+#else
+    vga_cleanup();
 #endif
     delete top;
 

@@ -117,6 +117,12 @@ include $(NVBOARD_HOME)/scripts/nvboard.mk
 INCFLAGS = -I. $(addprefix -I, $(NPC_INC))
 CXXFLAGS += $(INCFLAGS) -g -std=c++26
 LDFLAGS += -lz -lelf -fsanitize=address
+
+# Standalone VGA: add SDL2 for VGA device simulation
+ifeq ($(RUN_CONFIG_SIM_MODE),standalone)
+CXXFLAGS += $(shell sdl2-config --cflags)
+LDFLAGS  += $(shell sdl2-config --libs)
+endif
 VERILATOR_GEN_INC = $(shell [ -d $(NPC_GEN_DIR) ] && find $(NPC_GEN_DIR) -type d 2>/dev/null || true)
 VERILATOR_INC_PATH ?= $(abspath ./vsrc) $(VERILATOR_GEN_INC) \
 	$(abspath $(YSYXSOC_PATH)/perip/uart16550/rtl) $(abspath $(YSYXSOC_PATH)/perip/spi/rtl)
