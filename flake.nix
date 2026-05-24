@@ -36,6 +36,7 @@
       libelf
       libz
       capstone
+      readline
     ];
     # Safe for LD_LIBRARY_PATH — excludes libz which conflicts with binutils' own zlib
     runtimeLibDeps = with pkgs; [
@@ -47,6 +48,7 @@
       sdl3-image
       libelf
       capstone
+      readline
     ];
   in {
     devShells.default = pkgs.mkShell {
