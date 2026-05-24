@@ -3,6 +3,7 @@
 #include <nvboard.h>
 #else
 #include <device/vga.hpp>
+#include <device/keyboard.hpp>
 #endif
 #include <iostream>
 #include <fstream>
@@ -10,6 +11,7 @@
 #include <cstdlib>
 #include <iomanip>
 #include <cmath>
+#include <csignal>
 #include <utils.hpp>
 #include <sdb.hpp>
 #include <difftest/dut.hpp>
@@ -29,7 +31,16 @@ Vysyx_25070190 *top = nullptr;
 VysyxSoCFull *top = nullptr;
 #endif
 static VerilatedFstC *tfp = nullptr;
-bool sim_halt = false;
+volatile bool sim_halt = false;
+
+static void sigint_handler(int) {
+    sim_halt = true;
+}
+
+static void install_signal_handlers() {
+    std::signal(SIGINT,  sigint_handler);
+    std::signal(SIGTERM, sigint_handler);
+}
 
 static uint64_t execCount = 0;
 static uint64_t execCountClockPeriod = 0;
@@ -79,6 +90,7 @@ void simStepClockPeriod() {
 
 #ifdef NPC_STANDALONE
     if (!top->reset) {
+        keyboard_update();
         vga_update();
     }
 #endif
@@ -298,6 +310,8 @@ void simExec(uint64_t n) {
 bool simulate(bool sdbEnabled) {
     word_t halt_ret;
     bool success = true;
+
+    install_signal_handlers();
 
     timer_initRand();
     disasm_init();

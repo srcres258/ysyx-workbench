@@ -23,7 +23,7 @@ struct ExecInfo {
 extern ExecInfo simExecInfo;
 
 extern VerilatedContext *verContext;
-extern bool sim_halt;
+extern volatile bool sim_halt;
 
 #define DEFAULT_BIN_PATH "build/program.bin"
 
