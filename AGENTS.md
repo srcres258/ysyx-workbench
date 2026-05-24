@@ -57,19 +57,26 @@ License: Mulan PSL v2 (NOT BSD 3-Clause like the root).
 ```bash
 make -C nemu menuconfig          # Kconfig-based configuration
 make -C nemu riscv32-am_defconfig # Preset (builds NEMU as AM app)
+make -C nemu savedefconfig       # Save current config as configs/defconfig
 make -C nemu                     # Build
 make -C nemu run                 # Run (needs build/program.elf)
 make -C nemu gdb                 # Debug under GDB
 ```
 
-**Critical for difftest**: NEMU must be built as a shared library via `TARGET_SHARE=y` in Kconfig. NPC expects `build/riscv32-nemu-interpreter-so` by default. Current `.config` is pre-configured for `riscv32` + `TARGET_SHARE=y`.
+**Available defconfigs**:
+- `riscv32-am_defconfig` — riscv32 + TARGET_AM
+- `riscv64-am_defconfig` — riscv64 + TARGET_AM
+- `mips32-am_defconfig` — mips32 + TARGET_AM
+
+**Critical for difftest**: NEMU must be built as a shared library via `TARGET_SHARE=y` in Kconfig. NPC expects `build/riscv32-nemu-interpreter-so` by default. Current `.config` is pre-configured for `riscv32` + `TARGET_SHARE=y`, with custom `MBASE=0x0f000000` (ysyxsoc SRAM) and `MSIZE=0x11001000` — re-running any defconfig will reset these.
 
 **Key facts**:
-- **Config system**: Linux-kernel-style Kconfig (`menuconfig` → `.config` → `include/config/auto.conf`).
+- **Config system**: Linux-kernel-style Kconfig (`menuconfig` → `.config` → `include/config/auto.conf`). Top-level Kconfig at `nemu/Kconfig`; sub-Kconfigs at `src/isa/riscv32/`, `src/memory/`, `src/device/`.
 - **Source discovery**: Each subdirectory has `filelist.mk` with `DIRS-y`/`SRCS-y`. NOT a flat list.
 - **`NEMU_HOME` required** — sanity-checks `$(NEMU_HOME)/src/nemu-main.c` exists.
-- **`build/program.elf` required for `make run`** — usually a symlink to your kernel ELF.
-- **`.gitignore` is whitelist-based** — `build/` is NOT gitignored.
+- **`build/program.elf` required for `make run`** — create a symlink or copy your kernel ELF here.
+- **`.gitignore` is whitelist-based** — `build/` contents ARE gitignored (only `!Makefile`, `!*.mk`, `!*.[cSh]`, `!*.cc`, `!.gitignore`, `!README.md`, `!Kconfig`, `!*.py` are whitelisted).
+- **`TARGET_SHARE=y` disables DEVICE and all tracers** — `DEVICE` depends on `!TARGET_SHARE`, `TRACE` depends on `TARGET_NATIVE_ELF`. The shared lib is a bare interpreter; device simulation and tracing happen in NPC.
 - **Supported ISAs**: x86, mips32, riscv32, riscv64, loongarch32r.
 
 ## Abstract Machine (AM) — Bare-Metal Runtime
@@ -92,15 +99,21 @@ make -C nemu gdb                 # Debug under GDB
 | Config | npc.mk | ysyxsoc.mk |
 |--------|--------|------------|
 | `CONFIG_SDB_ENABLED` | `true` | `false` |
-| `CONFIG_DIFFTEST` | `on` | `off` |
-| `CONFIG_DEVICE` | `on` | `on` |
-| `CONFIG_NVBOARD` | _not set_ | `on` |
+| `CONFIG_ITRACE` | `on` | `on` |
+| `CONFIG_MTRACE` | `on` | `on` |
+| `CONFIG_FTRACE` | `on` | `on` |
+| `CONFIG_DTRACE` | `on` | `on` |
+| `CONFIG_ETRACE` | `on` | `on` |
+| `CONFIG_DIFFTEST` | `off` | `off` |
+| `CONFIG_DEVICE` | `off` | `on` |
+| `CONFIG_WAVE` | `off` | `on` |
+| `CONFIG_NVBOARD` | `off` | `on` |
 | `CONFIG_MROM` | _not set_ | `off` |
-| `CONFIG_DEBUG_OUTPUT` | `on` | `off` |
-| DTRACE log path | shared dir, separate file | `trace-logs/dtrace.log` |
-| ETRACE log path | shared dir, separate file | `trace-logs/etrace.log` |
+| `CONFIG_DEBUG_OUTPUT` | `off` | `off` |
+| DTRACE log path | `trace-logs/dtrace.log` | `trace-logs/dtrace.log` |
+| ETRACE log path | `trace-logs/etrace.log` | `trace-logs/etrace.log` |
 
-**npc.mk gotcha**: Uses `RUN_CONFIG_ELF_FILE_PATH` (line 59) — a variable that **NPC's Makefile does NOT define or map**. This is silently ignored by NPC, so ftrace won't work with `ARCH=riscv32e-npc`. Use `ARCH=riscv32e-ysyxsoc` instead.
+**ysyxsoc.mk vs npc.mk**: Both platforms set all trace paths correctly. The ysyxsoc platform is **preferred** — it enables DEVICE, NVBOARD, WAVE by default and passes `RUN_CONFIG_SIM_MODE=standalone` to npc.mk (line 45) which switches to the standalone `TOPNAME` (`ysyx_25070190`).
 
 ```bash
 # Build + run a kernel
@@ -129,7 +142,7 @@ include $(AM_HOME)/Makefile
 am-kernels/
 ├── kernels/       # Demo kernels (hello, snake, etc.)
 ├── tests/
-│   ├── cpu-tests/ # ~40 instruction-level regression tests (flat .c files)
+│   ├── cpu-tests/ # 36 instruction-level regression tests (flat .c files)
 │   ├── alu-tests/
 │   ├── am-tests/
 │   └── klib-tests/
@@ -185,11 +198,11 @@ RUN_CONFIG_ITRACE_OUT_FILE_PATH ?= build/itrace.log
 RUN_CONFIG_MTRACE_OUT_FILE_PATH ?= build/mtrace.log
 RUN_CONFIG_FTRACE_OUT_FILE_PATH ?= build/ftrace.log
 RUN_CONFIG_DTRACE_OUT_FILE_PATH ?= build/dtrace.log
-RUN_CONFIG_ETRACE_OUT_FILE_PATH ?= build/dtrace.log    # BUG: same as DTRACE
+RUN_CONFIG_ETRACE_OUT_FILE_PATH ?= build/etrace.log    # Note: C++ default is also build/etrace.log
 RUN_CONFIG_FLASH_BIN_FILE_PATH ?= build/flash.bin
 RUN_CONFIG_FLASH_ELF_FILE_PATH ?= build/flash.elf
 RUN_CONFIG_MROM_BIN_FILE_PATH ?= build/mrom.bin
-RUN_CONFIG_MROM_ELF_FILE_PATH ?= build/mrom.elf        # BUG: never consumed by C++
+RUN_CONFIG_MROM_ELF_FILE_PATH ?= build/mrom.elf        # BUG: dead var — SimConfig has no field for it
 RUN_CONFIG_DIFFTEST_SO_FILE_PATH ?= build/riscv32-nemu-interpreter-so
 RUN_CONFIG_WAVE_FILE_PATH ?= build/sim.fst
 
@@ -204,24 +217,18 @@ NPC_CONFIG_DIFFTEST=on NPC_CONFIG_ITRACE=on ./build/ysyxSoCFull
 
 These are verified in `npc/Makefile`, `npc/csrc/main.cpp`, and `npc/include/utils.hpp`. **Do not assume these are fixed.**
 
-1. **`NPC_CONFIG_MROM` (on/off toggle) has no `RUN_CONFIG_MROM` mapping.** Neither the `RUN_CONFIG_MROM` variable nor its mapping to `NPC_CONFIG_MROM` exists in the Makefile. Every other on/off flag maps `RUN_CONFIG_*` → `NPC_CONFIG_*` via `RUN_ARGS`, but MROM doesn't. Must set directly on the binary: `NPC_CONFIG_MROM=on ./build/ysyxSoCFull`.
+Only 2 known bugs remain (the rest have been fixed):
 
-2. **GDB_ARGS is missing `NPC_CONFIG_FLASH_ELF_FILE_PATH`** — RUN_ARGS includes it (line 161), GDB_ARGS (line 188→189) jumps from `FLASH_BIN_FILE_PATH` to `MROM_BIN_FILE_PATH`. `make gdb` with ftrace fails silently.
+1. **`NPC_CONFIG_MROM_ELF_FILE_PATH` is a dead variable** — `SimConfig` struct (utils.hpp line 34-59) has `config_mromBinFilePath` but NO `config_mromElfFilePath` field. The env var is set by both RUN_ARGS (Makefile line 196) and GDB_ARGS (line 224) but `loadConfig()` never reads it.
 
-3. **ETRACE defaults to `build/dtrace.log`** (same as DTRACE). Both traces share one file when using NPC Makefile defaults. Running both without overriding paths produces interleaved/corrupted output. **Note**: C++ default in `utils.hpp` is `build/etrace.log` (correctly separate), but the Makefile always overrides it to `dtrace.log`. The ysyxsoc platform properly separates them to `trace-logs/dtrace.log` and `trace-logs/etrace.log`.
+2. **`checkRequiredConfig()` only validates FLASH paths, not MROM** (`main.cpp` lines 179-193). Missing MROM path goes undetected and crashes deeper in code. FLASH validation now correctly gates on `DEVICE=on` (early return at line 180-182).
 
-4. **`checkRequiredConfig()` runs unconditionally** — FLASH paths are validated even with `DEVICE=off`. Must always provide flash paths or the binary refuses to start.
-
-5. **`checkRequiredConfig()` error messages are wrong** — flash path errors say "MROM" not "FLASH" (`csrc/main.cpp`, ~lines 180-186). Checks `config_flashBinFilePath` but prints `NPC_CONFIG_MROM_BIN_FILE_PATH`.
-
-6. **`checkRequiredConfig()` only validates FLASH, not MROM** — missing MROM path goes undetected, crashes deeper in code.
-
-7. **`NPC_CONFIG_MROM_ELF_FILE_PATH` is passed but never read** — `SimConfig` struct has no `config_mromElfFilePath` field (only `config_mromBinFilePath`). The env var is set by both RUN_ARGS and GDB_ARGS but `loadConfig()` never reads it.
+**Additional minor gap**: GDB_ARGS is missing `NPC_CONFIG_MROM` (the on/off toggle). RUN_ARGS includes it (line 186), but GDB_ARGS jumps from `NPC_CONFIG_DEBUG_OUTPUT` (line 213) to `NPC_CONFIG_DIFFTEST_PORT` (line 215) without passing the MROM toggle. Workaround: `make gdb` then manually `set env NPC_CONFIG_MROM=on` in GDB, or use `make run` instead.
 
 ### NPC Gotchas
 
 - **`vsrc/generated/` is auto-generated** — never manually edit.
-- **NVBoard is integrated and functional.** Pin bindings exist in `constr/ysyxSoCFull.nxdc` (16 LEDs, 16 switches, 8× 7-segment displays, UART TX/RX, PS/2 CLK+DAT, VGA output 640×480@60Hz). NVBoard activates when `DEVICE=on` (NVBOARD defaults to `on`). Called via `device_update()` → `nvboard_update()` in `csrc/sim.cpp:194`. Exits properly via `nvboard_quit()` on shutdown.
+- **NVBoard is integrated and functional.** Pin bindings exist in `constr/ysyxSoCFull.nxdc` (16 LEDs, 16 switches, 8× 7-segment displays, UART TX/RX, PS/2 CLK+DAT, VGA output 640×480@60Hz). NVBoard activates when `DEVICE=on` (NVBOARD defaults to `on`). Called via `device_update()` → `nvboard_update()` in `csrc/device.cpp:18` (called from `sim.cpp` line 219). Exits properly via `nvboard_quit()` on shutdown.
 - **DiffTest**: Loads NEMU as `.so` via `dlopen()`, compares GPRs + PC + CSRs per-instruction. Build NEMU with `TARGET_SHARE` first.
 - **NPC internal memory map**: MROM `0x20000000` (4KB), FLASH `0x30000000` (16MB), PSRAM `0x80000000` (4MB).
 
@@ -262,7 +269,7 @@ make -C ysyxSoC clean
 - Strips `firrtl_black_box_resource_files.f` section
 
 - **CPU BlackBox**: `src/CPU.scala` wraps student's Verilog as `ysyx_25070190 extends BlackBox`. Verilog must be `ysyx_25070190.v`. Interface spec at `spec/cpu-interface.md` — AXI4 master + slave + clock, reset, interrupt.
-- **Peripherals** (`perip/`): UART 16550, SPI+XIP flash, SPI, GPIO, PS/2, VGA, SDRAM, PSRAM — plain Verilog, Chisel BlackBoxes in `src/device/`.
+- **Peripherals** (`perip/`): UART 16550, SPI+XIP flash, SPI, GPIO, PS/2, VGA, SDRAM, PSRAM, bitrev, AMBA (APB/AXI4 delayer) — plain Verilog, Chisel BlackBoxes in `src/device/`.
 - **Firtool version pinned at 1.105.0** — the build patches in a specific firtool binary via `patch/update-firtool.sh`.
 - **`dev-init` only needs to be run once**: initializes submodules and applies `patch/rocket-chip.patch`.
 
@@ -272,7 +279,7 @@ Independent git repo (not a submodule). Build: `make -C fceux-am ARCH=native run
 
 ## rt-thread — RT-Thread RTOS
 
-Submodule (srcres258/rt-thread-am). AM BSP at `bsp/abstract-machine/`. Build: `make ARCH=riscv64-nemu init && make ARCH=riscv64-nemu run`.
+Submodule (srcres258/rt-thread-am). AM BSP at `bsp/abstract-machine/`. Build: `make ARCH=riscv32e-ysyxsoc init && make ARCH=riscv32e-ysyxsoc run`. Default ARCH is `native` (not any RISC-V target). Uses `USE_PSRAM=1` by default for ysyxSoC.
 
 ## Top-Level Conventions
 
@@ -281,13 +288,14 @@ Submodule (srcres258/rt-thread-am). AM BSP at `bsp/abstract-machine/`. Build: `m
 - **Student ID**: `ysyx_25070190` (root `Makefile`, `ysyxSoC/src/CPU.scala`).
 - **No CI/CD** configured.
 - **IDE support**: `.vscode/` has VS Code settings (C++ Runner, file associations); `.metals/` has Scala Metals LSP.
-- **`.sisyphus/plans/`** contains 14 existing implementation plans:
+- **`.sisyphus/plans/`** contains 15 existing implementation plans:
   - GPIO/NVBoard water light, dip switch status display
   - SDRAM expansion (32-bit, word extension), SDRAM bootloader (FSBL/SSBL)
   - Flash XIP direct execution, SSBL UART logging
   - Chiplink enable and test, ACLINT/MTimer implementation
   - PS/2 keyboard, UART RX (NVBoard + IOE), VGA/NVBoard
   - rt-thread UART RX IOE, rt-thread boot and UART verification
+  - NPC refactoring plan
   Reference these before working on related features.
 - **Utility scripts**:
   | Script | Purpose |
@@ -303,8 +311,7 @@ Submodule (srcres258/rt-thread-am). AM BSP at `bsp/abstract-machine/`. Build: `m
 - **Don't edit `vsrc/generated/`** — auto-generated from Chisel.
 - **Don't forget `VERILATOR_HOME`** — required for NPC build.
 - **NEMU for difftest must use `TARGET_SHARE`** in Kconfig, not `TARGET_AM`.
-- **Use `riscv32e-ysyxsoc` not `riscv32e-npc`** when building kernels for ysyxSoC-based NPC. The `npc` platform passes `RUN_CONFIG_ELF_FILE_PATH` which NPC ignores, so ftrace is broken there.
-- **`NPC_CONFIG_MROM` cannot be set via Makefile** — use binary directly or set env var.
+- **Use `riscv32e-ysyxsoc` not `riscv32e-npc`** when building kernels for ysyxSoC-based NPC. The ysyxsoc platform also sets `RUN_CONFIG_SIM_MODE=standalone` which selects the correct standalone `TOPNAME`.
 - **Submodules are separate repos** — check with `git submodule status`, not top-level `git log`.
 - **gitignore is whitelist-based** — new root files need explicit whitelisting.
 - **`RUN_CONFIG_NVBOARD` defaults to `on`** — if you want no GUI, explicitly set `RUN_CONFIG_NVBOARD=off`.
