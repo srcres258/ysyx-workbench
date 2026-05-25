@@ -1,6 +1,8 @@
 #include <am.h>
 #include <klib-macros.h>
 
+static void fail(void *buf) { panic("access nonexist register"); }
+
 void __am_timer_init();
 void __am_gpu_init();
 void __am_audio_init();
@@ -17,10 +19,12 @@ void __am_audio_play(AM_AUDIO_PLAY_T *);
 void __am_disk_config(AM_DISK_CONFIG_T *cfg);
 void __am_disk_status(AM_DISK_STATUS_T *stat);
 void __am_disk_blkio(AM_DISK_BLKIO_T *io);
+void __am_uart_config(AM_UART_CONFIG_T *);
+void __am_uart_tx(AM_UART_TX_T *);
+void __am_uart_rx(AM_UART_RX_T *);
 
 static void __am_timer_config(AM_TIMER_CONFIG_T *cfg) { cfg->present = true; cfg->has_rtc = true; }
 static void __am_input_config(AM_INPUT_CONFIG_T *cfg) { cfg->present = true;  }
-static void __am_uart_config(AM_UART_CONFIG_T *cfg)   { cfg->present = false; }
 static void __am_net_config (AM_NET_CONFIG_T *cfg)    { cfg->present = false; }
 
 typedef void (*handler_t)(void *buf);
@@ -34,6 +38,8 @@ static void *lut[128] = {
   [AM_GPU_FBDRAW  ] = __am_gpu_fbdraw,
   [AM_GPU_STATUS  ] = __am_gpu_status,
   [AM_UART_CONFIG ] = __am_uart_config,
+  [AM_UART_TX     ] = __am_uart_tx,
+  [AM_UART_RX     ] = __am_uart_rx,
   [AM_AUDIO_CONFIG] = __am_audio_config,
   [AM_AUDIO_CTRL  ] = __am_audio_ctrl,
   [AM_AUDIO_STATUS] = __am_audio_status,
@@ -43,8 +49,6 @@ static void *lut[128] = {
   [AM_DISK_BLKIO  ] = __am_disk_blkio,
   [AM_NET_CONFIG  ] = __am_net_config,
 };
-
-static void fail(void *buf) { panic("access nonexist register"); }
 
 bool ioe_init() {
   for (int i = 0; i < LENGTH(lut); i++)
