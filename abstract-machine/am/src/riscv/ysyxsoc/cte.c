@@ -47,8 +47,13 @@ bool cte_init(Context*(*handler)(Event, Context*)) {
 
 Context *kcontext(Area kstack, void (*entry)(void *), void *arg) {
   Context *ctx = (Context *) (kstack.end - sizeof(Context));
+  for (int i = 0; i < NR_REGS; i++) {
+    ctx->gpr[i] = 0;
+  }
+  ctx->mcause = 0;
   ctx->mstatus = 0x1800; // For difftest purpose, mstatus should be set.
-  ctx->mepc = (uintptr_t) entry;
+  ctx->mepc    = (uintptr_t) entry;
+  ctx->gpr[2]  = (uintptr_t) (kstack.end - sizeof(Context) * 2);
   ctx->gpr[10] = (uintptr_t) arg; // RISC-V ISA 的 x10 寄存器就是 a0, 传递函数的第一个参数的寄存器.
   return ctx;
 }
