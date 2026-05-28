@@ -293,13 +293,13 @@ Submodule (srcres258/rt-thread-am). AM BSP at `bsp/abstract-machine/`. Build: `m
 - **Student ID**: `ysyx_25070190` (root `Makefile`, `ysyxSoC/src/CPU.scala`).
 - **No CI/CD** configured.
 - **IDE support**: `.vscode/` has VS Code settings (C++ Runner, file associations); `.metals/` has Scala Metals LSP.
-- **`.sisyphus/plans/`** contains 15 existing implementation plans:
+- **`.sisyphus/plans/`** contains 16 existing implementation plans:
   - GPIO/NVBoard water light, dip switch status display
   - SDRAM expansion (32-bit, word extension), SDRAM bootloader (FSBL/SSBL)
   - Flash XIP direct execution, SSBL UART logging
   - Chiplink enable and test, ACLINT/MTimer implementation
   - PS/2 keyboard, UART RX (NVBoard + IOE), VGA/NVBoard
-  - rt-thread UART RX IOE, rt-thread boot and UART verification
+  - rt-thread UART RX IOE, rt-thread boot and UART verification, rt-thread AM exit fix
   - NPC refactoring plan
   Reference these before working on related features.
 - **Utility scripts**:
