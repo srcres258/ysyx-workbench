@@ -45,9 +45,14 @@ void read_event() {
   SDL_Event ev;
   while (SDL_PollEvent(&ev)) {
     switch (ev.type) {
-      case SDL_QUIT: exit(0);
+      case SDL_QUIT:
+        fprintf(stderr, "[NVBoard] SDL_QUIT received, calling exit(0)!\n");
+        exit(0);
       case SDL_WINDOWEVENT:
-        if (ev.window.event == SDL_WINDOWEVENT_CLOSE) { exit(0); }
+        if (ev.window.event == SDL_WINDOWEVENT_CLOSE) {
+          fprintf(stderr, "[NVBoard] SDL_WINDOWEVENT_CLOSE received, calling exit(0)!\n");
+          exit(0);
+        }
         break;
       case SDL_MOUSEBUTTONDOWN: mousedown_handler(ev); break;
       case SDL_MOUSEBUTTONUP: mouseup_handler(ev); break;

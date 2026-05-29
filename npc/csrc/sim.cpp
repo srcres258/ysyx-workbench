@@ -356,9 +356,12 @@ bool simulate(bool sdbEnabled) {
     if (sim_config.config_device) {
 #ifndef NPC_STANDALONE
         if (sim_config.config_nvboard) {
+            fprintf(stderr, "[NPC] Entering NVBoard init path (config_device=%d, config_nvboard=%d)\n",
+                    sim_config.config_device, sim_config.config_nvboard);
             extern void nvboard_bind_all_pins(VysyxSoCFull* top);
             nvboard_bind_all_pins(top);
             nvboard_init();
+            fprintf(stderr, "[NPC] nvboard_init() returned\n");
             extern void uart_set_divisor(uint16_t d);
             uart_set_divisor(80);
             if (sim_config.config_debugOutput)

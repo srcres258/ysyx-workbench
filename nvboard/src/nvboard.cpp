@@ -55,6 +55,12 @@ void nvboard_init(int vga_clk_cycle) {
 
     main_window = SDL_CreateWindow("NVBoard " VERSION_STR, SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED, WINDOW_WIDTH, WINDOW_HEIGHT, SDL_WINDOW_SHOWN);
+    fprintf(stderr, "[NVBoard] SDL_CreateWindow returned %p (NULL=%d)\n",
+            (void*)main_window, main_window == nullptr);
+    {
+        const char *driver = SDL_GetCurrentVideoDriver();
+        fprintf(stderr, "[NVBoard] SDL video driver: %s\n", driver ? driver : "(null)");
+    }
     main_renderer = SDL_CreateRenderer(main_window, -1, 
     #ifdef VSYNC
         SDL_RENDERER_PRESENTVSYNC |
@@ -86,14 +92,25 @@ void nvboard_init(int vga_clk_cycle) {
 
     extern void vga_set_clk_cycle(int cycle);
     vga_set_clk_cycle(vga_clk_cycle);
+
+    /* 重要: 立即呈现初始画面.
+     * nvboard_init() 中完成了所有组件的渲染到后台缓冲,
+     * 但从未调用 SDL_RenderPresent(), 在 Wayland 上,
+     * 窗口在第一次 buffer commit 之前不可见;
+     * 在 X11 上, 窗口虽然可见但不显示任何内容.
+     */
+    SDL_RenderPresent(main_renderer);
+    fprintf(stderr, "[NVBoard] nvboard_init() done, initial frame presented\n");
 }
 
 void nvboard_quit(){
+    fprintf(stderr, "[NVBoard] nvboard_quit() called\n");
     delete_components();
     SDL_DestroyWindow(main_window);
     SDL_DestroyRenderer(main_renderer);
     IMG_Quit();
     SDL_Quit();
+    fprintf(stderr, "[NVBoard] nvboard_quit() done, SDL shutdown complete\n");
 }
 
 void nvboard_bind_pin(void *signal, int len, ...) {
