@@ -297,6 +297,10 @@ void simExec(uint64_t n) {
                 ", 结果: " << halt_ret << std::endl;
             std::cout << "仿真结束, 共执行 " << std::dec << execCount <<
                 " 条指令, 耗时 " << std::dec << execCountClockPeriod << " 个时钟周期." << std::endl;
+            if (execCountClockPeriod > 0) {
+                double ipc = static_cast<double>(execCount) / static_cast<double>(execCountClockPeriod);
+                std::cout << "IPC = " << std::fixed << std::setprecision(4) << ipc << std::endl;
+            }
     }
 }
 
