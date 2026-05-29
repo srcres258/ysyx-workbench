@@ -33,12 +33,6 @@ NPC_INC += $(abspath $(NVBOARD_HOME)/usr/include)
 
 $(shell mkdir -p $(BUILD_DIR))
 
-# constraint file
-SRC_AUTO_BIND = $(abspath $(BUILD_DIR)/auto_bind.cpp)
-$(SRC_AUTO_BIND): $(NXDC_FILES)
-	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
-auto_bind: $(SRC_AUTO_BIND)
-
 # Chisel RTL generation — build vsrc-chisel, then clear & copy to vsrc/generated/
 ifeq ($(RUN_CONFIG_SIM_MODE),standalone)
 CHISEL_TARGET = mill-run-standalone
@@ -91,6 +85,13 @@ TOPNAME = ysyxSoCFull
 NXDC_FILES = constr/ysyxSoCFull.nxdc
 VSRCS = $(VSRCS_HANDWRITTEN) $(VSRCS_PERIP) $(VSRCS_SOC_TOP)
 endif
+
+# constraint file
+SRC_AUTO_BIND = $(abspath $(BUILD_DIR)/auto_bind.cpp)
+$(SRC_AUTO_BIND): $(NXDC_FILES)
+	python3 $(NVBOARD_HOME)/scripts/auto_pin_bind.py $^ $@
+auto_bind: $(SRC_AUTO_BIND)
+
 CSRCS = $(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp")
 ifneq ($(RUN_CONFIG_SIM_MODE),standalone)
 CSRCS += $(SRC_AUTO_BIND)
