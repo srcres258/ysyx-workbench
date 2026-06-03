@@ -1,14 +1,14 @@
 [submodule "am-kernels"]
 	path = am-kernels
-	url = https://github.com/srcres258/ysyx-am-kernels.git
+	url = https://codeberg.org/srcres258/ysyx-am-kernels.git
 
 [submodule "ysyxSoC"]
 	path = ysyxSoC
-	url = https://github.com/srcres258/ysyx-ysyxSoC.git
+	url = https://codeberg.org/srcres258/ysyx-ysyxSoC.git
 	branch = ysyx6-own
 [submodule "npc/vsrc-chisel"]
 	path = npc/vsrc-chisel
-	url = https://github.com/srcres258/chisel-ysyx-cpu.git
+	url = https://codeberg.org/srcres258/chisel-ysyx-cpu.git
 [submodule "rt-thread"]
 	path = rt-thread
-	url = https://github.com/srcres258/rt-thread-am
+	url = https://codeberg.org/srcres258/rt-thread-am
