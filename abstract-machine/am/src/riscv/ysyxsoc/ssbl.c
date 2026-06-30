@@ -134,7 +134,7 @@ static void progress_tick(uint32_t words_done, uint32_t *next_dot,
 }
 
 /* ================================================================
- * Section Copy (word granularity + progress bar)
+ * Section Copy (word granularity + tail-byte fix + progress bar)
  * ================================================================ */
 
 /* Linker-defined symbols for the application sections.
@@ -175,6 +175,14 @@ static void copy_words_with_progress(volatile uint32_t *dst,
 }
 #pragma GCC diagnostic pop
 
+static void copy_tail_bytes(volatile uint8_t *dst,
+                            volatile const uint8_t *src,
+                            uint32_t bytes) {
+    while (bytes--) {
+        *dst++ = *src++;
+    }
+}
+
 /* ================================================================
  * SSBL Entry — Load + Log Output
  * ================================================================ */
@@ -197,6 +205,7 @@ static void copy_words_with_progress(volatile uint32_t *dst,
 void ssbl_entry(void) {
     uint32_t len_words;
     uint32_t src_addr, dst_addr;
+    uint32_t text_bytes, data_bytes;
 
     /* --- UART Initialization --- */
     uart_init();
@@ -214,6 +223,8 @@ void ssbl_entry(void) {
                  (uint32_t)(uintptr_t)&_text_start) / 4;
     src_addr  = (uint32_t)(uintptr_t)&_text_lma;
     dst_addr  = (uint32_t)(uintptr_t)&_text_start;
+    text_bytes = (uint32_t)(uintptr_t)&_text_end -
+                 (uint32_t)(uintptr_t)&_text_start;
 
     uart_puts("[.text   ] ");
     uart_puthex(src_addr);
@@ -226,6 +237,9 @@ void ssbl_entry(void) {
     copy_words_with_progress((volatile uint32_t *)dst_addr,
                              (volatile const uint32_t *)src_addr,
                              len_words);
+    copy_tail_bytes((volatile uint8_t *)(uintptr_t)(dst_addr + len_words * 4),
+                    (volatile const uint8_t *)(uintptr_t)(src_addr + len_words * 4),
+                    text_bytes & 0x3);
     uart_puts("      done\r\n\r\n");
 
     /* ================================================================
@@ -235,6 +249,8 @@ void ssbl_entry(void) {
                  (uint32_t)(uintptr_t)&_data_start) / 4;
     src_addr  = (uint32_t)(uintptr_t)&_data_lma;
     dst_addr  = (uint32_t)(uintptr_t)&_data_start;
+    data_bytes = (uint32_t)(uintptr_t)&_data_end -
+                 (uint32_t)(uintptr_t)&_data_start;
 
     if (len_words > 0) {
         uart_puts("[.data   ] ");
@@ -248,6 +264,9 @@ void ssbl_entry(void) {
         copy_words_with_progress((volatile uint32_t *)dst_addr,
                                  (volatile const uint32_t *)src_addr,
                                  len_words);
+        copy_tail_bytes((volatile uint8_t *)(uintptr_t)(dst_addr + len_words * 4),
+                        (volatile const uint8_t *)(uintptr_t)(src_addr + len_words * 4),
+                        data_bytes & 0x3);
         uart_puts("      done\r\n\r\n");
     } else {
         uart_puts("[.data   ] (empty, skipped)\r\n\r\n");
