@@ -24,7 +24,9 @@ extern char _heap_start, _heap_end;
 Area heap = RANGE(&_heap_start, &_heap_end);
 
 /* --- UART 16550 初始化 --- */
+/* SSBL 已经完成了 UART 初始化；只有 Flash XIP 直接启动时才需要在此处重新初始化。 */
 
+#ifdef FLASH_XIP_BOOT
 static void init_uart(void) {
     uint16_t divisor_latches_val;
 
@@ -63,6 +65,7 @@ static void init_uart(void) {
     // 步骤 6. 启用中断 (optional)
     // 这里留空, 因为我们目前不需要用到中断. 无需执行操作.
 }
+#endif /* FLASH_XIP_BOOT */
 
 void putch(char ch) {
     // 在向 THR 写入数据之前, 必须确保 UART 的发送 FIFO 或者 THR 是空的.
@@ -75,9 +78,16 @@ void putch(char ch) {
     outb(UART_TX_ADDR, ch);
 }
 
+static void flush_uart_tx(void) {
+    while ((inb(UART_LINE_STATUS_ADDR) & 0b01000000) == 0) {
+        ;
+    }
+}
+
 void halt(int code) {
     // GCC/Clang 内嵌汇编语法: asm 或 __asm__
     // 后面可加 volatile 或 __volatile__ 关键字, 表示该语句不应被优化, 保留原样
+    flush_uart_tx();
     asm volatile ("mv a0, %0" : : "r" (code));
     asm volatile ("ebreak");
 
@@ -99,7 +109,9 @@ static void zero_bss_section(void) {
 void _trm_init(void) {
     int ret;
 
+#ifdef FLASH_XIP_BOOT
     init_uart();
+#endif
 #ifndef FLASH_XIP_BOOT
     zero_bss_section();
 #endif
