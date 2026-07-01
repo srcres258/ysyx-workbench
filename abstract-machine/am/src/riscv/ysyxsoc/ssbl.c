@@ -211,7 +211,7 @@ void ssbl_entry(void) {
     uart_init();
 
     /* --- Startup Banner --- */
-    uart_puts("\r\n========================================\r\n");
+    uart_puts("========================================\r\n");
     uart_puts("ysyxSoC SSBL (Second Stage Bootloader)\r\n");
     uart_puts("  UART: 115200 8N1 @ 0x10000000\r\n");
     uart_puts("========================================\r\n\r\n");
