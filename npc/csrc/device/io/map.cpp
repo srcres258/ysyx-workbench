@@ -68,14 +68,7 @@ static void dtraceRecord(
     addr_t addr, int len, word_t data,
     const IOMap *map, std::string type
 ) {
-    auto content = std::format(
-        "0x{:08x}: Device {}: {} at 0x{:08x}, len {}, data 0x{:08x}",
-        dpi()->core_pc, map->name, type, addr, len, data
-    );
-    sim_state.dtrace_ofs << content << std::endl;
-    if (sim_config.config_debugOutput) {
-        std::cout << "[sim] dtrace: " << content << std::endl;
-    }
+    trace_record_dtrace(dpi()->core_pc, map->name.c_str(), type == "write", addr, len, data, "io-map", map->name.c_str());
 }
 
 bool IOMap::isInside(addr_t addr) const {

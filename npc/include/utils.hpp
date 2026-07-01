@@ -111,6 +111,21 @@ void sim_state_ofstream_finalise();
  */
 bool sim_state_ftrace_funcSyms_init();
 
+// ----------- trace sinks -----------
+
+void trace_record_mtrace(
+    addr_t pc, bool isWrite, addr_t addr, int len, word_t data, uint8_t strobe, uint32_t resp
+);
+
+void trace_record_dtrace(
+    addr_t pc, const char *device, bool isWrite, addr_t addr, int len, word_t data,
+    const char *bus, const char *region
+);
+
+void trace_record_etrace(
+    addr_t pc, const char *trapKind, word_t cause, word_t mepc, word_t mtval, word_t target
+);
+
 // ----------- log -----------
 
 #define ANSI_FG_BLACK   "\33[1;30m"

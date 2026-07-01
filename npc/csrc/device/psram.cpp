@@ -45,6 +45,8 @@ word_t device_psram_read(addr_t addr, int len) {
         result |= psramMemory[addr - baseAddr + 3] << 24;
     }
 
+    trace_record_dtrace(0, "psram", false, addr, len, result, "dpi", "PSRAM");
+
     return result;
 }
 
@@ -74,4 +76,7 @@ void device_psram_write(addr_t addr, int len, word_t data) {
         psramMemory[addr - baseAddr + 2] = (data >> 16) & 0xff;
         psramMemory[addr - baseAddr + 3] = (data >> 24) & 0xff;
     }
+
+    trace_record_dtrace(0, "psram", true, addr, len, data, "dpi", "PSRAM");
+
 }

@@ -110,6 +110,10 @@ void simStep() {
             break;
         }
 
+        if (getDPIModule()->idu_id_nextStage_valid) {
+            simExecInfo.inst = getDPIModule()->idu_inst;
+        }
+
         if (getDPIModule()->core_executing && !executionBegun) {
             executionBegun = true;
         }
@@ -138,6 +142,7 @@ bool simExecOnce() {
 
     auto *dpi = getDPIModule();
     simExecInfo.pc = dpi->core_pc;
+    simExecInfo.inst = dpi->ifu_instData;
     if (sim_config.config_debugOutput)
         std::cout << "当前PC: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << simExecInfo.pc << std::endl;
@@ -149,7 +154,6 @@ bool simExecOnce() {
 
     // 执行下一步
     simStep();
-    simExecInfo.inst = getDPIModule()->ifu_instData;
     if (sim_config.config_debugOutput) {
         std::cout << "当前指令: 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << simExecInfo.inst << std::endl;

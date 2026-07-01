@@ -2,6 +2,7 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <utils.hpp>
 #include <macro-def.hpp>
 #include <device/vga.hpp>
 #include <device/serial.hpp>
@@ -20,9 +21,21 @@ extern "C" {
 
 int dpi_pmem_read(int addr) {
     uint32_t a = (uint32_t)addr;
-    if (rtc_is_in_range(a))      return (int)rtc_read(a);
-    if (keyboard_is_in_range(a)) return (int)keyboard_read(a);
-    if (vga_is_in_range(a))      return (int)vga_read(a);
+    if (rtc_is_in_range(a)) {
+        int value = (int) rtc_read(a);
+        trace_record_dtrace(0, "rtc", false, a, 4, (word_t) value, "standalone", "RTC");
+        return value;
+    }
+    if (keyboard_is_in_range(a)) {
+        int value = (int) keyboard_read(a);
+        trace_record_dtrace(0, "keyboard", false, a, 4, (word_t) value, "standalone", "KBD");
+        return value;
+    }
+    if (vga_is_in_range(a)) {
+        int value = (int) vga_read(a);
+        trace_record_dtrace(0, "vga", false, a, 4, (word_t) value, "standalone", "VGA");
+        return value;
+    }
     if (!addr_valid(a))          return 0;
     uint32_t val;
     memcpy(&val, &pmem[a - PMEM_BASE], 4);
@@ -40,11 +53,12 @@ void dpi_pmem_write(int addr, int data, char strb) {
             }
         }
         std::cout << std::flush;
+        trace_record_dtrace(0, "serial", true, a, 4, (word_t) wdata, "standalone", "UART");
         return;
     }
-    if (rtc_is_in_range(a))      { rtc_write(a, (uint32_t)data, (uint8_t)strb); return; }
-    if (keyboard_is_in_range(a)) { keyboard_write(a, (uint32_t)data, (uint8_t)strb); return; }
-    if (vga_is_in_range(a))      { vga_write(a, (uint32_t)data, (uint8_t)strb); return; }
+    if (rtc_is_in_range(a))      { rtc_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "rtc", true, a, 4, (word_t) data, "standalone", "RTC"); return; }
+    if (keyboard_is_in_range(a)) { keyboard_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "keyboard", true, a, 4, (word_t) data, "standalone", "KBD"); return; }
+    if (vga_is_in_range(a))      { vga_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "vga", true, a, 4, (word_t) data, "standalone", "VGA"); return; }
     if (!addr_valid(a)) return;
     uint32_t wdata = (uint32_t)data;
     uint8_t  wstrb = (uint8_t)strb;

@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <format>
 #include <print>
+#include <svdpi.h>
 #include <sim_top.hpp>
 #include <utils.hpp>
 #include <utils/Stage.hpp>
@@ -137,30 +138,85 @@ extern "C" void dpi_onInst_jalr(bool _trig) {
     }
 }
 
-static size_t dataStrobeToSize(uint8_t dataStrobe) {
-    switch (dataStrobe & 0b1111) {
-        case 0b0001:
-            return 1;
-        case 0b0011:
-            return 2;
-        case 0b1111:
+static size_t lsTypeToSize(uint8_t lsType) {
+    switch (lsType) {
+        case 0: // LS_L_W
+        case 5: // LS_S_W
             return 4;
+        case 1: // LS_L_H
+        case 2: // LS_L_HU
+        case 6: // LS_S_H
+            return 2;
+        case 3: // LS_L_B
+        case 4: // LS_L_BU
+        case 7: // LS_S_B
+            return 1;
     }
 
-    return 0;
+    return 4;
 }
 
-extern "C" void dpi_onEcallEnable(bool _ecallEnable) {
-    auto *dpi = getDPIModule();
-    bool ecallEnable = dpi->exu_ecallEnable;
-    if (ecallEnable && sim_config.config_etrace) {
-        // 记录 etrace
-        std::string message = std::format("0x{:08x}: ecall detected", dpi->core_pc);
-        sim_state.etrace_ofs << message << std::endl;
-        if (sim_config.config_debugOutput) {
-            std::cout << "[sim] etrace: " << message << std::endl;
-        }
+static inline addr_t dpiLogicVecToAddr(const svLogicVecVal *value) {
+    return static_cast<addr_t>(value[0].aval);
+}
+
+static inline uint8_t dpiLogicVecToU8(const svLogicVecVal *value, uint8_t mask) {
+    return static_cast<uint8_t>(value[0].aval & mask);
+}
+
+extern "C" void dpi_onMemAccess(
+    const svLogicVecVal *pc, svLogic memWriteEnable, svLogic memReadEnable,
+    const svLogicVecVal *memAddr, const svLogicVecVal *memData,
+    const svLogicVecVal *memStrobe, const svLogicVecVal *memResp,
+    const svLogicVecVal *memLsType
+) {
+    if (memWriteEnable != sv_1 && memReadEnable != sv_1) {
+        return;
     }
+
+    const bool isWrite = memWriteEnable == sv_1;
+    const int len = (int) lsTypeToSize(dpiLogicVecToU8(memLsType, 0x0f));
+    trace_record_mtrace(
+        dpiLogicVecToAddr(pc),
+        isWrite,
+        dpiLogicVecToAddr(memAddr),
+        len,
+        dpiLogicVecToAddr(memData),
+        dpiLogicVecToU8(memStrobe, 0x0f),
+        dpiLogicVecToU8(memResp, 0x03)
+    );
+}
+
+extern "C" void dpi_onEcallEnable(const svLogicVecVal *pc, svLogic ecallEnable) {
+    if (ecallEnable != sv_1 || !sim_config.config_etrace) {
+        return;
+    }
+
+    auto *dpi = getDPIModule();
+    trace_record_etrace(
+        dpiLogicVecToAddr(pc),
+        "exception",
+        11,
+        dpiLogicVecToAddr(pc),
+        0,
+        dpi->csr_csr_mtvec
+    );
+}
+
+extern "C" void dpi_onEpcRecoverEnable(const svLogicVecVal *pc, svLogic epcRecoverEnable) {
+    if (epcRecoverEnable != sv_1 || !sim_config.config_etrace) {
+        return;
+    }
+
+    auto *dpi = getDPIModule();
+    trace_record_etrace(
+        dpiLogicVecToAddr(pc),
+        "return",
+        0,
+        dpi->csr_csr_mepc,
+        0,
+        dpi->csr_csr_mepc
+    );
 }
 
 extern "C" void dpi_onPosEdge_ifuInputValid(bool _ifuInputValid) {

@@ -88,5 +88,7 @@ word_t device_flash_read(addr_t addr, int len) {
         result |= flashMemory[addr - baseAddr + 3] << 24;
     }
 
+    trace_record_dtrace(0, "flash", false, addr, len, result, "dpi", "FLASH");
+
     return result;
 }

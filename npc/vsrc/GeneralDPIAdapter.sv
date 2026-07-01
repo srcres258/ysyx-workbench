@@ -68,9 +68,17 @@ module GeneralDPIAdapter (
     input         idu_inst_jalr /*verilator public*/,
     input         idu_id_nextStage_valid /*verilator public*/,
     input         exu_ecallEnable /*verilator public*/,
+    input         exu_epcRecoverEnable /*verilator public*/,
+    input  [31:0] exu_exPc /*verilator public*/,
     input         exu_ex_nextStage_valid /*verilator public*/,
     input         memu_memWriteEnable /*verilator public*/,
     input         memu_memReadEnable /*verilator public*/,
+    input  [31:0] memu_memAddr /*verilator public*/,
+    input  [31:0] memu_memData /*verilator public*/,
+    input  [3:0]  memu_memStrobe /*verilator public*/,
+    input  [1:0]  memu_memResp /*verilator public*/,
+    input  [3:0]  memu_memLsType /*verilator public*/,
+    input  [31:0] memu_memPc /*verilator public*/,
     input         memu_mem_nextStage_valid /*verilator public*/,
     input         wbu_wb_nextStage_valid /*verilator public*/
 );
@@ -78,6 +86,8 @@ module GeneralDPIAdapter (
     logic inst_jal = idu_inst_jal;
     logic inst_jalr = idu_inst_jalr;
     logic ecallEnable = exu_ecallEnable;
+    logic epcRecoverEnable = exu_epcRecoverEnable;
+    logic [31:0] exPc = exu_exPc;
     logic ifuInputValid = core_ifuInputValid;
     logic if_nextStage_valid = ifu_if_nextStage_valid;
     logic id_nextStage_valid = idu_id_nextStage_valid;
@@ -104,7 +114,25 @@ module GeneralDPIAdapter (
     /**
      * 触发环境调用，以记录 etrace 日志
      */
-    import "DPI-C" function void       dpi_onEcallEnable(input logic ecallEnable);
+    import "DPI-C" function void       dpi_onEcallEnable(input logic [31:0] pc, input logic ecallEnable);
+    /**
+     * 触发异常返回，以记录 etrace 日志
+     */
+    import "DPI-C" function void       dpi_onEpcRecoverEnable(input logic [31:0] pc, input logic epcRecoverEnable);
+
+    /**
+     * 触发访存，以记录 mtrace 日志
+     */
+    import "DPI-C" function void       dpi_onMemAccess(
+        input logic [31:0] memPc,
+        input logic memWriteEnable,
+        input logic memReadEnable,
+        input logic [31:0] memAddr,
+        input logic [31:0] memData,
+        input logic [3:0] memStrobe,
+        input logic [1:0] memResp,
+        input logic [3:0] memLsType
+    );
 
     import "DPI-C" function void       dpi_onPosEdge_ifuInputValid(input logic ifuInputValid);
 
@@ -127,7 +155,10 @@ module GeneralDPIAdapter (
         dpi_onInst_jalr(inst_jalr);
     end
     always_ff @( posedge ecallEnable ) begin : call_dpi_onEcallEnable
-        dpi_onEcallEnable(ecallEnable);
+        dpi_onEcallEnable(exPc, ecallEnable);
+    end
+    always_ff @( posedge epcRecoverEnable ) begin : call_dpi_onEpcRecoverEnable
+        dpi_onEpcRecoverEnable(exPc, epcRecoverEnable);
     end
 
     always_ff @( posedge ifuInputValid ) begin : call_dpi_onPosEdge_ifuInputValid
@@ -143,8 +174,18 @@ module GeneralDPIAdapter (
     always_ff @( posedge ex_nextStage_valid ) begin : call_dpi_onPosEdge_ex_nextStage_valid
         dpi_onPosEdge_ex_nextStage_valid(ex_nextStage_valid);
     end
-always_ff @( posedge mem_nextStage_valid ) begin : call_dpi_onPosEdge_mem_nextStage_valid
-dpi_onPosEdge_mem_nextStage_valid(mem_nextStage_valid);
+    always_ff @( posedge mem_nextStage_valid ) begin : call_dpi_onPosEdge_mem_nextStage_valid
+        dpi_onPosEdge_mem_nextStage_valid(mem_nextStage_valid);
+        dpi_onMemAccess(
+            memu_memPc,
+            memu_memWriteEnable,
+            memu_memReadEnable,
+            memu_memAddr,
+            memu_memData,
+            memu_memStrobe,
+            memu_memResp,
+            memu_memLsType
+        );
     end
     always_ff @( posedge wb_nextStage_valid ) begin : call_dpi_onPosEdge_wb_nextStage_valid
         dpi_onPosEdge_wb_nextStage_valid(wb_nextStage_valid);

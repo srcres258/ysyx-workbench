@@ -3,8 +3,10 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <cassert>
+#include <format>
 #include <iostream>
 #include <utils.hpp>
+#include <sim_top.hpp>
 
 // ----------- state -----------
 
@@ -169,6 +171,71 @@ bool sim_state_ftrace_funcSyms_init() {
         elfFilePath << std::endl;
 
     return true;
+}
+
+static addr_t trace_current_pc() {
+    auto *module = getDPIModule();
+    return module ? module->core_pc : 0;
+}
+
+void trace_record_mtrace(
+    addr_t pc, bool isWrite, addr_t addr, int len, word_t data, uint8_t strobe, uint32_t resp
+) {
+    if (!sim_config.config_mtrace) {
+        return;
+    }
+
+    const addr_t tracePc = pc;
+    const char *op = isWrite ? "store" : "load";
+    std::string message = std::format(
+        "0x{:08x}: mtrace {} addr=0x{:08x} len={} data=0x{:08x} strobe=0x{:x} resp={}",
+        tracePc, op, addr, len, data, strobe, resp
+    );
+    sim_state.mtrace_ofs << message << std::endl;
+    std::flush(sim_state.mtrace_ofs);
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] mtrace: " << message << std::endl;
+    }
+}
+
+void trace_record_dtrace(
+    addr_t pc, const char *device, bool isWrite, addr_t addr, int len, word_t data,
+    const char *bus, const char *region
+) {
+    if (!sim_config.config_dtrace) {
+        return;
+    }
+
+    const addr_t tracePc = pc ? pc : trace_current_pc();
+    const char *op = isWrite ? "write" : "read";
+    std::string message = std::format(
+        "0x{:08x}: dtrace device={} {} addr=0x{:08x} len={} data=0x{:08x} bus={} region={}",
+        tracePc, device, op, addr, len, data, bus, region
+    );
+    sim_state.dtrace_ofs << message << std::endl;
+    std::flush(sim_state.dtrace_ofs);
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] dtrace: " << message << std::endl;
+    }
+}
+
+void trace_record_etrace(
+    addr_t pc, const char *trapKind, word_t cause, word_t mepc, word_t mtval, word_t target
+) {
+    if (!sim_config.config_etrace) {
+        return;
+    }
+
+    const addr_t tracePc = pc ? pc : trace_current_pc();
+    std::string message = std::format(
+        "0x{:08x}: etrace trap={} cause=0x{:08x} mepc=0x{:08x} mtval=0x{:08x} target=0x{:08x}",
+        tracePc, trapKind, cause, mepc, mtval, target
+    );
+    sim_state.etrace_ofs << message << std::endl;
+    std::flush(sim_state.etrace_ofs);
+    if (sim_config.config_debugOutput) {
+        std::cout << "[sim] etrace: " << message << std::endl;
+    }
 }
 
 // ----------- disasm -----------

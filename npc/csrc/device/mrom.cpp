@@ -90,5 +90,7 @@ word_t device_mrom_read(addr_t addr, int len) {
         result |= mromMemory[addr - baseAddr + 3] << 24;
     }
 
+    trace_record_dtrace(0, "mrom", false, addr, len, result, "dpi", "MROM");
+
     return result;
 }
