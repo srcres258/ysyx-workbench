@@ -24,7 +24,8 @@ word_t device_psram_read(addr_t addr, int len) {
     const addr_t baseAddr = PSRAM_ADDR;
     const addr_t baseLen = PSRAM_LEN;
     Assert(
-        addr >= baseAddr && addr + len <= baseAddr + baseLen,
+        addr >= baseAddr && len >= 1 && len <= 4 &&
+        addr - baseAddr <= baseLen - (addr_t) len,
         "psram: invalid memory read address: " FMT_ADDR "\n",
         addr
     );
@@ -51,7 +52,8 @@ void device_psram_write(addr_t addr, int len, word_t data) {
     const addr_t baseAddr = PSRAM_ADDR;
     const addr_t baseLen = PSRAM_LEN;
     Assert(
-        addr >= baseAddr && addr + len <= baseAddr + baseLen,
+        addr >= baseAddr && len >= 1 && len <= 4 &&
+        addr - baseAddr <= baseLen - (addr_t) len,
         "psram: invalid memory write address: " FMT_ADDR "\n",
         addr
     );

@@ -422,6 +422,9 @@ sim_cleanup:
 #else
     vga_cleanup();
 #endif
+    if (tfp) {
+        tfp->close();
+    }
     delete top;
 
     if (sim_config.config_itrace) {
@@ -432,6 +435,7 @@ sim_cleanup:
 
     if (tfp) {
         delete tfp;
+        tfp = nullptr;
     }
 
     return success && (halt_ret == 0);

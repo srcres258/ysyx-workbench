@@ -577,7 +577,7 @@ static int cmd_x(char *args) {
     cur_addr = addr;
     for (i = 0; i < N; i++) {
         if (device_io_mmio_isAddrValid(cur_addr)) {
-            value = device_io_mmio_read(cur_addr, sizeof(word_t));
+            value = device_io_mmio_read(cur_addr, sizeof(uint32_t));
             printf("0x%08X: %08X\n", cur_addr, value);
         } else {
             printf("0x%08X: N/A\n", cur_addr);
@@ -647,7 +647,7 @@ static int cmd_w(char *args) {
         return 0;
     }
     wp = sdb_newWP();
-    strcpy(wp->expr, args);
+    std::snprintf(wp->expr, sizeof(wp->expr), "%s", args);
     val = parser.expr(wp->expr, success);
     if (success) {
         wp->val = val;

@@ -39,13 +39,16 @@ static auto *dpi() {
     return getDPIModule();
 }
 
-static void checkBound(const IOMap *map, addr_t addr) {
+static void checkBound(const IOMap *map, addr_t addr, int len) {
     if (map) {
+        const addr_t mapLen = map->high - map->low + 1;
+        Assert(len >= 1 && len <= 8);
         Assert(
-            addr <= map->high && addr >= map->low,
-            "address (" FMT_ADDR ") is out of bound {%s} [" FMT_ADDR
+            addr >= map->low && len <= (int) mapLen &&
+            addr - map->low <= mapLen - (addr_t) len,
+            "address (" FMT_ADDR ") with len %d is out of bound {%s} [" FMT_ADDR
                 ", " FMT_ADDR "] at pc = " FMT_WORD,
-            addr, map->name, map->low, map->high, dpi()->core_pc
+            addr, len, map->name, map->low, map->high, dpi()->core_pc
         );
     } else {
         panic(
@@ -81,7 +84,7 @@ bool IOMap::isInside(addr_t addr) const {
 
 word_t IOMap::read(addr_t addr, int len) const {
     Assert(len >= 1 && len <= 8);
-    checkBound(this, addr);
+    checkBound(this, addr, len);
     addr_t offset = addr - low;
     invokeCallback(callback, offset, len, false);
     word_t ret = memoryHostRead(ioSpace + offset, len);
@@ -94,7 +97,7 @@ word_t IOMap::read(addr_t addr, int len) const {
 
 void IOMap::write(addr_t addr, int len, word_t data) const {
     Assert(len >= 1 && len <= 8);
-    checkBound(this, addr);
+    checkBound(this, addr, len);
     addr_t offset = addr - low;
     memoryHostWrite(ioSpace + offset, len, data);
     invokeCallback(callback, offset, len, true);

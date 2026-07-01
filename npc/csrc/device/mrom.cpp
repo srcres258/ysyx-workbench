@@ -69,7 +69,8 @@ word_t device_mrom_read(addr_t addr, int len) {
     const addr_t baseAddr = MROM_ADDR;
     const addr_t baseLen = MROM_LEN;
     Assert(
-        addr >= baseAddr && addr < baseAddr + baseLen,
+        addr >= baseAddr && len >= 1 && len <= 4 &&
+        addr - baseAddr <= baseLen - (addr_t) len,
         "MROM: invalid memory read address: " FMT_ADDR "\n",
         addr
     );
