@@ -275,42 +275,45 @@ void ssbl_entry(void) {
     /* ================================================================
      * 3. Zero-initialize .bss section (PSRAM/SDRAM)
      * ================================================================ */
-    {
-        uint32_t bss_bytes = (uint32_t)(uintptr_t)&_bss_end -
-                             (uint32_t)(uintptr_t)&_bss_start;
-        if (bss_bytes > 0) {
-            volatile uint8_t *p;
-            uint32_t next_dot = PROGRESS_STEP;
-            uint32_t pline = 0;
-            uint32_t done = 0;
+    // NOTE: 此处暂时 comment out .bss section 的清零操作以换取仿真速度.
+    //       后续待 NPC 性能优化进行后/体系结构仿真后台逻辑优化后, 再考虑恢复此处的 .bss 清零操作.
+    //       但需要注意, 不清零 .bss section 可能会导致 undefined behavior 从而造成潜在的软件程序非预期行为.
+    // {
+    //     uint32_t bss_bytes = (uint32_t)(uintptr_t)&_bss_end -
+    //                          (uint32_t)(uintptr_t)&_bss_start;
+    //     if (bss_bytes > 0) {
+    //         volatile uint8_t *p;
+    //         uint32_t next_dot = PROGRESS_STEP;
+    //         uint32_t pline = 0;
+    //         uint32_t done = 0;
 
-            uart_puts("[.bss    ] ");
-            uart_puthex((uint32_t)(uintptr_t)&_bss_start);
-            uart_puts(" ~ ");
-            uart_puthex((uint32_t)(uintptr_t)&_bss_end);
-            uart_puts("  ");
-            uart_putdec(bss_bytes);
-            uart_puts(" bytes\r\n      ");
+    //         uart_puts("[.bss    ] ");
+    //         uart_puthex((uint32_t)(uintptr_t)&_bss_start);
+    //         uart_puts(" ~ ");
+    //         uart_puthex((uint32_t)(uintptr_t)&_bss_end);
+    //         uart_puts("  ");
+    //         uart_putdec(bss_bytes);
+    //         uart_puts(" bytes\r\n      ");
 
-            for (p = (volatile uint8_t *)(uintptr_t)&_bss_start;
-                 p < (volatile uint8_t *)(uintptr_t)&_bss_end;
-                 p++) {
-                *p = 0;
-                done++;
-                if (done >= next_dot) {
-                    progress_dot(&pline);
-                    next_dot += PROGRESS_STEP;
-                }
-            }
+    //         for (p = (volatile uint8_t *)(uintptr_t)&_bss_start;
+    //              p < (volatile uint8_t *)(uintptr_t)&_bss_end;
+    //              p++) {
+    //             *p = 0;
+    //             done++;
+    //             if (done >= next_dot) {
+    //                 progress_dot(&pline);
+    //                 next_dot += PROGRESS_STEP;
+    //             }
+    //         }
 
-            if (pline > 0) {
-                uart_puts("\r\n");
-            }
-            uart_puts("      done\r\n\r\n");
-        } else {
-            uart_puts("[.bss    ] (empty, skipped)\r\n\r\n");
-        }
-    }
+    //         if (pline > 0) {
+    //             uart_puts("\r\n");
+    //         }
+    //         uart_puts("      done\r\n\r\n");
+    //     } else {
+    //         uart_puts("[.bss    ] (empty, skipped)\r\n\r\n");
+    //     }
+    // }
 
     /* ================================================================
      * 4. Jump to Application
