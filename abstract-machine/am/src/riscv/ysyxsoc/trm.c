@@ -94,27 +94,15 @@ void halt(int code) {
     while (1);
 }
 
-#ifndef FLASH_XIP_BOOT
-static void zero_bss_section(void) {
-    volatile uint8_t *p;
-
-    for (p = (volatile uint8_t *) (intptr_t) &_bss_start;
-         p < (volatile uint8_t *) (intptr_t) &_bss_end;
-         p++) {
-        *p = 0;
-    }
-}
-#endif
-
 void _trm_init(void) {
     int ret;
 
 #ifdef FLASH_XIP_BOOT
     init_uart();
 #endif
-#ifndef FLASH_XIP_BOOT
-    zero_bss_section();
-#endif
+    
+    // NOTE: .bss section 的清零操作已移动到 SSBL 中完成, 因此这里不再需要重复清零.
+
     ret = main(mainargs);
     halt(ret);
 }
