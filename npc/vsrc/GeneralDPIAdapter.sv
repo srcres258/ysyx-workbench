@@ -57,15 +57,7 @@ module GeneralDPIAdapter (
 
     input         ifu_if_nextStage_valid /*verilator public*/,
     input  [31:0] ifu_instData /*verilator public*/,
-    input  [4:0]  idu_rs1 /*verilator public*/,
-    input  [4:0]  idu_rs2 /*verilator public*/,
-    input  [4:0]  idu_rd /*verilator public*/,
-    input  [31:0] idu_imm /*verilator public*/,
-    input  [31:0] idu_rs1Data /*verilator public*/,
-    input  [31:0] idu_rs2Data /*verilator public*/,
     input  [31:0] idu_inst /*verilator public*/,
-    input         idu_inst_jal /*verilator public*/,
-    input         idu_inst_jalr /*verilator public*/,
     input         idu_id_nextStage_valid /*verilator public*/,
     input         exu_ecallEnable /*verilator public*/,
     input         exu_epcRecoverEnable /*verilator public*/,
@@ -80,11 +72,18 @@ module GeneralDPIAdapter (
     input  [3:0]  memu_memLsType /*verilator public*/,
     input  [31:0] memu_memPc /*verilator public*/,
     input         memu_mem_nextStage_valid /*verilator public*/,
+    input  [31:0] wbu_pc /*verilator public*/,
+    input  [31:0] wbu_pcNext /*verilator public*/,
+    input  [31:0] wbu_inst /*verilator public*/,
+    input  [4:0]  wbu_rs1 /*verilator public*/,
+    input  [4:0]  wbu_rd /*verilator public*/,
+    input  [31:0] wbu_imm /*verilator public*/,
+    input  [31:0] wbu_rs1Data /*verilator public*/,
+    input         wbu_inst_jal /*verilator public*/,
+    input         wbu_inst_jalr /*verilator public*/,
     input         wbu_wb_nextStage_valid /*verilator public*/
 );
     logic halt = core_halt;
-    logic inst_jal = idu_inst_jal;
-    logic inst_jalr = idu_inst_jalr;
     logic ecallEnable = exu_ecallEnable;
     logic epcRecoverEnable = exu_epcRecoverEnable;
     logic [31:0] exPc = exu_exPc;
@@ -104,13 +103,9 @@ module GeneralDPIAdapter (
      */
     import "DPI-C" function void       dpi_halt(input logic halt);
     /**
-     * 触发指令 jal ，以记录 ftrace 日志
+     * 触发退休指令，以记录 ftrace / itrace 日志
      */
-    import "DPI-C" function void       dpi_onInst_jal(input logic trig);
-    /**
-     * 触发指令 jalr ，以记录 ftrace 日志
-     */
-    import "DPI-C" function void       dpi_onInst_jalr(input logic trig);
+    import "DPI-C" function void       dpi_onRetireTrace(input logic trig);
     /**
      * 触发环境调用，以记录 etrace 日志
      */
@@ -148,12 +143,6 @@ module GeneralDPIAdapter (
     always_ff @( posedge halt ) begin : call_dpi_halt
         dpi_halt(halt);
     end
-    always_ff @( posedge inst_jal ) begin : call_dpi_onInst_jal
-        dpi_onInst_jal(inst_jal);
-    end
-    always_ff @( posedge inst_jalr ) begin : call_dpi_onInst_jalr
-        dpi_onInst_jalr(inst_jalr);
-    end
     always_ff @( posedge ecallEnable ) begin : call_dpi_onEcallEnable
         dpi_onEcallEnable(exPc, ecallEnable);
     end
@@ -189,6 +178,7 @@ module GeneralDPIAdapter (
     end
     always_ff @( posedge wb_nextStage_valid ) begin : call_dpi_onPosEdge_wb_nextStage_valid
         dpi_onPosEdge_wb_nextStage_valid(wb_nextStage_valid);
+        dpi_onRetireTrace(wb_nextStage_valid);
     end
 
     always_ff @( posedge clint_read_readEnable ) begin : call_dpi_clint_onReadEnable

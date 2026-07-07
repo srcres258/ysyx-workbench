@@ -110,10 +110,6 @@ void simStep() {
             break;
         }
 
-        if (getDPIModule()->idu_id_nextStage_valid) {
-            simExecInfo.inst = getDPIModule()->idu_inst;
-        }
-
         if (getDPIModule()->core_executing && !executionBegun) {
             executionBegun = true;
         }
@@ -141,11 +137,10 @@ bool simExecOnce() {
         std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
 
     auto *dpi = getDPIModule();
-    simExecInfo.pc = dpi->core_pc;
-    simExecInfo.inst = dpi->ifu_instData;
+    addr_t pc = dpi->core_pc;
     if (sim_config.config_debugOutput)
         std::cout << "当前PC: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << simExecInfo.pc << std::endl;
+            std::setw(8) << std::hex << pc << std::endl;
 
     // 若开启了 difftest, 执行前要先向 REF 同步处理器状态.
     if (sim_config.config_difftest) {

@@ -9,7 +9,7 @@
 #include <stack>
 #include <utils/RingBuffer.hpp>
 #include <utils/Symbol.hpp>
-#include <utils/CallStackInfo.hpp>
+#include <utils/CallFrameInfo.hpp>
 
 // ----------- state -----------
 
@@ -64,7 +64,7 @@ struct SimState {
 
     RingBuffer *itrace_iringbuf;
     std::vector<Symbol> ftrace_funcSyms;
-    std::stack<CallStackInfo> ftrace_callStack;
+    std::stack<CallFrameInfo> ftrace_callStack;
 
     std::ofstream itrace_ofs;
     std::ofstream mtrace_ofs;
@@ -189,10 +189,12 @@ bool ftrace_queryNameThroughSymbolTable(std::string &dest, addr_t addr);
  * @param type 函数调用类型
  * @param srcAddr 函数调用的源起地址
  * @param addr 函数调用的目标地址
- * @return true 记录成功（找到目标函数的符号信息）
- * @return false 记录失败（未找到目标函数信息，无法记录）
+ * @param retAddr 当前调用返回时应跳转到的地址
+ * @param callerSp 当前调用发生时的调用者栈指针
+ * @return true 记录成功（包含未知符号时也会保留运行时栈信息）
+ * @return false 仅当类型不支持时返回
  */
-bool ftrace_tryRecord(CallType type, addr_t srcAddr, addr_t addr);
+bool ftrace_tryRecord(CallType type, addr_t srcAddr, addr_t addr, addr_t retAddr, word_t callerSp);
 
 // ----------- panic -----------
 

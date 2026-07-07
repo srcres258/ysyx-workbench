@@ -34,15 +34,15 @@ bool ftrace_queryNameThroughSymbolTable(
  * @return false 记录失败（未找到目标函数信息，无法记录）
  */
 bool ftrace_tryRecord(
-    CallType type, addr_t srcAddr, addr_t addr
+    CallType type, addr_t srcAddr, addr_t addr, addr_t retAddr, word_t callerSp
 ) {
-    std::string funcName, destFuncName, message, tmpStr;
+    std::string funcName, destFuncName, message;
     size_t i;
 
     if (type == CALL_TYPE_CALL) {
         /* call 到函数的调用 */
         if (!ftrace_queryNameThroughSymbolTable(funcName, addr)) {
-            return false;
+            funcName = "<unknown>";
         }
 
         // 记录入栈信息：调用至目的函数
@@ -50,20 +50,21 @@ bool ftrace_tryRecord(
         for (i = 0; i < sim_state.ftrace_callStack.size(); i++) {
             message += "  ";
         }
-        tmpStr = std::format(
-            "call to [{}@0x{:08x}]",
-            funcName, addr
+        message += std::format(
+            "call to [{}@0x{:08x}], ret=0x{:08x}, caller_sp=0x{:08x}",
+            funcName, addr, retAddr, callerSp
         );
-        message += tmpStr;
         sim_state.ftrace_ofs << message << std::endl;
-        std::flush(sim_state.ftrace_ofs);
+        sim_state.ftrace_ofs.flush();
         if (sim_config.config_debugOutput)
             std::cout << "[sim] ftrace: " << message << std::endl;
 
         // 将该函数入栈
-        CallStackInfo info;
-        info.addr = addr;
-        info.name = funcName;
+        CallFrameInfo info;
+        info.funcAddr = addr;
+        info.funcName = funcName;
+        info.retAddr = retAddr;
+        info.callerSp = callerSp;
         sim_state.ftrace_callStack.push(std::move(info));
 
         return true;
@@ -72,22 +73,21 @@ bool ftrace_tryRecord(
     if (type == CALL_TYPE_TAIL) {
         /* tail 从当前函数进行尾调用到另一个函数 */
         if (!ftrace_queryNameThroughSymbolTable(funcName, srcAddr)) {
-            return false;
+            funcName = "<unknown>";
         }
         if (!ftrace_queryNameThroughSymbolTable(destFuncName, addr)) {
-            return false;
+            destFuncName = "<unknown>";
         }
 
-        // 先将当前函数出栈
-        // 【注意】由于编译器/汇编器可能进行尾调用消除优化，出栈时要出到目标函数层级
-        // （可能需要出不止一层栈）
-        while (sim_state.ftrace_callStack.size() > 0) {
-            const auto &info = sim_state.ftrace_callStack.top();
-            if (info.name == destFuncName) {
-                break;
-            }
-            // 没到达目标层级，则继续出栈
+        CallFrameInfo baseFrame;
+        if (!sim_state.ftrace_callStack.empty()) {
+            baseFrame = sim_state.ftrace_callStack.top();
             sim_state.ftrace_callStack.pop();
+        } else {
+            baseFrame.funcAddr = srcAddr;
+            baseFrame.funcName = funcName;
+            baseFrame.retAddr = retAddr;
+            baseFrame.callerSp = callerSp;
         }
 
         // 记录信息：尾调用至另一个函数
@@ -95,20 +95,21 @@ bool ftrace_tryRecord(
         for (i = 0; i < sim_state.ftrace_callStack.size(); i++) {
             message += "  ";
         }
-        tmpStr = std::format(
+        message += std::format(
             "tail from [{}@0x{:08x}] to [{}@0x{:08x}]",
             funcName, srcAddr, destFuncName, addr
         );
-        message += tmpStr;
         sim_state.ftrace_ofs << message << std::endl;
-        std::flush(sim_state.ftrace_ofs);
+        sim_state.ftrace_ofs.flush();
         if (sim_config.config_debugOutput)
             std::cout << "[sim] ftrace: " << message << std::endl;
 
         // 再将目的函数入栈
-        CallStackInfo info;
-        info.addr = addr;
-        info.name = destFuncName;
+        CallFrameInfo info;
+        info.funcAddr = addr;
+        info.funcName = destFuncName;
+        info.retAddr = baseFrame.retAddr;
+        info.callerSp = baseFrame.callerSp;
         sim_state.ftrace_callStack.push(std::move(info));
 
         return true;
@@ -117,26 +118,22 @@ bool ftrace_tryRecord(
     if (type == CALL_TYPE_RET) {
         /* ret 从当前函数返回 */
         if (!ftrace_queryNameThroughSymbolTable(funcName, srcAddr)) {
-            return false;
+            funcName = "<unknown>";
         }
         if (!ftrace_queryNameThroughSymbolTable(destFuncName, addr)) {
             destFuncName = "<unknown>";
         }
 
-        // 将当前函数出栈
-        // 【注意】由于编译器/汇编器可能进行尾调用消除优化，出栈时要出到目标函数层级
-        // （可能需要出不止一层栈）
-        if (destFuncName == "<unknown>") {
-            sim_state.ftrace_callStack.pop();
-        } else {
-            while (sim_state.ftrace_callStack.size() > 0) {
-                const auto &info = sim_state.ftrace_callStack.top();
-                if (info.name == destFuncName) {
-                    break;
-                }
-                // 没到达目标层级，则继续出栈
-                sim_state.ftrace_callStack.pop();
+        // 将当前函数出栈；若前面存在尾调用/符号缺失导致的栈偏移，则回退到匹配返回地址的位置。
+        while (!sim_state.ftrace_callStack.empty()) {
+            const auto &info = sim_state.ftrace_callStack.top();
+            if (info.retAddr == addr) {
+                break;
             }
+            sim_state.ftrace_callStack.pop();
+        }
+        if (!sim_state.ftrace_callStack.empty()) {
+            sim_state.ftrace_callStack.pop();
         }
 
         // 记录出栈信息：从当前函数返回
@@ -146,13 +143,12 @@ bool ftrace_tryRecord(
         for (i = 0; i < sim_state.ftrace_callStack.size(); i++) {
             message += "  ";
         }
-        tmpStr = std::format(
+        message += std::format(
             "ret from [{}@0x{:08x}] to [{}@0x{:08x}]",
             funcName, srcAddr, destFuncName, addr
         );
-        message += tmpStr;
         sim_state.ftrace_ofs << message << std::endl;
-        std::flush(sim_state.ftrace_ofs);
+        sim_state.ftrace_ofs.flush();
         if (sim_config.config_debugOutput)
             std::cout << "[sim] ftrace: " << message << std::endl;
 

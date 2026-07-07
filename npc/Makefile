@@ -109,6 +109,11 @@ default: $(BIN)
 
 # C/C++ 源文件对应的 .o 文件路径（放到构建目录下的对应子目录）
 COBJS = $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(CSRCS))
+COBJS_D = $(filter %.o,$(COBJS))
+
+# 让头文件变更也能触发对应 C++ 对象重编译，避免旧的 obj_dir/*.o
+# 在类名/文件名重构后继续被链接进最终二进制。
+-include $(wildcard $(COBJS_D:.o=.d))
 
 # rules for NVBoard
 # 把NVBoard的Makefile包括进来，构建程序包括NVBoard界 面

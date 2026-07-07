@@ -16,8 +16,8 @@ VysyxSoCFull_GeneralDPIAdapter *getDPIModule();
 #endif
 
 struct ExecInfo {
-    addr_t pc;
-    word_t inst;
+    addr_t pc;   // retired PC
+    word_t inst; // retired instruction word
 };
 
 extern ExecInfo simExecInfo;
