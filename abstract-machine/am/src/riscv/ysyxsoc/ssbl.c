@@ -79,13 +79,14 @@ static void uart_puthex(uint32_t val) {
     }
 }
 
-/* Output small integer (0~65535) in decimal
+/* Output uint32_t in decimal
  * Uses power-of-10 subtraction to avoid libgcc division calls
- * (those may link to PSRAM .text, unreachable during SSBL)
- * Ref: mem-test.c print_small_int() style — digit-by-digit output */
+ * (those may link to PSRAM .text, unreachable during SSBL). */
 static void uart_putdec(uint32_t val) {
-    /* Precomputed powers of 10 (uint16_t range: at most 5 digits) */
-    static const uint32_t pow10[] = {10000, 1000, 100, 10, 1};
+    static const uint32_t pow10[] = {
+        1000000000U, 100000000U, 10000000U, 1000000U, 100000U,
+        10000U, 1000U, 100U, 10U, 1U
+    };
     int started = 0;
     int i;
 
@@ -94,7 +95,7 @@ static void uart_putdec(uint32_t val) {
         return;
     }
 
-    for (i = 0; i < 5; i++) {
+    for (i = 0; i < (int)(sizeof(pow10) / sizeof(pow10[0])); i++) {
         uint32_t digit = 0;
         while (val >= pow10[i]) {
             val -= pow10[i];
@@ -286,7 +287,7 @@ void ssbl_entry(void) {
     //         uint32_t next_dot = PROGRESS_STEP;
     //         uint32_t pline = 0;
     //         uint32_t done = 0;
-
+    //
     //         uart_puts("[.bss    ] ");
     //         uart_puthex((uint32_t)(uintptr_t)&_bss_start);
     //         uart_puts(" ~ ");
@@ -294,7 +295,7 @@ void ssbl_entry(void) {
     //         uart_puts("  ");
     //         uart_putdec(bss_bytes);
     //         uart_puts(" bytes\r\n      ");
-
+    //
     //         for (p = (volatile uint8_t *)(uintptr_t)&_bss_start;
     //              p < (volatile uint8_t *)(uintptr_t)&_bss_end;
     //              p++) {
@@ -305,7 +306,7 @@ void ssbl_entry(void) {
     //                 next_dot += PROGRESS_STEP;
     //             }
     //         }
-
+    //
     //         if (pline > 0) {
     //             uart_puts("\r\n");
     //         }
