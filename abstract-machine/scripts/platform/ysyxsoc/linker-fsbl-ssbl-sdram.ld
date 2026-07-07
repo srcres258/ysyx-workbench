@@ -113,7 +113,7 @@ SECTIONS {
         _data_end = .;
     } > sdram AT> flash : data
 
-    _data_lma = LOADADDR(.data);
+    _data_lma = _data_extra_lma + SIZEOF(.data.extra);
 
     .bss.extra : {
         . = ALIGN(8);
