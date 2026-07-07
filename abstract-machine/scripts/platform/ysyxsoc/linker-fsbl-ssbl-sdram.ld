@@ -99,6 +99,14 @@ SECTIONS {
 
     _text_lma = LOADADDR(.text);
 
+    .data.extra : {
+        . = ALIGN(8);
+        _data_extra_start = .;
+        _data_extra_end = .;
+    } > sdram AT> flash : data
+
+    _data_extra_lma = LOADADDR(.data.extra);
+
     .data : {
         _data_start = .;
         *(EXCLUDE_FILE(*ssbl.o) .data .data.* .sdata .sdata.*)
@@ -106,6 +114,12 @@ SECTIONS {
     } > sdram AT> flash : data
 
     _data_lma = LOADADDR(.data);
+
+    .bss.extra : {
+        . = ALIGN(8);
+        _bss_extra_start = .;
+        _bss_extra_end = .;
+    } > sdram
 
     .bss (NOLOAD) : {
         _bss_start = .;

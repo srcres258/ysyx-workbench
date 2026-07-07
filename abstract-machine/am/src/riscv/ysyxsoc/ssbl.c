@@ -142,7 +142,9 @@ static void progress_tick(uint32_t words_done, uint32_t *next_dot,
  * _start / _end: VMA in PSRAM/SDRAM (destination).
  * _lma: LMA in FLASH (source). */
 extern char _text_start, _text_end, _text_lma;
+extern char _data_extra_start, _data_extra_end, _data_extra_lma;
 extern char _data_start, _data_end, _data_lma;
+extern char _bss_extra_start, _bss_extra_end;
 extern char _bss_start, _bss_end;
 
 /* Forward declaration of the TRM initialization entry point,
@@ -184,6 +186,82 @@ static void copy_tail_bytes(volatile uint8_t *dst,
     }
 }
 
+static void zero_bytes_with_progress(volatile uint8_t *dst,
+                                     uint32_t bytes) {
+    uint32_t next_dot = PROGRESS_STEP;
+    uint32_t pline = 0;
+    uint32_t i;
+
+    for (i = 0; i < bytes; i++) {
+        dst[i] = 0;
+        progress_tick(i + 1, &next_dot, &pline);
+    }
+
+    if (pline > 0) {
+        uart_puts("\r\n");
+    }
+}
+
+static void copy_section_with_log(const char *section_name,
+                                  volatile uint8_t *dst,
+                                  volatile const uint8_t *src,
+                                  uint32_t bytes) {
+    uint32_t len_words = bytes / 4;
+    uint32_t src_addr = (uint32_t)(uintptr_t)src;
+    uint32_t dst_addr = (uint32_t)(uintptr_t)dst;
+
+    if (bytes == 0) {
+        uart_puts("[");
+        uart_puts(section_name);
+        uart_puts("] (empty, skipped)\r\n\r\n");
+        return;
+    }
+
+    uart_puts("[");
+    uart_puts(section_name);
+    uart_puts("] ");
+    uart_puthex(src_addr);
+    uart_puts(" -> ");
+    uart_puthex(dst_addr);
+    uart_puts("  ");
+    uart_putdec(len_words);
+    uart_puts(" words\r\n      ");
+
+    copy_words_with_progress((volatile uint32_t *)(uintptr_t)dst_addr,
+                             (volatile const uint32_t *)(uintptr_t)src_addr,
+                             len_words);
+    copy_tail_bytes((volatile uint8_t *)(uintptr_t)(dst_addr + len_words * 4),
+                    (volatile const uint8_t *)(uintptr_t)(src_addr + len_words * 4),
+                    bytes & 0x3);
+    uart_puts("      done\r\n\r\n");
+}
+
+static void clear_section_with_log(const char *section_name,
+                                   volatile uint8_t *dst,
+                                   uint32_t bytes) {
+    uint32_t dst_addr = (uint32_t)(uintptr_t)dst;
+
+    if (bytes == 0) {
+        uart_puts("[");
+        uart_puts(section_name);
+        uart_puts("] (empty, skipped)\r\n\r\n");
+        return;
+    }
+
+    uart_puts("[");
+    uart_puts(section_name);
+    uart_puts("] ");
+    uart_puthex(dst_addr);
+    uart_puts(" ~ ");
+    uart_puthex(dst_addr + bytes);
+    uart_puts("  ");
+    uart_putdec(bytes);
+    uart_puts(" bytes\r\n      ");
+
+    zero_bytes_with_progress(dst, bytes);
+    uart_puts("      done\r\n\r\n");
+}
+
 /* ================================================================
  * SSBL Entry — Load + Log Output
  * ================================================================ */
@@ -204,9 +282,9 @@ static void copy_tail_bytes(volatile uint8_t *dst,
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
 void ssbl_entry(void) {
-    uint32_t len_words;
-    uint32_t src_addr, dst_addr;
-    uint32_t text_bytes, data_bytes;
+    uint32_t text_bytes;
+    uint32_t data_extra_bytes, data_bytes;
+    uint32_t bss_extra_bytes, bss_bytes;
 
     /* --- UART Initialization --- */
     uart_init();
@@ -220,104 +298,44 @@ void ssbl_entry(void) {
     /* ================================================================
      * 1. Copy .text section: FLASH LMA -> PSRAM/SDRAM VMA
      * ================================================================ */
-    len_words = ((uint32_t)(uintptr_t)&_text_end -
-                 (uint32_t)(uintptr_t)&_text_start) / 4;
-    src_addr  = (uint32_t)(uintptr_t)&_text_lma;
-    dst_addr  = (uint32_t)(uintptr_t)&_text_start;
     text_bytes = (uint32_t)(uintptr_t)&_text_end -
                  (uint32_t)(uintptr_t)&_text_start;
-
-    uart_puts("[.text   ] ");
-    uart_puthex(src_addr);
-    uart_puts(" -> ");
-    uart_puthex(dst_addr);
-    uart_puts("  ");
-    uart_putdec(len_words);
-    uart_puts(" words\r\n      ");
-
-    copy_words_with_progress((volatile uint32_t *)dst_addr,
-                             (volatile const uint32_t *)src_addr,
-                             len_words);
-    copy_tail_bytes((volatile uint8_t *)(uintptr_t)(dst_addr + len_words * 4),
-                    (volatile const uint8_t *)(uintptr_t)(src_addr + len_words * 4),
-                    text_bytes & 0x3);
-    uart_puts("      done\r\n\r\n");
+    copy_section_with_log(".text", (volatile uint8_t *)&_text_start,
+                          (volatile const uint8_t *)&_text_lma, text_bytes);
 
     /* ================================================================
-     * 2. Copy .data section: FLASH LMA -> PSRAM/SDRAM VMA
+     * 2. Copy .data.extra section: FLASH LMA -> PSRAM/SDRAM VMA
      * ================================================================ */
-    len_words = ((uint32_t)(uintptr_t)&_data_end -
-                 (uint32_t)(uintptr_t)&_data_start) / 4;
-    src_addr  = (uint32_t)(uintptr_t)&_data_lma;
-    dst_addr  = (uint32_t)(uintptr_t)&_data_start;
+    data_extra_bytes = (uint32_t)(uintptr_t)&_data_extra_end -
+                       (uint32_t)(uintptr_t)&_data_extra_start;
+    copy_section_with_log(".data.extra", (volatile uint8_t *)&_data_extra_start,
+                          (volatile const uint8_t *)&_data_extra_lma, data_extra_bytes);
+
+    /* ================================================================
+     * 3. Copy .data section: FLASH LMA -> PSRAM/SDRAM VMA
+     * ================================================================ */
     data_bytes = (uint32_t)(uintptr_t)&_data_end -
                  (uint32_t)(uintptr_t)&_data_start;
-
-    if (len_words > 0) {
-        uart_puts("[.data   ] ");
-        uart_puthex(src_addr);
-        uart_puts(" -> ");
-        uart_puthex(dst_addr);
-        uart_puts("  ");
-        uart_putdec(len_words);
-        uart_puts(" words\r\n      ");
-
-        copy_words_with_progress((volatile uint32_t *)dst_addr,
-                                 (volatile const uint32_t *)src_addr,
-                                 len_words);
-        copy_tail_bytes((volatile uint8_t *)(uintptr_t)(dst_addr + len_words * 4),
-                        (volatile const uint8_t *)(uintptr_t)(src_addr + len_words * 4),
-                        data_bytes & 0x3);
-        uart_puts("      done\r\n\r\n");
-    } else {
-        uart_puts("[.data   ] (empty, skipped)\r\n\r\n");
-    }
+    copy_section_with_log(".data", (volatile uint8_t *)&_data_start,
+                          (volatile const uint8_t *)&_data_lma, data_bytes);
 
     /* ================================================================
-     * 3. Zero-initialize .bss section (PSRAM/SDRAM)
+     * 4. Zero-initialize .bss.extra section (PSRAM/SDRAM)
      * ================================================================ */
-    // NOTE: 此处暂时 comment out .bss section 的清零操作以换取仿真速度.
-    //       后续待 NPC 性能优化进行后/体系结构仿真后台逻辑优化后, 再考虑恢复此处的 .bss 清零操作.
-    //       但需要注意, 不清零 .bss section 可能会导致 undefined behavior 从而造成潜在的软件程序非预期行为.
-    // {
-    //     uint32_t bss_bytes = (uint32_t)(uintptr_t)&_bss_end -
-    //                          (uint32_t)(uintptr_t)&_bss_start;
-    //     if (bss_bytes > 0) {
-    //         volatile uint8_t *p;
-    //         uint32_t next_dot = PROGRESS_STEP;
-    //         uint32_t pline = 0;
-    //         uint32_t done = 0;
-    //
-    //         uart_puts("[.bss    ] ");
-    //         uart_puthex((uint32_t)(uintptr_t)&_bss_start);
-    //         uart_puts(" ~ ");
-    //         uart_puthex((uint32_t)(uintptr_t)&_bss_end);
-    //         uart_puts("  ");
-    //         uart_putdec(bss_bytes);
-    //         uart_puts(" bytes\r\n      ");
-    //
-    //         for (p = (volatile uint8_t *)(uintptr_t)&_bss_start;
-    //              p < (volatile uint8_t *)(uintptr_t)&_bss_end;
-    //              p++) {
-    //             *p = 0;
-    //             done++;
-    //             if (done >= next_dot) {
-    //                 progress_dot(&pline);
-    //                 next_dot += PROGRESS_STEP;
-    //             }
-    //         }
-    //
-    //         if (pline > 0) {
-    //             uart_puts("\r\n");
-    //         }
-    //         uart_puts("      done\r\n\r\n");
-    //     } else {
-    //         uart_puts("[.bss    ] (empty, skipped)\r\n\r\n");
-    //     }
-    // }
+    bss_extra_bytes = (uint32_t)(uintptr_t)&_bss_extra_end -
+                      (uint32_t)(uintptr_t)&_bss_extra_start;
+    clear_section_with_log(".bss.extra", (volatile uint8_t *)&_bss_extra_start,
+                           bss_extra_bytes);
 
     /* ================================================================
-     * 4. Jump to Application
+     * 5. Zero-initialize .bss section (PSRAM/SDRAM)
+     * ================================================================ */
+    bss_bytes = (uint32_t)(uintptr_t)&_bss_end -
+                (uint32_t)(uintptr_t)&_bss_start;
+    clear_section_with_log(".bss", (volatile uint8_t *)&_bss_start, bss_bytes);
+
+    /* ================================================================
+     * 6. Jump to Application
      * ================================================================ */
     uart_puts("========================================\r\n");
     uart_puts("SSBL: Jumping to application...\r\n");
