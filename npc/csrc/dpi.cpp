@@ -168,7 +168,7 @@ extern "C" void dpi_onMemAccess(
     // MMIO access: the NEMU REF cannot independently model peripheral devices.
     // Trigger skipRef so the REF synchronises with DUT instead of re-executing.
     if (sim_config.config_difftest && isMMIOAccess(memAddrVal)) {
-        difftest_dut_skipRef();
+        difftest_dut_skipRef(dpiLogicVecToAddr(pc));
     }
 
     const bool isWrite = memWriteEnable == sv_1;
@@ -264,17 +264,11 @@ extern "C" void dpi_onPosEdge_wb_nextStage_valid(bool _wb_nextStage_valid) {
     }
 }
 
-extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
+extern "C" word_t dpi_clint_onReadEnable(const svLogicVecVal *, bool _clint_read_readEnable) {
     auto *dpi = getDPIModule();
     bool clint_read_readEnable = dpi->clint_read_readEnable;
     if (!clint_read_readEnable) {
         return 0;
-    }
-
-    // CLINT accesses are MMIO — the REF cannot model the timer.
-    // Skip the REF for this instruction so it doesn't diverge on timer values.
-    if (sim_config.config_difftest) {
-        difftest_dut_skipRef();
     }
 
     if (sim_config.config_debugOutput) {
@@ -292,15 +286,10 @@ extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
     return result;
 }
 
-extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
+extern "C" void dpi_clint_onWriteEnable(const svLogicVecVal *, bool _clint_write_writeEnable) {
     bool clint_write_writeEnable = dpi()->clint_write_writeEnable;
     if (!clint_write_writeEnable) {
         return;
-    }
-
-    // CLINT writes are MMIO — synchronise REF state.
-    if (sim_config.config_difftest) {
-        difftest_dut_skipRef();
     }
 
     if (sim_config.config_debugOutput) {

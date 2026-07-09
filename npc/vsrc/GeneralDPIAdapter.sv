@@ -137,8 +137,8 @@ module GeneralDPIAdapter (
     import "DPI-C" function void       dpi_onPosEdge_mem_nextStage_valid(input logic mem_nextStage_valid);
     import "DPI-C" function void       dpi_onPosEdge_wb_nextStage_valid(input logic wb_nextStage_valid);
 
-    import "DPI-C" function bit [31:0] dpi_clint_onReadEnable(input logic clint_read_readEnable);
-    import "DPI-C" function void       dpi_clint_onWriteEnable(input logic clint_write_writeEnable);
+    import "DPI-C" function bit [31:0] dpi_clint_onReadEnable(input logic [31:0] pc, input logic clint_read_readEnable);
+    import "DPI-C" function void       dpi_clint_onWriteEnable(input logic [31:0] pc, input logic clint_write_writeEnable);
 
     always_ff @( posedge halt ) begin : call_dpi_halt
         dpi_halt(halt);
@@ -182,9 +182,9 @@ module GeneralDPIAdapter (
     end
 
     always_ff @( posedge clint_read_readEnable ) begin : call_dpi_clint_onReadEnable
-        clint_readData <= dpi_clint_onReadEnable(clint_read_readEnable);
+        clint_readData <= dpi_clint_onReadEnable(memu_memPc, clint_read_readEnable);
     end
     always_ff @( posedge clint_write_writeEnable ) begin : call_dpi_clint_onWriteEnable
-        dpi_clint_onWriteEnable(clint_write_writeEnable);
+        dpi_clint_onWriteEnable(memu_memPc, clint_write_writeEnable);
     end
 endmodule

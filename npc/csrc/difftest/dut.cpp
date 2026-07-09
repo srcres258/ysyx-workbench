@@ -3,6 +3,7 @@
 #include <cassert>
 #include <print>
 #include <cstring>
+#include <deque>
 #include <fstream>
 #include <processor.hpp>
 #include <isa.hpp>
@@ -26,12 +27,14 @@ static ref_difftest_exec_f_t ref_difftest_exec = nullptr;
 static ref_difftest_raise_intr_f_t ref_difftest_raise_intr = nullptr;
 static ref_difftest_init_f_t ref_difftest_init = nullptr;
 
-static bool isSkipRef = false;
+static std::deque<addr_t> pendingSkipRefPcs;
 static int skipDutNrInst = 0;
 
-void difftest_dut_skipRef() {
-    isSkipRef = true;
+void difftest_dut_skipRef(addr_t pc) {
     skipDutNrInst = 0;
+    if (pendingSkipRefPcs.empty() || pendingSkipRefPcs.back() != pc) {
+        pendingSkipRefPcs.push_back(pc);
+    }
 }
 
 void difftest_dut_skipDut(int nr_ref, int nr_dut) {
@@ -124,12 +127,12 @@ void difftest_dut_step(addr_t pc, addr_t npc) {
         return;
     }
 
-    if (isSkipRef) {
+    if (!pendingSkipRefPcs.empty() && pendingSkipRefPcs.front() == pc) {
+        pendingSkipRefPcs.pop_front();
         // to skip the checking of an instruction,
         // just copy the reg state to reference design
         ProcessorState dutState = getProcessorState();
         ref_difftest_regcpy(&dutState, DIFFTEST_TO_REF);
-        isSkipRef = false;
         return;
     }
 
@@ -145,7 +148,7 @@ void difftest_dut_syncCurrentProcessorState() {
 }
 
 void difftest_dut_clearSkipRef() {
-    isSkipRef = false;
+    pendingSkipRefPcs.clear();
 }
 
 void difftest_dut_syncPayloadMemoryToRef() {
@@ -228,4 +231,3 @@ bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t load
                  binFilePath, fileSize, regionName, loadAddr);
     return true;
 }
-

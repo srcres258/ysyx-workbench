@@ -1,6 +1,5 @@
 #include <utils.hpp>
 #include <macro-def.hpp>
-#include <difftest/dut.hpp>
 #include <sim_top.hpp>
 #include <device/io/map.hpp>
 
@@ -25,9 +24,6 @@ int device_io_map_findMapIdByAddr(const IOMap *maps, int size, addr_t addr) {
 
     for (i = 0; i < size; i++) {
         if (maps[i].isInside(addr)) {
-            if (sim_config.config_difftest) {
-                difftest_dut_skipRef();
-            }
             return i;
         }
     }

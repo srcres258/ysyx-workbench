@@ -10,7 +10,7 @@
  * 调用此函数后，下次调用 difftest_dut_step 函数时将仅在 DUT 上执行指令，
  * 跳过 REF 上相同指令的执行。
  */
-void difftest_dut_skipRef();
+void difftest_dut_skipRef(addr_t pc);
 
 /**
  * @brief difftest dut: 校准 DUT 与 REF 上的指令执行情况。由于某些 REF
@@ -61,6 +61,7 @@ void difftest_dut_syncCurrentProcessorState();
  * @brief DiffTest dut: 清除待处理的 skipRef 标志。
  *
  * 在 difftest 激活边界处使用, 以确保激活后的第一条指令不会被误判为需要跳过。
+ * 同时清空所有等待退休的 MMIO skip 标记。
  */
 void difftest_dut_clearSkipRef();
 
