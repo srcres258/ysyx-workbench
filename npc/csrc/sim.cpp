@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <cmath>
 #include <csignal>
+#include <print>
 #include <utils.hpp>
 #include <sdb.hpp>
 #include <difftest/dut.hpp>
@@ -44,6 +45,7 @@ static void install_signal_handlers() {
 
 static uint64_t execCount = 0;
 static uint64_t execCountClockPeriod = 0;
+static bool s_difftestActive = false;
 
 /**
  * @brief 获取 DPI 模块, 以便读取被仿真模块的信号.
@@ -137,15 +139,13 @@ bool simExecOnce() {
         std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
 
     auto *dpi = getDPIModule();
+    // NOTE: dpi->core_pc is the NEXT PC (to-be-fetched), NOT the retired PC.
+    // The retired PC is simExecInfo.pc (set by dpi_onRetireTrace from WB stage).
+    // DiffTest compare is post-retire in traceAndDiffTest(), so NO pre-sync here.
     addr_t pc = dpi->core_pc;
     if (sim_config.config_debugOutput)
-        std::cout << "当前PC: 0x" << std::setfill('0') <<
+        std::cout << "当前PC(即将执行的指令位置): 0x" << std::setfill('0') <<
             std::setw(8) << std::hex << pc << std::endl;
-
-    // 若开启了 difftest, 执行前要先向 REF 同步处理器状态.
-    if (sim_config.config_difftest) {
-        difftest_dut_syncCurrentProcessorState();
-    }
 
     // 执行下一步
     simStep();
@@ -199,7 +199,18 @@ bool simExecOnce() {
  */
 static void traceAndDiffTest() {
     if (sim_config.config_difftest) {
-        difftest_dut_step(simExecInfo.pc, getDPIModule()->core_pc);
+        if (!s_difftestActive && simExecInfo.pc >= sim_config.config_difftestStartPC) {
+            s_difftestActive = true;
+            std::println("[difftest] 在 PC=0x{:08x} 处激活 DiffTest 比较 (startPC=0x{:08x})",
+                         simExecInfo.pc, sim_config.config_difftestStartPC);
+            difftest_dut_syncCurrentProcessorState();
+            difftest_dut_syncPayloadMemoryToRef();
+            difftest_dut_clearSkipRef();
+            return;
+        }
+        if (s_difftestActive) {
+            difftest_dut_step(simExecInfo.pc, getDPIModule()->core_pc);
+        }
     }
     sdb_evalAndUpdateWP();
 }
@@ -301,6 +312,17 @@ void simExec(uint64_t n) {
                 std::cout << "IPC = " << std::fixed << std::setprecision(4) << ipc << std::endl;
             }
     }
+
+    // 未达检测: difftest 已配置但 startPC 从未到达
+    if (sim_config.config_difftest && !s_difftestActive
+        && (sim_state.state == SIM_END || sim_state.state == SIM_STOP)) {
+        std::println(stderr,
+            "[difftest] 错误: DiffTest 已启用但从未激活! 配置的 startPC=0x{:08x} "
+            "在仿真过程中从未到达 (共执行 {} 条指令).",
+            sim_config.config_difftestStartPC, execCount);
+        std::println(stderr,
+            "[difftest] 请检查: (1) startPC 是否设置正确; (2) 程序是否确实会执行到该地址.");
+    }
 }
 
 /**
@@ -369,18 +391,6 @@ bool simulate(bool sdbEnabled) {
 #endif
     }
 
-    if (sim_config.config_debugOutput)
-        std::cout << "正在重置处理器..." << std::endl;
-    // ysyxSoC 中, CPU 核心电路部分会在上电后的第 10 个时钟周期时自动强行触发一个 reset 信号.
-    // 所以为保险起见, 这里对整体电路维持 reset 信号 15 个时钟周期,
-    // 以确保电路各部分正常 reset 完成之后再开始工作,
-    // 避免工作到中途遇到 reset 信号导致状态被重置.
-    simReset(15);
-
-#ifdef NPC_STANDALONE
-    vga_init();
-#endif
-
     if (sim_config.config_device) {
         if (sim_config.config_debugOutput)
             std::cout << "正在加载外部设备..." << std::endl;
@@ -394,11 +404,98 @@ bool simulate(bool sdbEnabled) {
     if (sim_config.config_difftest) {
         if (sim_config.config_debugOutput)
             std::cout << "正在加载 DiffTest..." << std::endl;
+        std::cout << "[sim] DiffTest 起始模式: " << sim_config.config_difftestStartMode
+                  << ", 起始 PC: 0x" << std::hex << sim_config.config_difftestStartPC
+                  << ", 内存模式: " << sim_config.config_difftestMemMode
+                  << std::dec << std::endl;
+        if (sim_config.config_difftestStartMode == "payload") {
+            std::cout << "[sim] Payload BIN: " << sim_config.config_difftestPayloadBinFilePath
+                      << ", 加载地址: 0x" << std::hex
+                      << sim_config.config_difftestPayloadLoadAddr
+                      << std::dec << std::endl;
+        }
         difftest_dut_init(
             sim_config.config_difftestSoFilePath.c_str(),
             sim_config.config_difftestPort
         );
+
+        // Payload 预加载: 将配置的 payload 二进制加载到后备存储
+        // Verilog PSRAM/SDRAM 行为模型不通过 DPI 更新 C++ 缓冲, 所以必须在
+        // activation 同步之前显式加载, 否则 syncPayloadMemoryToRef()
+        // 会把空数据复制到 REF 导致 INVALID OPCODE.
+        if (!sim_config.config_difftestPayloadBinFilePath.empty()) {
+            std::println("[sim] 正在将 Payload 二进制加载到后备存储...");
+            if (!difftest_dut_loadPayloadToBackingStore(
+                    sim_config.config_difftestPayloadBinFilePath.c_str(),
+                    sim_config.config_difftestPayloadLoadAddr)) {
+                std::println(stderr, "[sim] 致命: Payload 加载失败, 退出!");
+                success = false;
+                goto sim_cleanup;
+            }
+
+            // 如果 startPC 所在的执行区域与 loadAddr 不在同一内存区域,
+            // 也需要填充执行区域的后备存储.
+            // 例如: loadAddr→SDRAM 但 startPC→PSRAM 的情况,
+            // bootloader 在 reset 后会把代码从 FLASH 复制到 PSRAM 执行,
+            // 但 Verilog PSRAM 模型不会更新 C++ 缓冲.
+            // 不填充执行区域就会导致 REF 在 activation 时收到空的 PSRAM 数据.
+            {
+                addr_t execRegionBase = 0;
+                if (sim_config.config_difftestStartPC >= PSRAM_ADDR &&
+                    sim_config.config_difftestStartPC < PSRAM_ADDR + PSRAM_LEN) {
+                    execRegionBase = PSRAM_ADDR;
+                } else if (sim_config.config_difftestStartPC >= SDRAM_ADDR &&
+                           sim_config.config_difftestStartPC < SDRAM_ADDR + SDRAM_LEN) {
+                    execRegionBase = SDRAM_ADDR;
+                }
+                // 计算 loadAddr 所在内存区域的基址, 用于与执行区域比较.
+                // 当 loadAddr 位于 PSRAM 或 SDRAM 范围内时, 其区域基址为对应设备的基址;
+                // 否则 loadRegionBase 保持 0, 此时也会触发执行区域加载 (兼容非标地址).
+                addr_t loadRegionBase = 0;
+                if (sim_config.config_difftestPayloadLoadAddr >= PSRAM_ADDR &&
+                    sim_config.config_difftestPayloadLoadAddr < PSRAM_ADDR + PSRAM_LEN) {
+                    loadRegionBase = PSRAM_ADDR;
+                } else if (sim_config.config_difftestPayloadLoadAddr >= SDRAM_ADDR &&
+                           sim_config.config_difftestPayloadLoadAddr < SDRAM_ADDR + SDRAM_LEN) {
+                    loadRegionBase = SDRAM_ADDR;
+                }
+                if (execRegionBase != 0 && execRegionBase != loadRegionBase) {
+                    std::println("[sim] startPC=0x{:08x} 所在执行区域与 loadAddr=0x{:08x} 不同, "
+                                 "同步加载 Payload 到执行区域基址 0x{:08x}...",
+                                 sim_config.config_difftestStartPC,
+                                 sim_config.config_difftestPayloadLoadAddr,
+                                 execRegionBase);
+                    if (!difftest_dut_loadPayloadToBackingStore(
+                            sim_config.config_difftestPayloadBinFilePath.c_str(),
+                            execRegionBase)) {
+                        std::println(stderr, "[sim] 致命: 执行区域 Payload 加载失败, 退出!");
+                        success = false;
+                        goto sim_cleanup;
+                    }
+                }
+            }
+        } else {
+            if (sim_config.config_difftestStartPC >= PSRAM_ADDR ||
+                sim_config.config_difftestStartPC >= SDRAM_ADDR) {
+                std::println(stderr,
+                    "[sim] 警告: startPC=0x{:08x} 在 PSRAM/SDRAM 内但未指定 Payload BIN 文件. "
+                    "Activation 时内存同步会将空数据发到 REF, 可能导致 INVALID OPCODE 崩溃.",
+                    sim_config.config_difftestStartPC);
+            }
+        }
     }
+
+    if (sim_config.config_debugOutput)
+        std::cout << "正在重置处理器..." << std::endl;
+    // ysyxSoC 中, CPU 核心电路部分会在上电后的第 10 个时钟周期时自动强行触发一个 reset 信号.
+    // 所以为保险起见, 这里对整体电路维持 reset 信号 15 个时钟周期,
+    // 以确保电路各部分正常 reset 完成之后再开始工作,
+    // 避免工作到中途遇到 reset 信号导致状态被重置.
+    simReset(15);
+
+#ifdef NPC_STANDALONE
+    vga_init();
+#endif
 
     if (sim_config.config_debugOutput)
         std::cout << "正在启动仿真..." << std::endl;

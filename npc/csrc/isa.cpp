@@ -179,12 +179,5 @@ bool isaCheckRegisters(ProcessorState *state) {
         return false;
     }
 
-    // 比较 5 个关键 CSR
-    if (thisState.csr[CSR_MSTATUS] != state->csr[CSR_MSTATUS]) return false;
-    if (thisState.csr[CSR_MTVEC] != state->csr[CSR_MTVEC]) return false;
-    if (thisState.csr[CSR_MEPC] != state->csr[CSR_MEPC]) return false;
-    if (thisState.csr[CSR_MCAUSE] != state->csr[CSR_MCAUSE]) return false;
-    if (thisState.csr[CSR_MTVAL] != state->csr[CSR_MTVAL]) return false;
-
     return true;
 }

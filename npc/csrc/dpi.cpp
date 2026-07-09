@@ -12,6 +12,7 @@
 #include <device/flash.hpp>
 #include <device/psram.hpp>
 #include <macro-def.hpp>
+#include <difftest/dut.hpp>
 
 static auto *dpi() {
     return getDPIModule();
@@ -129,6 +130,29 @@ static inline uint8_t dpiLogicVecToU8(const svLogicVecVal *value, uint8_t mask) 
     return static_cast<uint8_t>(value[0].aval & mask);
 }
 
+
+/**
+ * @brief Check if a physical address belongs to a SoC peripheral (MMIO) region.
+ *
+ * Returns true if the address is NOT in any of the 5 REF-backed memory regions
+ * (SRAM, MROM, FLASH, PSRAM, SDRAM).  Such accesses cannot be independently
+ * executed by the NEMU REF and must trigger difftest_dut_skipRef().
+ */
+static bool isMMIOAccess(addr_t addr) {
+    // SRAM
+    if (addr >= SRAM_ADDR && addr < SRAM_ADDR + SRAM_LEN) return false;
+    // MROM
+    if (addr >= MROM_ADDR && addr < MROM_ADDR + MROM_LEN) return false;
+    // FLASH
+    if (addr >= FLASH_ADDR && addr < FLASH_ADDR + FLASH_LEN) return false;
+    // PSRAM
+    if (addr >= PSRAM_ADDR && addr < PSRAM_ADDR + PSRAM_LEN) return false;
+    // SDRAM
+    if (addr >= SDRAM_ADDR && addr < SDRAM_ADDR + SDRAM_LEN) return false;
+    // Everything else (UART, SPI, CLINT, GPIO, VGA, keyboard, etc.) is MMIO
+    return true;
+}
+
 extern "C" void dpi_onMemAccess(
     const svLogicVecVal *pc, svLogic memWriteEnable, svLogic memReadEnable,
     const svLogicVecVal *memAddr, const svLogicVecVal *memData,
@@ -137,6 +161,14 @@ extern "C" void dpi_onMemAccess(
 ) {
     if (memWriteEnable != sv_1 && memReadEnable != sv_1) {
         return;
+    }
+
+    const addr_t memAddrVal = dpiLogicVecToAddr(memAddr);
+
+    // MMIO access: the NEMU REF cannot independently model peripheral devices.
+    // Trigger skipRef so the REF synchronises with DUT instead of re-executing.
+    if (sim_config.config_difftest && isMMIOAccess(memAddrVal)) {
+        difftest_dut_skipRef();
     }
 
     const bool isWrite = memWriteEnable == sv_1;
@@ -239,6 +271,12 @@ extern "C" word_t dpi_clint_onReadEnable(bool _clint_read_readEnable) {
         return 0;
     }
 
+    // CLINT accesses are MMIO — the REF cannot model the timer.
+    // Skip the REF for this instruction so it doesn't diverge on timer values.
+    if (sim_config.config_difftest) {
+        difftest_dut_skipRef();
+    }
+
     if (sim_config.config_debugOutput) {
         std::cout << "[sim] read from CLINT..." << std::endl;
     }
@@ -258,6 +296,11 @@ extern "C" void dpi_clint_onWriteEnable(bool _clint_write_writeEnable) {
     bool clint_write_writeEnable = dpi()->clint_write_writeEnable;
     if (!clint_write_writeEnable) {
         return;
+    }
+
+    // CLINT writes are MMIO — synchronise REF state.
+    if (sim_config.config_difftest) {
+        difftest_dut_skipRef();
     }
 
     if (sim_config.config_debugOutput) {

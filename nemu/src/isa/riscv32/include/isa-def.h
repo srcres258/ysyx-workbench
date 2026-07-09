@@ -17,14 +17,24 @@
 #define __ISA_RISCV_H__
 
 #include <common.h>
+#include <stddef.h>
 
-typedef struct {
+typedef struct CPU_State {
   word_t gpr[MUXDEF(CONFIG_RVE, 16, 32)];
   vaddr_t pc;
 
   // RISC-V 中的 CSR 编号: 0x000 - 0xFFF, 共 4096 个
   word_t csr[4096];
 } MUXDEF(CONFIG_RV64, riscv64_CPU_state, riscv32_CPU_state);
+
+_Static_assert(sizeof(struct CPU_State) == sizeof(word_t) * MUXDEF(CONFIG_RVE, 16, 32) + sizeof(vaddr_t) + sizeof(word_t) * 4096,
+               "CPU_State size mismatch: DiffTest ABI broken");
+_Static_assert(offsetof(struct CPU_State, gpr) == 0,
+               "CPU_State gpr offset mismatch: DiffTest ABI broken");
+_Static_assert(offsetof(struct CPU_State, pc) == sizeof(word_t) * MUXDEF(CONFIG_RVE, 16, 32),
+               "CPU_State pc offset mismatch: DiffTest ABI broken");
+_Static_assert(offsetof(struct CPU_State, csr) == sizeof(word_t) * MUXDEF(CONFIG_RVE, 16, 32) + sizeof(vaddr_t),
+               "CPU_State csr offset mismatch: DiffTest ABI broken");
 
 // decode
 typedef struct {

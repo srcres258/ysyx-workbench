@@ -161,12 +161,79 @@ static void loadConfig() {
             sim_config.config_difftestSoFilePath << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_DIFFTEST_START_MODE");
+    if (env) {
+        std::string mode(env);
+        if (mode != "reset" && mode != "payload") {
+            std::cerr << "[config] 无效的 DiffTest 起始模式: " << mode
+                      << " (必须为 reset 或 payload)" << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+        sim_config.config_difftestStartMode = std::move(mode);
+    }
+    std::cout << "[config] DiffTest 起始模式: "
+              << sim_config.config_difftestStartMode << std::endl;
+
+    env = std::getenv("NPC_CONFIG_DIFFTEST_START_PC");
+    try {
+        sim_config.config_difftestStartPC = env
+            ? static_cast<addr_t>(std::stoul(std::string(env), nullptr, 0))
+            : DEFAULT_DIFFTEST_START_PC;
+        std::cout << "[config] DiffTest 起始 PC: 0x" << std::hex
+                  << sim_config.config_difftestStartPC << std::dec << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "[config] DiffTest 起始 PC 解析失败: " << e.what() << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    env = std::getenv("NPC_CONFIG_DIFFTEST_PAYLOAD_BIN_FILE_PATH");
+    if (env) {
+        sim_config.config_difftestPayloadBinFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] DiffTest Payload BIN 文件路径已指定为: "
+                  << sim_config.config_difftestPayloadBinFilePath << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_DIFFTEST_PAYLOAD_LOAD_ADDR");
+    try {
+        sim_config.config_difftestPayloadLoadAddr = env
+            ? static_cast<addr_t>(std::stoul(std::string(env), nullptr, 0))
+            : DEFAULT_DIFFTEST_PAYLOAD_LOAD_ADDR;
+        std::cout << "[config] DiffTest Payload 加载地址: 0x" << std::hex
+                  << sim_config.config_difftestPayloadLoadAddr << std::dec << std::endl;
+    } catch (const std::exception &e) {
+        std::cerr << "[config] DiffTest Payload 加载地址解析失败: " << e.what() << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+
+    env = std::getenv("NPC_CONFIG_DIFFTEST_MEM_MODE");
+    if (env) {
+        std::string mode(env);
+        if (mode != "auto" && mode != "psram" && mode != "sdram") {
+            std::cerr << "[config] 无效的 DiffTest 内存模式: " << mode
+                      << " (必须为 auto, psram 或 sdram)" << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+        sim_config.config_difftestMemMode = std::move(mode);
+    }
+    std::cout << "[config] DiffTest 内存模式: "
+              << sim_config.config_difftestMemMode << std::endl;
+
     env = std::getenv("NPC_CONFIG_WAVE_FILE_PATH");
     if (env) {
         sim_config.config_waveFilePath =
             std::move(std::string(env));
         std::cout << "[config] 波形文件输出路径已指定为: " <<
             sim_config.config_waveFilePath << std::endl;
+    }
+
+    // 跨字段验证: payload 模式下必须指定 payload 二进制文件路径
+    if (sim_config.config_difftest
+        && sim_config.config_difftestStartMode == "payload"
+        && sim_config.config_difftestPayloadBinFilePath.empty()) {
+        std::cerr << "[config] payload 模式已启用，但未指定 NPC_CONFIG_DIFFTEST_PAYLOAD_BIN_FILE_PATH 环境变量!"
+                  << std::endl;
+        std::exit(EXIT_FAILURE);
     }
 }
 

@@ -57,4 +57,34 @@ void difftest_dut_step(addr_t pc, addr_t npc);
  */
 void difftest_dut_syncCurrentProcessorState();
 
+/**
+ * @brief DiffTest dut: 清除待处理的 skipRef 标志。
+ *
+ * 在 difftest 激活边界处使用, 以确保激活后的第一条指令不会被误判为需要跳过。
+ */
+void difftest_dut_clearSkipRef();
+
+/**
+ * @brief DiffTest dut: 将 DUT 的 PSRAM/SDRAM 内存内容同步到 REF。
+ *
+ * 在 difftest 激活边界处使用, 以确保 REF 在开始比较前具有与 DUT 相同的
+ * 内存内容（bootloader 可能已将 payload 加载到这些区域中）。
+ */
+void difftest_dut_syncPayloadMemoryToRef();
+
+
+/**
+ * @brief 将 payload 二进制文件加载到 DUT 的 C++ 后备存储 (psram_io_base 或 sdram_io_base).
+ *
+ * Verilog PSRAM/SDRAM 行为模型不会通过 DPI 回调更新 C++ 侧的缓冲,
+ * 因此必须在 difftest activation 同步之前将 payload 显式加载到该缓冲中,
+ * 才能使 syncPayloadMemoryToRef() 将正确数据复制到 REF.
+ *
+ * @param binFilePath  Payload 二进制文件的路径; 为空时直接返回 true.
+ * @param loadAddr     Payload 在内存中的加载起始地址 (PSRAM: 0x80000000 或 SDRAM: 0xa0000000).
+ * @return true  加载成功.
+ * @return false 加载失败 (文件不存在, 过大, 或地址无效).
+ */
+bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t loadAddr);
+
 #endif /* __DIFFTEST__DUT_HPP__ */

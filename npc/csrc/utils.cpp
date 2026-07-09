@@ -24,6 +24,15 @@ SimConfig sim_config = {
 
     .config_difftestPort = DEFAULT_DIFFTEST_PORT,
 
+    .config_difftestStartMode =
+        std::move(std::string(DEFAULT_DIFFTEST_START_MODE)),
+    .config_difftestStartPC = DEFAULT_DIFFTEST_START_PC,
+    .config_difftestPayloadBinFilePath =
+        std::move(std::string(DEFAULT_DIFFTEST_PAYLOAD_BIN_FILE_PATH)),
+    .config_difftestPayloadLoadAddr = DEFAULT_DIFFTEST_PAYLOAD_LOAD_ADDR,
+    .config_difftestMemMode =
+        std::move(std::string(DEFAULT_DIFFTEST_MEM_MODE)),
+
     .config_itraceOutFilePath =
         std::move(std::string(DEFAULT_ITRACE_OUT_FILE_PATH)),
     .config_mtraceOutFilePath =

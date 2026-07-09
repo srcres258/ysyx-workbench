@@ -11,6 +11,7 @@
 #include <device/mrom.hpp>
 #include <device/flash.hpp>
 #include <device/psram.hpp>
+#include <device/sdram.hpp>
 
 void device_update() {
 #ifndef NPC_STANDALONE
@@ -28,6 +29,8 @@ bool device_init() {
     if (!device_flash_init())
         return false;
     if (!device_psram_init())
+        return false;
+    if (!device_sdram_init())
         return false;
 
     return true;

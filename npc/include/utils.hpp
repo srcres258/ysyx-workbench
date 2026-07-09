@@ -7,6 +7,8 @@
 #include <string>
 #include <vector>
 #include <stack>
+#include <common.hpp>
+#include <macro-def.hpp>
 #include <utils/RingBuffer.hpp>
 #include <utils/Symbol.hpp>
 #include <utils/CallFrameInfo.hpp>
@@ -20,6 +22,11 @@ enum SimStateEnum { SIM_RUNNING, SIM_STOP, SIM_END, SIM_ABORT, SIM_QUIT };
 #define ITRACE_IRINGBUF_SIZE 1024
 
 #define DEFAULT_DIFFTEST_PORT 12345
+#define DEFAULT_DIFFTEST_START_MODE "reset"
+#define DEFAULT_DIFFTEST_START_PC 0
+#define DEFAULT_DIFFTEST_PAYLOAD_BIN_FILE_PATH ""
+#define DEFAULT_DIFFTEST_PAYLOAD_LOAD_ADDR PSRAM_ADDR
+#define DEFAULT_DIFFTEST_MEM_MODE "auto"
 #define DEFAULT_ITRACE_OUT_FILE_PATH "build/itrace.log"
 #define DEFAULT_MTRACE_OUT_FILE_PATH "build/mtrace.log"
 #define DEFAULT_FTRACE_OUT_FILE_PATH "build/ftrace.log"
@@ -45,6 +52,12 @@ struct SimConfig {
     bool config_mrom;
 
     int config_difftestPort;
+
+    std::string config_difftestStartMode;
+    addr_t      config_difftestStartPC;
+    std::string config_difftestPayloadBinFilePath;
+    addr_t      config_difftestPayloadLoadAddr;
+    std::string config_difftestMemMode;
 
     std::string config_itraceOutFilePath;
     std::string config_mtraceOutFilePath;

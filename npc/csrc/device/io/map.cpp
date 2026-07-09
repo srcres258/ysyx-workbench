@@ -4,8 +4,8 @@
 #include <sim_top.hpp>
 #include <device/io/map.hpp>
 
-// IO space size: 32 MB
-#define IO_SPACE_MAX (32 * 1024 * 1024)
+// IO space size: 64 MB (PSRAM 4MB + FLASH 16MB + SDRAM 32MB + MROM 4KB ≈ 52MB)
+#define IO_SPACE_MAX (64 * 1024 * 1024)
 
 static uint8_t *ioSpace = nullptr;
 static uint8_t *pSpace = nullptr;

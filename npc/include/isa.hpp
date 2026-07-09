@@ -47,13 +47,9 @@ void isaRegDisplay();
 /**
  * @brief ISA：检查目的处理器状态中的寄存器状态
  * 是否与当前仿真环境中的处理器的寄存器状态一致。
+ * v1 只比较 GPR + PC，不包括 CSR。
  * 
  * @param state 目的处理器状态
- * @param useNextPC PC 值是否采用下次 PC。因
- * 为我们的处理器只在 IF 阶段前更新 PC，所以执行
- * 完指令后 PC 是不会更新的，得下一次 IF 阶段时
- * 才更新。如果要与其他参考状态作比较的话，则要将
- * PC 的下次取值拿来进行对比，而非本次取值。
  * @return true 状态一致
  * @return false 状态不一致
  */

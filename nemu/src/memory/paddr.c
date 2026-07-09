@@ -19,14 +19,80 @@
 #include <isa.h>
 #include <utils.h>
 
-#if   defined(CONFIG_PMEM_MALLOC)
-static uint8_t *pmem = NULL;
-#else // CONFIG_PMEM_GARRAY
-static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
-#endif
+/* --------------------------------------------------------------------------
+ * Multi-region physical memory for ysyxSoC difftest REF builds.
+ * Replaces the single-pmem model with explicit routing through a static
+ * region table.  Each entry owns its own malloc'd backing store.
+ *
+ * Region addresses and sizes are fixed by the ysyxSoCFull memory map:
+ *   SRAM   0x0f000000   8 KB
+ *   MROM   0x20000000   4 KB
+ *   FLASH  0x30000000  16 MB
+ *   PSRAM  0x80000000   4 MB
+ *   SDRAM  0xa0000000  32 MB
+ * -------------------------------------------------------------------------- */
 
-uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
-paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
+typedef struct {
+  paddr_t  base;
+  size_t   size;
+  uint8_t *buf;
+} MemRegion;
+
+static MemRegion regions[] = {
+  { 0x0f000000, 0x2000,     NULL },  /* SRAM */
+  { 0x20000000, 0x1000,     NULL },  /* MROM */
+  { 0x30000000, 0x1000000,  NULL },  /* FLASH */
+  { 0x80000000, 0x400000,   NULL },  /* PSRAM */
+  { 0xa0000000, 0x2000000,  NULL },  /* SDRAM */
+};
+
+#define NR_REGIONS (sizeof(regions) / sizeof(regions[0]))
+
+static MemRegion *find_region(paddr_t paddr) {
+  size_t i;
+  for (i = 0; i < NR_REGIONS; i++) {
+    if (paddr >= regions[i].base && paddr < regions[i].base + regions[i].size) {
+      return &regions[i];
+    }
+  }
+  return NULL;
+}
+
+static MemRegion *find_region_by_host(uint8_t *haddr) {
+  size_t i;
+  for (i = 0; i < NR_REGIONS; i++) {
+    if (haddr >= regions[i].buf && haddr < regions[i].buf + regions[i].size) {
+      return &regions[i];
+    }
+  }
+  return NULL;
+}
+
+/* --- public wrappers --- */
+
+bool in_pmem(paddr_t addr) {
+  return find_region(addr) != NULL;
+}
+
+uint8_t* guest_to_host(paddr_t paddr) {
+  MemRegion *r = find_region(paddr);
+  if (r == NULL) {
+    panic("address " FMT_PADDR " is not in any memory region", paddr);
+    return NULL;
+  }
+  return r->buf + (paddr - r->base);
+}
+
+paddr_t host_to_guest(uint8_t *haddr) {
+  MemRegion *r = find_region_by_host(haddr);
+  if (r == NULL) {
+    panic("host address %p is not in any memory region", (void *)haddr);
+    return 0;
+  }
+  return r->base + (haddr - r->buf);
+}
+
+/* --- internal helpers --- */
 
 static word_t pmem_read(paddr_t addr, int len) {
   word_t ret = host_read(guest_to_host(addr), len);
@@ -41,17 +107,25 @@ static void out_of_bound(paddr_t addr) {
 #ifdef CONFIG_ITRACE
   nemu_iringbuf_dump();
 #endif
-  panic("address = " FMT_PADDR " is out of bound of pmem [" FMT_PADDR ", " FMT_PADDR "] at pc = " FMT_WORD,
-      addr, PMEM_LEFT, PMEM_RIGHT, cpu.pc);
+  panic("address " FMT_PADDR " is out of bound of every memory region at pc = " FMT_WORD,
+      addr, cpu.pc);
 }
 
 void init_mem() {
-#if   defined(CONFIG_PMEM_MALLOC)
-  pmem = malloc(CONFIG_MSIZE);
-  assert(pmem);
-#endif
-  IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
-  Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
+  size_t i;
+  for (i = 0; i < NR_REGIONS; i++) {
+    regions[i].buf = malloc(regions[i].size);
+    assert(regions[i].buf);
+  }
+  IFDEF(CONFIG_MEM_RANDOM,
+    for (i = 0; i < NR_REGIONS; i++) memset(regions[i].buf, rand(), regions[i].size);
+  );
+  Log("Initialized %zu ysyxSoC memory regions", NR_REGIONS);
+  Log("  SRAM  [0x0f000000, 0x0f001fff] 8KB");
+  Log("  MROM  [0x20000000, 0x20000fff] 4KB");
+  Log("  FLASH [0x30000000, 0x30ffffff] 16MB");
+  Log("  PSRAM [0x80000000, 0x803fffff] 4MB");
+  Log("  SDRAM [0xa0000000, 0xa1ffffff] 32MB");
 }
 
 #ifdef CONFIG_MTRACE
