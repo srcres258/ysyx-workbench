@@ -19,3 +19,4 @@
 !flake.nix
 !flake.lock
 !/rt-thread
+!/npc-frontend
