@@ -1,6 +1,7 @@
 #ifndef __SIM_TOP_HPP__
 #define __SIM_TOP_HPP__ 1
 
+#include <cstdint>
 #include <verilated.h>
 #include <common.hpp>
 
@@ -26,6 +27,11 @@ extern VerilatedContext *verContext;
 extern volatile bool sim_halt;
 
 #define DEFAULT_BIN_PATH "build/program.bin"
+
+// ---- Performance counter accessors (for snapshot / TUI seam) ----
+uint64_t getExecCount();
+uint64_t getExecCountClockPeriod();
+bool isDifftestActive();
 
 void simStepClockPeriod();
 void simStep();

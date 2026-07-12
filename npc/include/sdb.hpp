@@ -61,4 +61,39 @@ void sdb_init();
  */
 void sdb_mainLoop();
 
+// ── TUI-overlay string‑returning command execution ──
+
+/**
+ * @brief Execute "info r" and return register dump as a string.
+ */
+std::string sdb_cmdInfoRegs();
+
+/**
+ * @brief Execute "info w" and return watchpoint list as a string.
+ */
+std::string sdb_cmdInfoWatchpoints();
+
+/**
+ * @brief Execute "x N EXPR" and return memory dump as a string.
+ *
+ * @param n     Number of 4‑byte words to display.
+ * @param expr  Expression string that evaluates to a start address.
+ */
+std::string sdb_cmdX(int n, const char *expr);
+
+/**
+ * @brief Execute "p EXPR" and return the evaluation result as a string.
+ */
+std::string sdb_cmdP(const char *expr);
+
+/**
+ * @brief Execute "w EXPR" and return watchpoint‑creation result as a string.
+ */
+std::string sdb_cmdW(const char *expr);
+
+/**
+ * @brief Execute "d N" and return watchpoint‑deletion result as a string.
+ */
+std::string sdb_cmdD(int no);
+
 #endif /* __SDB_HPP__ */

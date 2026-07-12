@@ -5,11 +5,14 @@
 #include <regex>
 #include <memory>
 #include <iomanip>
+#include <sstream>
+#include <cstdio>
 #include <isa.hpp>
 #include <sim_top.hpp>
 #include <utils.hpp>
 #include <device/io/mmio.hpp>
 #include <sdb.hpp>
+#include <tui/tui_events.hpp>
 
 #define NR_WP 32
 
@@ -878,6 +881,9 @@ void sdb_evalAndUpdateWP() {
                 cur->expr << std::endl;
             std::cout << "Old value: " << std::dec << cur->val <<
                 ", new value: " << val << std::endl;
+            tui::g_eventFeed.push(getExecCount(), tui::EventType::WATCHPOINT,
+                                  simExecInfo.pc, static_cast<word_t>(cur->no),
+                                  cur->expr);
         }
         cur->val = val;
         cur->evaluated = true;
@@ -926,4 +932,123 @@ void sdb_mainLoop() {
             std::cout << "Unknown command: " << cmd << std::endl;
         }
     }
+}
+
+// ── TUI‑overlay string‑returning command execution ──
+
+std::string sdb_cmdInfoRegs() {
+    std::ostringstream oss;
+    auto *oldBuf = std::cout.rdbuf(oss.rdbuf());
+    isaRegDisplay();
+    std::cout.rdbuf(oldBuf);
+    return oss.str();
+}
+
+std::string sdb_cmdInfoWatchpoints() {
+    std::ostringstream oss;
+    oss << "Watchpoints:" << std::endl;
+    WatchPoint *cur = wpHead;
+    if (cur) {
+        while (cur) {
+            oss << "Watchpoint " << cur->no << ": " << cur->expr << std::endl;
+            oss << "Value: " << cur->val
+                << ", Evaluated: " << (cur->evaluated ? "true" : "false") << std::endl;
+            cur = cur->next;
+        }
+    } else {
+        oss << "No watchpoint at present." << std::endl;
+    }
+    return oss.str();
+}
+
+std::string sdb_cmdX(int n, const char *exprStr) {
+    std::ostringstream oss;
+    if (!exprStr || n <= 0) {
+        oss << "Error: invalid arguments for 'x' command." << std::endl;
+        return oss.str();
+    }
+
+    bool success = false;
+    word_t addr = static_cast<word_t>(sdb_expr(exprStr, &success));
+    if (!success) {
+        oss << "Error: failed to evaluate expression \"" << exprStr << "\"" << std::endl;
+        return oss.str();
+    }
+
+    char buf[64];
+    std::snprintf(buf, sizeof(buf), "Memory scan: addr=0x%08x, N=%d", addr, n);
+    oss << buf << std::endl;
+
+    for (int i = 0; i < n; i++) {
+        addr_t cur = static_cast<addr_t>(addr) + static_cast<addr_t>(i * 4);
+        if (device_io_mmio_isAddrValid(cur)) {
+            uint32_t val = device_io_mmio_read(cur, sizeof(uint32_t));
+            std::snprintf(buf, sizeof(buf), "0x%08X: %08X", cur, val);
+        } else {
+            std::snprintf(buf, sizeof(buf), "0x%08X: N/A", cur);
+        }
+        oss << buf << std::endl;
+    }
+    return oss.str();
+}
+
+std::string sdb_cmdP(const char *exprStr) {
+    std::ostringstream oss;
+    if (!exprStr) {
+        oss << "Error: no expression provided." << std::endl;
+        return oss.str();
+    }
+
+    bool success = false;
+    int64_t val = sdb_expr(exprStr, &success);
+    if (success) {
+        uint64_t uVal = static_cast<uint64_t>(val);
+        oss << std::dec << val << " (0x"
+            << std::setfill('0') << std::setw(16) << std::hex << uVal
+            << std::dec << ")";
+    } else {
+        oss << "Evaluation failed — check your expression.";
+    }
+    return oss.str();
+}
+
+std::string sdb_cmdW(const char *exprStr) {
+    std::ostringstream oss;
+    if (!exprStr) {
+        oss << "Please provide an expression to watch." << std::endl;
+        return oss.str();
+    }
+
+    WatchPoint *wp = sdb_newWP();
+    if (!wp) {
+        oss << "Error: no free watchpoint slots." << std::endl;
+        return oss.str();
+    }
+
+    std::snprintf(wp->expr, sizeof(wp->expr), "%s", exprStr);
+
+    bool success = false;
+    int64_t val = sdb_expr(wp->expr, &success);
+    if (success) {
+        wp->val = val;
+        wp->evaluated = true;
+        oss << "Watchpoint " << wp->no << " set: " << wp->expr
+            << " (initial value: " << wp->val << ")";
+    } else {
+        oss << "Watchpoint " << wp->no << " set: " << wp->expr
+            << " (expression cannot be evaluated yet)";
+    }
+    return oss.str();
+}
+
+std::string sdb_cmdD(int no) {
+    std::ostringstream oss;
+    WatchPoint *wp = sdb_findWP(no);
+    if (wp) {
+        sdb_freeWP(wp);
+        oss << "Watchpoint " << no << " deleted.";
+    } else {
+        oss << "Watchpoint " << no << " not found.";
+    }
+    return oss.str();
 }

@@ -13,6 +13,7 @@
 #include <device/psram.hpp>
 #include <macro-def.hpp>
 #include <difftest/dut.hpp>
+#include <tui/tui_events.hpp>
 
 static auto *dpi() {
     return getDPIModule();
@@ -24,6 +25,9 @@ extern "C" void dpi_halt(bool halt) {
     if (sim_halt) {
         if (sim_config.config_debugOutput)
             std::cout << "[sim] 仿真环境置仿真终止信号，处理器下一次执行前将结束仿真！" << std::endl;
+        tui::g_eventFeed.push(getExecCount(), tui::EventType::HALT,
+                              simExecInfo.pc, 0,
+                              "DPI halt asserted");
     }
 }
 

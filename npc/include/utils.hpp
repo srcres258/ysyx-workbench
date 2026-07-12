@@ -37,6 +37,7 @@ enum SimStateEnum { SIM_RUNNING, SIM_STOP, SIM_END, SIM_ABORT, SIM_QUIT };
 #define DEFAULT_MROM_BIN_FILE_PATH "build/mrom.bin"
 #define DEFAULT_DIFFTEST_SO_FILE_PATH "build/riscv32-nemu-interpreter-so"
 #define DEFAULT_WAVE_FILE_PATH "build/sim.fst"
+#define DEFAULT_TUI_CONFIG_FILE_PATH "build/npc-tui.toml"
 
 struct SimConfig {
     bool config_itrace;
@@ -50,6 +51,14 @@ struct SimConfig {
     bool config_debugOutput;
     bool config_nvboard;
     bool config_mrom;
+
+    bool config_tui;
+    std::string config_tuiConfigFilePath;
+    bool config_tuiGenerateConfig;
+    bool config_tuiGenerateFullConfig;
+    bool config_tuiForceOverwriteConfig;
+    bool config_tuiPrintConfigSchema;
+    bool config_tuiPrintDefaultConfig;
 
     int config_difftestPort;
 

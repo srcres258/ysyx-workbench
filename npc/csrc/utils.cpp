@@ -22,6 +22,15 @@ SimConfig sim_config = {
     .config_debugOutput = false,
     .config_mrom = false,
 
+    .config_tui = false,
+    .config_tuiConfigFilePath =
+        std::move(std::string(DEFAULT_TUI_CONFIG_FILE_PATH)),
+    .config_tuiGenerateConfig = false,
+    .config_tuiGenerateFullConfig = false,
+    .config_tuiForceOverwriteConfig = false,
+    .config_tuiPrintConfigSchema = false,
+    .config_tuiPrintDefaultConfig = false,
+
     .config_difftestPort = DEFAULT_DIFFTEST_PORT,
 
     .config_difftestStartMode =
@@ -302,7 +311,7 @@ void disasm_disassemble(
     assert(count == 1);
     int ret = snprintf(str, size, "%s", insn->mnemonic);
     if (insn->op_str[0] != '\0') {
-        snprintf(str + ret, size - ret, "\t%s", insn->op_str);
+        snprintf(str + ret, size - ret, " %s", insn->op_str);
     }
     cs_free_dl(insn, count);
 }

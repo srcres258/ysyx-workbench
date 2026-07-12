@@ -3,6 +3,7 @@
 #include <cstring>
 #include <sim_top.hpp>
 #include <utils.hpp>
+#include <tui/tui_config.hpp>
 
 VerilatedContext *verContext = nullptr;
 
@@ -227,6 +228,51 @@ static void loadConfig() {
             sim_config.config_waveFilePath << std::endl;
     }
 
+    // ---- TUI 配置 ----
+    env = std::getenv("NPC_CONFIG_TUI");
+    sim_config.config_tui = env && strcmp(env, "on") == 0;
+    if (sim_config.config_tui) {
+        std::cout << "[config] TUI 已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_TUI_CONFIG_FILE_PATH");
+    if (env) {
+        sim_config.config_tuiConfigFilePath =
+            std::move(std::string(env));
+    }
+    std::cout << "[config] TUI 配置文件路径: "
+              << sim_config.config_tuiConfigFilePath << std::endl;
+
+    env = std::getenv("NPC_CONFIG_TUI_GENERATE_CONFIG");
+    sim_config.config_tuiGenerateConfig = env && strcmp(env, "on") == 0;
+    if (sim_config.config_tuiGenerateConfig) {
+        std::cout << "[config] TUI 配置生成模式已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_TUI_GENERATE_FULL_CONFIG");
+    sim_config.config_tuiGenerateFullConfig = env && strcmp(env, "on") == 0;
+    if (sim_config.config_tuiGenerateFullConfig) {
+        std::cout << "[config] TUI 完整配置生成模式已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_TUI_FORCE_OVERWRITE_CONFIG");
+    sim_config.config_tuiForceOverwriteConfig = env && strcmp(env, "on") == 0;
+    if (sim_config.config_tuiForceOverwriteConfig) {
+        std::cout << "[config] TUI 配置强制覆盖已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_TUI_PRINT_CONFIG_SCHEMA");
+    sim_config.config_tuiPrintConfigSchema = env && strcmp(env, "on") == 0;
+    if (sim_config.config_tuiPrintConfigSchema) {
+        std::cout << "[config] TUI 打印配置 schema 模式已启用" << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_TUI_PRINT_DEFAULT_CONFIG");
+    sim_config.config_tuiPrintDefaultConfig = env && strcmp(env, "on") == 0;
+    if (sim_config.config_tuiPrintDefaultConfig) {
+        std::cout << "[config] TUI 打印默认配置模式已启用" << std::endl;
+    }
+
     // 跨字段验证: payload 模式下必须指定 payload 二进制文件路径
     if (sim_config.config_difftest
         && sim_config.config_difftestStartMode == "payload"
@@ -286,6 +332,40 @@ int main(int argc, const char *argv[]) {
     loadConfig();
     if (!checkRequiredConfig()) {
         return EXIT_FAILURE;
+    }
+
+    // ── TUI 配置操作 (schema / print / generate) ──
+    if (sim_config.config_tuiPrintConfigSchema) {
+        tui::printTuiConfigSchema(std::cout);
+        return EXIT_SUCCESS;
+    }
+    if (sim_config.config_tuiPrintDefaultConfig) {
+        tui::printTuiDefaultConfig(std::cout);
+        return EXIT_SUCCESS;
+    }
+    if (sim_config.config_tuiGenerateConfig) {
+        bool full = sim_config.config_tuiGenerateFullConfig;
+        bool overwrite = sim_config.config_tuiForceOverwriteConfig;
+        if (!tui::generateTuiConfig(sim_config.config_tuiConfigFilePath,
+                                     overwrite, full)) {
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
+    }
+
+    // TUI 和 SDB 不能同时启用
+    if (sim_config.config_tui && sdb) {
+        std::cerr << "[config] 错误: TUI 模式与 SDB 模式不能同时启用!"
+                  << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    // 加载 / 生成 TUI 配置文件
+    if (sim_config.config_tui) {
+        if (!tui::loadOrGenerateTuiConfig(sim_config.config_tuiConfigFilePath)) {
+            std::cerr << "[tui] 配置文件加载失败, 退出." << std::endl;
+            return EXIT_FAILURE;
+        }
     }
 
     result = simulate(sdb);

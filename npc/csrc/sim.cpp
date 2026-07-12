@@ -12,6 +12,9 @@
 #include <iomanip>
 #include <cmath>
 #include <csignal>
+#include <cstdio>
+#include <unistd.h>
+#include <sys/select.h>
 #include <print>
 #include <utils.hpp>
 #include <sdb.hpp>
@@ -20,6 +23,16 @@
 #include <utils/Stage.hpp>
 #include <utils/timer.hpp>
 #include <sim_top.hpp>
+#include <tui/tui_events.hpp>
+#include <tui/tui_control.hpp>
+#include <tui/terminal.hpp>
+#include <tui/renderer.hpp>
+#include <tui/npc_snapshot.hpp>
+#include <tui/tui_config.hpp>
+#include <tui/layout.hpp>
+#include <tui/panel.hpp>
+#include <tui/tui_actions.hpp>
+#include <tui/tui_overlay.hpp>
 
 ExecInfo simExecInfo = {
     .pc = 0x00000000,
@@ -46,6 +59,10 @@ static void install_signal_handlers() {
 static uint64_t execCount = 0;
 static uint64_t execCountClockPeriod = 0;
 static bool s_difftestActive = false;
+
+uint64_t getExecCount() { return execCount; }
+uint64_t getExecCountClockPeriod() { return execCountClockPeriod; }
+bool isDifftestActive() { return s_difftestActive; }
 
 /**
  * @brief 获取 DPI 模块, 以便读取被仿真模块的信号.
@@ -203,6 +220,9 @@ static void traceAndDiffTest() {
             s_difftestActive = true;
             std::println("[difftest] 在 PC=0x{:08x} 处激活 DiffTest 比较 (startPC=0x{:08x})",
                          simExecInfo.pc, sim_config.config_difftestStartPC);
+            tui::g_eventFeed.push(execCount, tui::EventType::DIFFTEST_ACTIVATE,
+                                  simExecInfo.pc, sim_config.config_difftestStartPC,
+                                  "DiffTest comparison activated");
             difftest_dut_syncCurrentProcessorState();
             difftest_dut_syncPayloadMemoryToRef();
             difftest_dut_clearSkipRef();
@@ -234,9 +254,19 @@ static void execute(uint64_t n) {
     for (i = n; i > 0; i--) {
         if (!simExecOnce()) {
             sim_state.state = SIM_ABORT;
+            tui::g_eventFeed.push(execCount, tui::EventType::ABORT,
+                                  simExecInfo.pc, 0,
+                                  "Simulation aborted — simExecOnce returned false");
             break;
         }
         flushOutput();
+        // Pause check must come BEFORE sim_halt: pause is soft (SIM_STOP),
+        // sim_halt from DPI is terminal (SIM_END / TRAP).
+        if (tui::isPauseRequested()) {
+            sim_state.state = SIM_STOP;
+            tui::clearPauseRequest();
+            break;
+        }
         if (sim_halt) {
             sim_state.state = SIM_END;
             sim_state.haltPC = getDPIModule()->core_pc;
@@ -311,6 +341,13 @@ void simExec(uint64_t n) {
                 double ipc = static_cast<double>(execCount) / static_cast<double>(execCountClockPeriod);
                 std::cout << "IPC = " << std::fixed << std::setprecision(4) << ipc << std::endl;
             }
+
+            if (sim_state.state == SIM_END) {
+                tui::g_eventFeed.push(execCount,
+                    (halt_ret == 0) ? tui::EventType::TRAP_GOOD : tui::EventType::TRAP_BAD,
+                    sim_state.haltPC, halt_ret,
+                    (halt_ret == 0) ? "Good trap" : "Bad trap");
+            }
     }
 
     // 未达检测: difftest 已配置但 startPC 从未到达
@@ -322,6 +359,9 @@ void simExec(uint64_t n) {
             sim_config.config_difftestStartPC, execCount);
         std::println(stderr,
             "[difftest] 请检查: (1) startPC 是否设置正确; (2) 程序是否确实会执行到该地址.");
+        tui::g_eventFeed.push(execCount, tui::EventType::DIFFTEST_WARNING,
+                              sim_config.config_difftestStartPC, execCount,
+                              "DiffTest enabled but startPC never reached");
     }
 }
 
@@ -337,6 +377,11 @@ bool simulate(bool sdbEnabled) {
     bool success = true;
 
     install_signal_handlers();
+
+    tui::initEventFeed();
+    tui::g_eventFeed.push(0, tui::EventType::CONFIG, 0,
+                           static_cast<word_t>(sim_config.config_tui ? 1 : 0),
+                           sim_config.config_tui ? "TUI mode enabled" : "TUI mode disabled");
 
     timer_initRand();
     disasm_init();
@@ -499,7 +544,341 @@ bool simulate(bool sdbEnabled) {
 
     if (sim_config.config_debugOutput)
         std::cout << "正在启动仿真..." << std::endl;
-    if (sdbEnabled) {
+    if (sim_config.config_tui) {
+        // ── Validate all keybinding strings (fail fast, no TTY needed) ──
+        {
+            bool kbOk = true;
+            const auto &kb = tui::g_tuiConfig.keybindings;
+            kbOk &= tui::validateKeyBinding(kb.focus_next,       "focus_next");
+            kbOk &= tui::validateKeyBinding(kb.focus_prev,       "focus_prev");
+            kbOk &= tui::validateKeyBinding(kb.help_overlay,     "help_overlay");
+            kbOk &= tui::validateKeyBinding(kb.maximize_toggle,  "maximize_toggle");
+            kbOk &= tui::validateKeyBinding(kb.panel_picker,     "panel_picker");
+            kbOk &= tui::validateKeyBinding(kb.pause_resume,     "pause_resume");
+            kbOk &= tui::validateKeyBinding(kb.quit,             "quit");
+            kbOk &= tui::validateKeyBinding(kb.reset,            "reset");
+            kbOk &= tui::validateKeyBinding(kb.resize_down,      "resize_down");
+            kbOk &= tui::validateKeyBinding(kb.resize_left,      "resize_left");
+            kbOk &= tui::validateKeyBinding(kb.resize_right,     "resize_right");
+            kbOk &= tui::validateKeyBinding(kb.resize_up,        "resize_up");
+            kbOk &= tui::validateKeyBinding(kb.step_clock,       "step_clock");
+            kbOk &= tui::validateKeyBinding(kb.step_instruction, "step_instruction");
+            kbOk &= tui::validateKeyBinding(kb.tab_next,         "tab_next");
+            if (!kbOk) {
+                std::fprintf(stderr,
+                    "[tui] fatal: keybinding validation failed — aborting\n");
+                success = false;
+                goto sim_cleanup;
+            }
+        }
+
+        tui::TerminalSession term;
+        if (!term) {
+            std::fprintf(stderr, "[tui] terminal session init failed — aborting\n");
+            success = false;
+            goto sim_cleanup;
+        }
+
+        // ── Init SDB backend for expression evaluation ──
+        sdb_init();
+
+        // ── Build layout tree from config preset ──
+        tui::LayoutTree layout;
+        if (!layout.buildFromPreset(tui::g_tuiConfig.layout.preset)) {
+            std::fprintf(stderr,
+                "[tui] fatal: unknown layout preset \"%s\"\n",
+                tui::g_tuiConfig.layout.preset.c_str());
+            success = false;
+            goto sim_cleanup;
+        }
+
+        // ── Register built‑in panels ──
+        tui::PanelRegistry::instance().registerBuiltins();
+
+        // ── Validate that all panel IDs in the layout exist ──
+        if (!tui::PanelRegistry::instance().validateLayout(layout)) {
+            std::fprintf(stderr,
+                "[tui] fatal: layout references unknown panel IDs. "
+                "Check your [layout] preset or panel registrations.\n");
+            success = false;
+            goto sim_cleanup;
+        }
+
+        // ── Build action map ──
+        tui::ActionMap actionMap;
+        actionMap.buildFromConfig(tui::g_tuiConfig.keybindings);
+
+        tui::Overlay overlay;
+
+        auto sz = term.querySize();
+        tui::Renderer renderer;
+        renderer.resize(sz.rows, sz.cols);
+
+        // ── Panel picker state ──
+        std::vector<std::string> pickerIds;
+
+        bool running = true;
+        while (running) {
+            // ── Handle terminal resize ──
+            if (term.consumeResizeFlag()) {
+                sz = term.querySize();
+                renderer.resize(sz.rows, sz.cols);
+            }
+
+            // ── Drive simulation burst when running ──
+            if (sim_state.state == SIM_RUNNING) {
+                constexpr int kRefreshBurst = 500;
+                for (int bi = 0; bi < kRefreshBurst && sim_state.state == SIM_RUNNING; bi++) {
+                    execute(1);
+                }
+            }
+
+            renderer.beginFrame();
+
+            if (renderer.terminalTooSmall()) {
+                renderer.endFrame();
+                renderer.flush();
+                usleep(50000);
+                fd_set fds;
+                FD_ZERO(&fds);
+                FD_SET(STDIN_FILENO, &fds);
+                struct timeval tv{0, 0};
+                if (::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv) > 0) {
+                    auto ch = tui::readKeyChord();
+                    if (ch && actionMap.lookup(*ch) == tui::Action::QUIT)
+                        running = false;
+                }
+                continue;
+            }
+
+            // ── Compute layout for current terminal size ──
+            uint16_t statusRows = tui::g_tuiConfig.ui.status_bar ? 1 : 0;
+            layout.compute(sz.rows, sz.cols, statusRows);
+
+            if (layout.terminalTooSmall()) {
+                renderer.endFrame();
+                renderer.flush();
+                usleep(50000);
+                fd_set fds;
+                FD_ZERO(&fds);
+                FD_SET(STDIN_FILENO, &fds);
+                struct timeval tv{0, 0};
+                if (::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv) > 0) {
+                    auto ch = tui::readKeyChord();
+                    if (ch && actionMap.lookup(*ch) == tui::Action::QUIT)
+                        running = false;
+                }
+                continue;
+            }
+
+            // ── Take snapshot & build frame model ──
+            tui::NpcSnapshot snap;
+            tui::TuiFrameModel fm;
+            if (sim_state.state == SIM_RUNNING || sim_state.state == SIM_STOP ||
+                sim_state.state == SIM_END || sim_state.state == SIM_ABORT) {
+                snap = tui::makeNpcSnapshot();
+                fm   = tui::makeFrameModel(snap);
+            }
+            // else: fm stays default‑initialised (all zeros / empty strings)
+
+            // ── Render each panel through the layout system ──
+            auto &reg = tui::PanelRegistry::instance();
+            layout.forEachLeaf([&](const std::string &panelId,
+                                    const tui::Rect &rect, bool focused) {
+                tui::Panel *panel = reg.get(panelId);
+                if (panel) {
+                    panel->render(renderer.canvas(), rect, fm, focused);
+                }
+            });
+
+            // ── Draw tab bars ──
+            layout.drawTabBars(renderer.canvas());
+
+            // ── Status bar ──
+            if (statusRows > 0 && sz.rows > 0) {
+                char leftBuf[128];
+                char rightBuf[128];
+                const char *simLabel = "STOP";
+                if (sim_state.state == SIM_RUNNING) simLabel = "RUN";
+                else if (sim_state.state == SIM_END)    simLabel = "END";
+                else if (sim_state.state == SIM_ABORT)  simLabel = "ABORT";
+                std::snprintf(leftBuf, sizeof(leftBuf),
+                    " Preset: %s | Sim: %s | Focus: %s%s",
+                    tui::g_tuiConfig.layout.preset.c_str(),
+                    simLabel,
+                    layout.focusedPanel().c_str(),
+                    layout.isMaximized() ? " [MAX]" : "");
+                std::snprintf(rightBuf, sizeof(rightBuf),
+                    "q:quit  h:overlay  tab:focus  m:max  space:pause  s:step");
+                renderer.drawStatusBar(sz.rows - 1, leftBuf, rightBuf,
+                    tui::styleBg(tui::kColourBlue),
+                    tui::styleFgBold(tui::kColourWhite));
+            }
+
+            overlay.render(renderer.canvas(), sz.rows, sz.cols);
+
+            renderer.endFrame();
+            renderer.flush();
+
+            // ── Check for quit from overlay ──
+            if (overlay.quitRequested()) {
+                running = false;
+                break;
+            }
+
+            // ── If a resize arrived mid-frame, discard this frame and rebuild
+            //     with the new size on the next loop iteration. This prevents
+            //     flushing a frame composed for stale dimensions.
+            if (term.consumeResizeFlag()) {
+                sz = term.querySize();
+                renderer.resize(sz.rows, sz.cols);
+                continue;
+            }
+
+            // ── Handle input (non‑blocking when running, blocking when stopped) ──
+            {
+                fd_set fds;
+                FD_ZERO(&fds);
+                FD_SET(STDIN_FILENO, &fds);
+                struct timeval tv;
+                if (sim_state.state == SIM_RUNNING) {
+                    tv.tv_sec  = 0;
+                    tv.tv_usec = 10000;  // 10 ms poll
+                } else {
+                    tv.tv_sec  = 1;
+                    tv.tv_usec = 0;
+                }
+                int sel = ::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
+                if (sel <= 0) {
+                    // No input — next iteration
+                    continue;
+                }
+            }
+
+            auto chord = tui::readKeyChord();
+            if (!chord) {
+                running = false;
+                break;
+            }
+
+            if (overlay.active()) {
+                if (chord->key == tui::SpecialKey::kEsc) {
+                    overlay.close();
+                } else if (chord->key == tui::SpecialKey::kEnter) {
+                    std::string cmd = overlay.execute();
+                    if (!cmd.empty()) {
+                        overlay.dispatchCommand(cmd);
+                    }
+                    if (overlay.quitRequested()) {
+                        running = false;
+                        break;
+                    }
+                } else if (chord->key == tui::SpecialKey::kBackspace) {
+                    overlay.backspace();
+                } else if (chord->key == tui::SpecialKey::kLeft) {
+                    overlay.moveCursorLeft();
+                } else if (chord->key == tui::SpecialKey::kRight) {
+                    overlay.moveCursorRight();
+                } else if (chord->key == tui::SpecialKey::kUp) {
+                    overlay.historyPrev();
+                } else if (chord->key == tui::SpecialKey::kDown) {
+                    overlay.historyNext();
+                } else if (chord->key == tui::SpecialKey::kSpace) {
+                    overlay.insertChar(' ');
+                } else if (chord->key >= 32 && chord->key <= 126 && chord->mod == tui::kModNone) {
+                    overlay.insertChar(static_cast<char>(chord->key));
+                }
+            } else {
+                tui::Action act = actionMap.lookup(*chord);
+                switch (act) {
+                    case tui::Action::QUIT:
+                        running = false;
+                        break;
+                    case tui::Action::FOCUS_NEXT:
+                        layout.focusNext();
+                        break;
+                    case tui::Action::FOCUS_PREV:
+                        layout.focusPrev();
+                        break;
+                    case tui::Action::TOGGLE_MAXIMIZE:
+                        layout.toggleMaximize();
+                        break;
+                    case tui::Action::TAB_NEXT:
+                        if (layout.isFocusedInTabbed())
+                            layout.focusTabNext();
+                        break;
+                    case tui::Action::HELP_OVERLAY:
+                        overlay.open();
+                        overlay.appendOutput("── Keybindings ──");
+                        for (const auto &[ch, a] : actionMap.allBindings()) {
+                            char buf[64];
+                            std::snprintf(buf, sizeof(buf), "  %-16s → %s",
+                                          "key", tui::actionName(a));
+                            overlay.appendOutput(buf);
+                        }
+                        overlay.appendOutput("── Overlay commands ──");
+                        overlay.appendOutput("  c/si/sic/pause/reset/q  info r/w");
+                        overlay.appendOutput("  x N EXPR  p EXPR  w EXPR  d N  help");
+                        break;
+                    case tui::Action::PAUSE_RESUME:
+                        if (sim_state.state == SIM_RUNNING) {
+                            tui::requestSimPause();
+                        } else if (sim_state.state == SIM_STOP) {
+                            tui::requestSimContinue();
+                        }
+                        break;
+                    case tui::Action::STEP_INST:
+                        if (sim_state.state == SIM_STOP) {
+                            tui::requestSimStepInst(1);
+                        }
+                        break;
+                    case tui::Action::STEP_CLOCK:
+                        if (sim_state.state == SIM_STOP) {
+                            tui::requestSimStepClock(1);
+                        }
+                        break;
+                    case tui::Action::RESET:
+                        tui::requestSimReset();
+                        break;
+                    case tui::Action::PANEL_PICKER: {
+                        pickerIds = layout.panelIds();
+                        if (!pickerIds.empty()) {
+                            overlay.open();
+                            overlay.appendOutput("── Panel Picker ──");
+                            int idx = 0;
+                            for (const auto &pid : pickerIds) {
+                                char buf[128];
+                                std::snprintf(buf, sizeof(buf), "  [%d] %s%s",
+                                    idx,
+                                    tui::PanelRegistry::instance().displayNameFor(pid).c_str(),
+                                    (pid == layout.focusedPanel()) ? " (*)" : "");
+                                overlay.appendOutput(buf);
+                                idx++;
+                            }
+                            overlay.appendOutput("Type digit to focus panel, ESC to close.");
+                        }
+                        break;
+                    }
+                    default:
+                        break;
+                }
+            }
+
+            // ── Handle panel picker digit input if overlay is showing picker ──
+            if (overlay.active() && !pickerIds.empty() &&
+                chord->key >= '0' && chord->key <= '9' &&
+                chord->mod == tui::kModNone) {
+                int pickIdx = static_cast<int>(chord->key - '0');
+                if (pickIdx >= 0 && static_cast<size_t>(pickIdx) < pickerIds.size()) {
+                    layout.setFocus(pickerIds[static_cast<size_t>(pickIdx)]);
+                    overlay.close();
+                }
+            }
+            if (overlay.active() && chord->key == tui::SpecialKey::kEsc && !pickerIds.empty()) {
+                pickerIds.clear();
+            }
+        }
+    } else if (sdbEnabled) {
         sdb_init();
         sdb_mainLoop();
     } else {

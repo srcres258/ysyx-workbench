@@ -10,6 +10,8 @@
 #include <utils.hpp>
 #include <macro-def.hpp>
 #include <difftest/dut.hpp>
+#include <sim_top.hpp>
+#include <tui/tui_events.hpp>
 
 using ref_difftest_memcpy_f_t = void (*)(
     addr_t addr, void *buf, size_t n, bool direction
@@ -99,6 +101,9 @@ static void checkregs(ProcessorState *refState, addr_t pc) {
         std::println("[difftest] 检测到 DUT 与 REF 的处理器状态不一致! 正在中止...");
         sim_state.state = SIM_ABORT;
         sim_state.haltPC = pc;
+        tui::g_eventFeed.push(getExecCount(), tui::EventType::DIFFTEST_MISMATCH,
+                              pc, 0,
+                              "DUT/REF register mismatch detected");
         std::cout << "----- REF registers -----" << std::endl;
         refState->dump();
         std::cout << "----- DUT registers -----" << std::endl;
