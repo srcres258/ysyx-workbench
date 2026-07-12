@@ -1,13 +1,17 @@
 # AGENTS.md — ysyx-workbench
 
-`ysyx-workbench` is a wrapper repo for NEMU, AbstractMachine, NPC, ysyxSoC, rt-thread, am-kernels, NVBoard, npc-frontend, and fceux-am.
+`ysyx-workbench` is a wrapper repo for NEMU, AbstractMachine, NPC, ysyxSoC, rt-thread, am-kernels, NVBoard, and the standalone fceux-am repo.
 
 ## Start here
 
-- Run `nix develop` first; it is the authoritative setup and exports `NEMU_HOME`, `AM_HOME`, `NPC_HOME`, `NVBOARD_HOME`, `YSYX_HOME`, and `VERILATOR_HOME`.
-- `config.fish` is incomplete; `init.sh` is legacy bootstrap only.
-- The root `Makefile` is a tracer, so use `make -C <subproject>` for real builds. `run`/`gdb` targets may auto-commit and churn git history.
-- The root `.gitignore` is whitelist-based; new root files usually need an explicit `!` entry.
+- Run `nix develop` first; its shellHook sets `NEMU_HOME`, `AM_HOME`, `NPC_HOME`, `NVBOARD_HOME`, `YSYX_HOME`, and `VERILATOR_HOME`.
+- `config.fish` is not a full setup path; ignore it for environment bootstrap.
+- `init.sh` is the legacy bootstrap path referenced by `README.md`; it clones subprojects and can write env vars to `~/.bashrc`.
+- The README bootstrap command (`bash init.sh subproject-name`) is setup-only; use the dev shell for normal work.
+- The root `Makefile` is only a tracer. Always build with `make -C <subproject>`.
+- Some subproject `run`/`gdb` targets auto-commit through the tracer Makefile; expect git history churn.
+- The root `.gitignore` is whitelist-based, so new root-level files usually need a `.gitignore` update.
+- Check `.sisyphus/plans/` before related feature work; the repo already carries task-specific plans and they often encode the intended flow.
 
 ## Repo boundaries
 
