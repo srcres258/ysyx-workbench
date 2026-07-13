@@ -15,6 +15,7 @@ YSYXSOC_PATH ?= ../ysyxSoC
 CHISEL_DIR = $(abspath ./vsrc-chisel)
 CHISEL_GEN_OUT = $(CHISEL_DIR)/generated
 NPC_GEN_DIR = $(abspath ./vsrc/generated)
+CHISEL_ARGS ?=
 
 VERILATOR = verilator
 VERILATOR_CFLAGS += -MMD -O3 --x-assign fast \
@@ -40,9 +41,14 @@ else
 CHISEL_TARGET = mill-run
 endif
 
+RUN_CONFIG_DPI ?= on
+ifeq ($(RUN_CONFIG_DPI),off)
+CHISEL_ARGS += disableDPI
+endif
+
 chisel-gen:
 	@echo "[Chisel] Building RTL from vsrc-chisel (mode: $(RUN_CONFIG_SIM_MODE))..."
-	@$(MAKE) -C $(CHISEL_DIR) $(CHISEL_TARGET)
+	@$(MAKE) -C $(CHISEL_DIR) $(CHISEL_TARGET) MILL_ARGS="$(CHISEL_ARGS)"
 	@echo "[Chisel] Copying generated SystemVerilog to $(NPC_GEN_DIR)..."
 	@rm -rf $(NPC_GEN_DIR)
 	@cp -r $(CHISEL_GEN_OUT) $(NPC_GEN_DIR)
@@ -50,7 +56,7 @@ chisel-gen:
 
 chisel-gen-standalone:
 	@echo "[Chisel] Building Standalone RTL from vsrc-chisel..."
-	@$(MAKE) -C $(CHISEL_DIR) mill-run-standalone
+	@$(MAKE) -C $(CHISEL_DIR) mill-run-standalone MILL_ARGS="$(CHISEL_ARGS)"
 	@echo "[Chisel] Copying generated SystemVerilog to $(NPC_GEN_DIR)..."
 	@rm -rf $(NPC_GEN_DIR)
 	@cp -r $(CHISEL_GEN_OUT) $(NPC_GEN_DIR)
