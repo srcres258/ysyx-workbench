@@ -104,6 +104,7 @@ struct TuiFrameModel {
 
     // ---- Ftrace call stack ----
     std::vector<CallFrameInfo> callFrames;
+    word_t spRaw;              // current stack pointer (x2), for callerSp verification
 };
 
 /**

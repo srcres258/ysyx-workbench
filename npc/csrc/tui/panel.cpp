@@ -600,16 +600,22 @@ public:
             return;
         }
 
+        {
+            char spBuf[32];
+            std::snprintf(spBuf, sizeof(spBuf), "current_sp=0x%08x  depth=%zu",
+                          fm.spRaw, fm.callFrames.size());
+            writeClipped(canvas, r, c, c, innerW, spBuf, styleFg(kColourCyan));
+            r++;
+        }
+
         size_t rows = std::min<size_t>(innerH, fm.callFrames.size());
-        addr_t currentPc = fm.pcRaw;
-        bool highlightedAny = false;
 
         for (size_t i = 0; i < rows; i++) {
             const auto &frame = fm.callFrames[i];
-            bool highlighted = !highlightedAny
-                && frame.funcAddr <= currentPc
-                && currentPc < frame.retAddr;
-            if (highlighted) highlightedAny = true;
+
+            // Stack-top is the currently executing function by definition;
+            // retAddr lives in the caller's code, not a function-end boundary.
+            bool highlighted = (i == 0);
 
             char funcAddrBuf[16];
             char retAddrBuf[16];

@@ -113,6 +113,7 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     fm.retiredPcRaw   = snap.retiredPc;
     fm.retiredInstRaw = snap.retiredInst;
     fm.pcRaw          = snap.nextPc;
+    fm.spRaw          = st.gpr[2];   // x2 = sp, for callerSp verification
 
     if (snap.execCount > 0) {
         uint8_t instBytes[4];
