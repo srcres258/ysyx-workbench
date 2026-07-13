@@ -36,6 +36,7 @@ struct NpcSnapshot {
     uint64_t      execCount;
     uint64_t      execCountClock;
     bool          difftestActive;
+    std::vector<CallFrameInfo> callFrames;
 
     static constexpr size_t kMaxRecentEvents = 8;
     Event         recentEvents[kMaxRecentEvents];
@@ -76,6 +77,9 @@ struct TuiFrameModel {
     char instStr[16];        // hex instruction
     char disasmStr[64];      // disassembly (may be empty if disasm unavailable)
 
+    // ---- Raw PC values ----
+    addr_t pcRaw;            // nextPc as a raw value
+
     // ---- Raw values for trace-panel fallback formatting ----
     word_t retiredPcRaw;     // retired PC as raw word_t (for byte formatting)
     word_t retiredInstRaw;   // retired instruction as raw word_t (for byte formatting)
@@ -97,6 +101,9 @@ struct TuiFrameModel {
     // ---- In-flight instruction marks ----
     InstMark instMarks[NpcSnapshot::kMaxInstMarks];
     size_t    numInstMarks;
+
+    // ---- Ftrace call stack ----
+    std::vector<CallFrameInfo> callFrames;
 };
 
 /**

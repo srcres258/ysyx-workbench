@@ -8,6 +8,17 @@
 
 namespace tui {
 
+static std::vector<CallFrameInfo> snapshotCallFrames() {
+    std::vector<CallFrameInfo> frames;
+    auto stack = sim_state.ftrace_callStack;
+    frames.reserve(stack.size());
+    while (!stack.empty()) {
+        frames.push_back(stack.top());
+        stack.pop();
+    }
+    return frames;
+}
+
 NpcSnapshot makeNpcSnapshot() {
     NpcSnapshot snap{};
     auto *dpi = getDPIModule();
@@ -19,6 +30,7 @@ NpcSnapshot makeNpcSnapshot() {
     snap.simState    = sim_state.state;
     snap.haltPc      = sim_state.haltPC;
     snap.simHalt     = sim_halt;
+    snap.callFrames  = snapshotCallFrames();
 
     // These require accessors declared in sim_top.hpp — see wiring task
     snap.execCount      = getExecCount();
@@ -100,6 +112,7 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
 
     fm.retiredPcRaw   = snap.retiredPc;
     fm.retiredInstRaw = snap.retiredInst;
+    fm.pcRaw          = snap.nextPc;
 
     if (snap.execCount > 0) {
         uint8_t instBytes[4];
@@ -138,6 +151,8 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     fm.numInstMarks = snap.numInstMarks;
     std::memcpy(fm.instMarks, snap.instMarks,
                 snap.numInstMarks * sizeof(NpcSnapshot::InstMark));
+
+    fm.callFrames = snap.callFrames;
 
     return fm;
 }

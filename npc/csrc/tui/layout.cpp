@@ -38,14 +38,17 @@ bool LayoutTree::buildFromPreset(const std::string &preset) {
 }
 
 void LayoutTree::buildDefault() {
-    // V-split 50/50: left = core + regs (H-split 40/60), right = tabbed [trace, events, csr]
+    // V-split 50/50: left = H-split 40/60, right = tabbed
     LayoutNode root = LayoutNode::splitV(0.50f);
     root.minH = 8;
     root.minW = 40;
 
     LayoutNode left = LayoutNode::splitH(0.40f);
     left.children.push_back(LayoutNode::leaf("core", 4, 20));
-    left.children.push_back(LayoutNode::leaf("regs", 6, 20));
+    LayoutNode left1 = LayoutNode::splitH(0.50f);
+    left1.children.push_back(LayoutNode::leaf("func", 5, 20));
+    left1.children.push_back(LayoutNode::leaf("regs", 5, 20));
+    left.children.push_back(std::move(left1));
 
     LayoutNode right = LayoutNode::tabbed();
     right.children.push_back(LayoutNode::leaf("inst",   8, 25));
@@ -61,13 +64,14 @@ void LayoutTree::buildDefault() {
 }
 
 void LayoutTree::buildWide() {
-    // H-split 40/60: top = tabbed [core, regs, csr], bottom = tabbed [trace, events]
+    // H-split 40/60: top = tabbed, bottom = tabbed
     LayoutNode root = LayoutNode::splitH(0.40f);
     root.minH = 10;
     root.minW = 30;
 
     LayoutNode top = LayoutNode::tabbed();
     top.children.push_back(LayoutNode::leaf("inst",   8, 25));
+    top.children.push_back(LayoutNode::leaf("func",   8, 25));
     top.children.push_back(LayoutNode::leaf("core", 4, 20));
     top.children.push_back(LayoutNode::leaf("regs", 6, 20));
     top.children.push_back(LayoutNode::leaf("csr",  6, 20));
@@ -84,13 +88,14 @@ void LayoutTree::buildWide() {
 }
 
 void LayoutTree::buildTall() {
-    // V-split 50/50: left = tabbed [core, regs], right = tabbed [trace, events, csr]
+    // V-split 50/50: left = tabbed, right = tabbed
     LayoutNode root = LayoutNode::splitV(0.50f);
     root.minH = 8;
     root.minW = 30;
 
     LayoutNode left = LayoutNode::tabbed();
     left.children.push_back(LayoutNode::leaf("inst",   8, 25));
+    left.children.push_back(LayoutNode::leaf("func",   8, 25));
     left.children.push_back(LayoutNode::leaf("core", 4, 15));
     left.children.push_back(LayoutNode::leaf("regs", 6, 15));
 
@@ -109,6 +114,7 @@ void LayoutTree::buildTall() {
 void LayoutTree::buildMinimal() {
     LayoutNode root = LayoutNode::tabbed();
     root.children.push_back(LayoutNode::leaf("inst",   8, 25));
+    root.children.push_back(LayoutNode::leaf("func",   8, 25));
     root.children.push_back(LayoutNode::leaf("core",   4, 10));
     root.children.push_back(LayoutNode::leaf("regs",   6, 10));
     root.children.push_back(LayoutNode::leaf("csr",    6, 10));

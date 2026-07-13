@@ -111,6 +111,10 @@ static bool isReadableInstWord(addr_t addr) {
     return true;
 }
 
+static void formatHexAddr(char *buf, size_t size, addr_t addr) {
+    std::snprintf(buf, size, "0x%08x", static_cast<uint32_t>(addr));
+}
+
 // ============================================================================
 // ABI register names (RISC-V standard)
 // ============================================================================
@@ -573,6 +577,60 @@ public:
 };
 
 // ============================================================================
+// FuncPanel — active call stack (top of stack shown first)
+// ============================================================================
+
+class FuncPanel : public Panel {
+public:
+    const char *id()          const override { return "func"; }
+    const char *displayName() const override { return "Func"; }
+
+    void render(Canvas &canvas, const Rect &rect,
+                const TuiFrameModel &fm, bool focused) override {
+        drawPanelBorder(canvas, rect, " Func ", focused);
+
+        uint16_t r = rect.row + 1;
+        uint16_t c = rect.col + 1;
+        uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
+        uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
+        if (innerH == 0 || innerW < 16) return;
+
+        if (fm.callFrames.empty()) {
+            canvas.write(r, c, "(no call frames yet)", styleFg(kColourBlue));
+            return;
+        }
+
+        size_t rows = std::min<size_t>(innerH, fm.callFrames.size());
+        addr_t currentPc = fm.pcRaw;
+        bool highlightedAny = false;
+
+        for (size_t i = 0; i < rows; i++) {
+            const auto &frame = fm.callFrames[i];
+            bool highlighted = !highlightedAny
+                && frame.funcAddr <= currentPc
+                && currentPc < frame.retAddr;
+            if (highlighted) highlightedAny = true;
+
+            char funcAddrBuf[16];
+            char retAddrBuf[16];
+            char callerSpBuf[16];
+            formatHexAddr(funcAddrBuf, sizeof(funcAddrBuf), frame.funcAddr);
+            formatHexAddr(retAddrBuf, sizeof(retAddrBuf), frame.retAddr);
+            formatHexAddr(callerSpBuf, sizeof(callerSpBuf), frame.callerSp);
+
+            Style lineStyle = highlighted ? styleFgBold(kColourGreen)
+                                          : styleFg(kColourWhite);
+            const char *arrow = highlighted ? "-> " : "   ";
+
+            writeClippedF(canvas, static_cast<uint16_t>(r + i), c, c, innerW,
+                          lineStyle, "%s%s@%s (ret=%s, caller_sp=%s)",
+                          arrow, frame.funcName.c_str(), funcAddrBuf,
+                          retAddrBuf, callerSpBuf);
+        }
+    }
+};
+
+// ============================================================================
 // TracePanel — live trace display with ring‑buffer drain and fallback
 // ============================================================================
 
@@ -839,6 +897,7 @@ void PanelRegistry::registerBuiltins() {
     registerPanel(std::make_unique<RegsPanel>());
     registerPanel(std::make_unique<CsrPanel>());
     registerPanel(std::make_unique<InstPanel>());
+    registerPanel(std::make_unique<FuncPanel>());
     registerPanel(std::make_unique<TracePanel>());
     registerPanel(std::make_unique<EventsPanel>());
     registerPanel(std::make_unique<PerfPanel>());
