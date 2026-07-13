@@ -193,6 +193,14 @@ void disasm_init();
  */
 void disasm_disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
 
+/**
+ * @brief 尝试反汇编一段代码。
+ *
+ * @return true  反汇编成功并写入结果
+ * @return false 反汇编失败（例如没有解出单条指令）
+ */
+bool disasm_tryDisassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
+
 // ----------- ftrace -----------
 
 /**

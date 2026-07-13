@@ -4,9 +4,11 @@
 #include <tui/npc_snapshot.hpp>
 #include <tui/tui_config.hpp>
 #include <tui/tui_events.hpp>
+#include <device/io/mmio.hpp>
 #include <utils.hpp>
 #include <cstdio>
 #include <cstring>
+#include <cstdlib>
 #include <deque>
 #include <iostream>
 
@@ -76,7 +78,7 @@ bool PanelRegistry::validateLayout(const LayoutTree &tree) const {
 // ============================================================================
 
 static void drawPanelBorder(Canvas &canvas, const Rect &rect,
-                             const char *title, bool focused) {
+                              const char *title, bool focused) {
     Style borderStyle = focused
         ? Style{kColourCyan,  kColourNone, true,  false, false}
         : Style{kColourBlue,  kColourNone, false, false, false};
@@ -86,6 +88,42 @@ static void drawPanelBorder(Canvas &canvas, const Rect &rect,
 
     primDrawBox(canvas, rect.row, rect.col, rect.h, rect.w,
                 title, titleStyle, borderStyle);
+}
+
+static addr_t chooseInstAnchorPc(const TuiFrameModel &fm) {
+    std::vector<addr_t> pcs;
+    pcs.reserve(TuiFrameModel::kMaxInstMarks);
+
+    for (size_t i = 0; i < fm.numInstMarks; i++) {
+        const auto &mark = fm.instMarks[i];
+        if (mark.valid && mark.hasPc) {
+            pcs.push_back(mark.pc);
+        }
+    }
+
+    if (!pcs.empty()) {
+        std::sort(pcs.begin(), pcs.end());
+        return pcs[pcs.size() / 2];
+    }
+
+    if (fm.retiredPcRaw != 0) {
+        return fm.retiredPcRaw;
+    }
+
+    if (fm.pcStr[0] != '\0') {
+        return static_cast<addr_t>(std::strtoul(fm.pcStr, nullptr, 0));
+    }
+
+    return 0;
+}
+
+static bool isReadableInstWord(addr_t addr) {
+    for (size_t i = 0; i < 4; i++) {
+        if (!device_io_mmio_isAddrValid(addr + static_cast<addr_t>(i))) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // ============================================================================
@@ -478,6 +516,86 @@ private:
 };
 
 // ============================================================================
+// InstPanel — centered disassembly window with active-stage arrows
+// ============================================================================
+
+class InstPanel : public Panel {
+public:
+    const char *id()          const override { return "inst"; }
+    const char *displayName() const override { return "Inst"; }
+
+    void render(Canvas &canvas, const Rect &rect,
+                const TuiFrameModel &fm, bool focused) override {
+        drawPanelBorder(canvas, rect, " Inst ", focused);
+
+        uint16_t r = rect.row + 1;
+        uint16_t c = rect.col + 1;
+        uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
+        uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
+        if (innerH == 0 || innerW < 10) return;
+
+        addr_t anchorPc = chooseInstAnchorPc(fm);
+        anchorPc &= ~static_cast<addr_t>(0x3);
+
+        std::vector<addr_t> activePcs;
+        activePcs.reserve(TuiFrameModel::kMaxInstMarks);
+        for (size_t i = 0; i < fm.numInstMarks; i++) {
+            const auto &mark = fm.instMarks[i];
+            if (mark.valid && mark.hasPc) {
+                activePcs.push_back(mark.pc & ~static_cast<addr_t>(0x3));
+            }
+        }
+        std::sort(activePcs.begin(), activePcs.end());
+        activePcs.erase(std::unique(activePcs.begin(), activePcs.end()), activePcs.end());
+
+        size_t centerOffset = innerH / 2;
+        addr_t startPc = anchorPc;
+        if (centerOffset > 0) {
+            addr_t back = static_cast<addr_t>(centerOffset) * 4;
+            startPc = (anchorPc >= back) ? (anchorPc - back) : 0;
+        }
+
+        for (size_t i = 0; i < innerH; i++) {
+            addr_t linePc = startPc + static_cast<addr_t>(i) * 4;
+            bool highlighted = std::binary_search(activePcs.begin(), activePcs.end(), linePc);
+
+            char disasm[64] = {0};
+            uint8_t bytes[4] = {0, 0, 0, 0};
+            bool readable = isReadableInstWord(linePc);
+            if (readable) {
+                word_t inst = device_io_mmio_read(linePc, 4);
+                bytes[0] = static_cast<uint8_t>(inst & 0xff);
+                bytes[1] = static_cast<uint8_t>((inst >> 8) & 0xff);
+                bytes[2] = static_cast<uint8_t>((inst >> 16) & 0xff);
+                bytes[3] = static_cast<uint8_t>((inst >> 24) & 0xff);
+                if (!disasm_tryDisassemble(disasm, sizeof(disasm), linePc, bytes, 4)) {
+                    std::snprintf(disasm, sizeof(disasm), "unavailable");
+                }
+            } else {
+                std::snprintf(disasm, sizeof(disasm), "invalid");
+            }
+
+            Style lineStyle = highlighted ? styleFgBold(kColourGreen)
+                                          : styleFg(kColourWhite);
+            const char *arrow = highlighted ? "-> " : "   ";
+
+            if (readable) {
+                writeClippedF(canvas, static_cast<uint16_t>(r + i), c, c, innerW,
+                              lineStyle,
+                              "%s0x%08x: %02x %02x %02x %02x      %-24s",
+                              arrow, linePc,
+                              bytes[3], bytes[2], bytes[1], bytes[0], disasm);
+            } else {
+                writeClippedF(canvas, static_cast<uint16_t>(r + i), c, c, innerW,
+                              styleFg(kColourBlue),
+                              "%s0x%08x: ?? ?? ?? ??      %s",
+                              arrow, linePc, disasm);
+            }
+        }
+    }
+};
+
+// ============================================================================
 // TracePanel — live trace display with ring‑buffer drain and fallback
 // ============================================================================
 
@@ -743,6 +861,7 @@ void PanelRegistry::registerBuiltins() {
     registerPanel(std::make_unique<CorePanel>());
     registerPanel(std::make_unique<RegsPanel>());
     registerPanel(std::make_unique<CsrPanel>());
+    registerPanel(std::make_unique<InstPanel>());
     registerPanel(std::make_unique<TracePanel>());
     registerPanel(std::make_unique<EventsPanel>());
     registerPanel(std::make_unique<PerfPanel>());

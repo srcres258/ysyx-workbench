@@ -29,6 +29,21 @@ NpcSnapshot makeNpcSnapshot() {
     snap.numRecentEvents = g_eventFeed.getRecentEvents(
         snap.recentEvents, NpcSnapshot::kMaxRecentEvents);
 
+    auto appendInstMark = [&snap](const char *name, addr_t pc, bool valid, bool hasPc) {
+        if (snap.numInstMarks >= NpcSnapshot::kMaxInstMarks) return;
+        auto &mark = snap.instMarks[snap.numInstMarks++];
+        std::snprintf(mark.name, sizeof(mark.name), "%s", name);
+        mark.pc = pc;
+        mark.valid = valid;
+        mark.hasPc = hasPc;
+    };
+
+    appendInstMark("IF",  dpi->core_pc,               dpi->ifu_if_nextStage_valid,  true);
+    appendInstMark("ID",  0,                          dpi->idu_id_nextStage_valid,  false);
+    appendInstMark("EX",  dpi->exu_exPc,              dpi->exu_ex_nextStage_valid,  true);
+    appendInstMark("MEM", dpi->memu_memPc,            dpi->memu_mem_nextStage_valid, true);
+    appendInstMark("WB",  dpi->wbu_pc,                dpi->wbu_wb_nextStage_valid,  true);
+
     return snap;
 }
 
@@ -119,6 +134,10 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     fm.numRecentEvents = snap.numRecentEvents;
     std::memcpy(fm.recentEvents, snap.recentEvents,
                 snap.numRecentEvents * sizeof(Event));
+
+    fm.numInstMarks = snap.numInstMarks;
+    std::memcpy(fm.instMarks, snap.instMarks,
+                snap.numInstMarks * sizeof(NpcSnapshot::InstMark));
 
     return fm;
 }

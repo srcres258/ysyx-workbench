@@ -19,6 +19,13 @@ namespace tui {
  * synchronously from one call to makeNpcSnapshot().
  */
 struct NpcSnapshot {
+    struct InstMark {
+        char  name[8];
+        addr_t pc;
+        bool   valid;
+        bool   hasPc;
+    };
+
     addr_t        retiredPc;
     word_t        retiredInst;
     addr_t        nextPc;
@@ -33,6 +40,10 @@ struct NpcSnapshot {
     static constexpr size_t kMaxRecentEvents = 8;
     Event         recentEvents[kMaxRecentEvents];
     size_t        numRecentEvents;
+
+    static constexpr size_t kMaxInstMarks = 5;
+    InstMark      instMarks[kMaxInstMarks];
+    size_t        numInstMarks;
 };
 
 /**
@@ -43,6 +54,9 @@ struct NpcSnapshot {
  * no terminal logic, no layout.
  */
 struct TuiFrameModel {
+    using InstMark = NpcSnapshot::InstMark;
+    static constexpr size_t kMaxInstMarks = NpcSnapshot::kMaxInstMarks;
+
     // ---- Register entries (pre-formatted for display) ----
     struct RegEntry {
         char  name[16];
@@ -79,6 +93,10 @@ struct TuiFrameModel {
     // ---- Recent event summary ----
     Event  recentEvents[NpcSnapshot::kMaxRecentEvents];
     size_t numRecentEvents;
+
+    // ---- In-flight instruction marks ----
+    InstMark instMarks[NpcSnapshot::kMaxInstMarks];
+    size_t    numInstMarks;
 };
 
 /**

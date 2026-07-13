@@ -48,6 +48,7 @@ void LayoutTree::buildDefault() {
     left.children.push_back(LayoutNode::leaf("regs", 6, 20));
 
     LayoutNode right = LayoutNode::tabbed();
+    right.children.push_back(LayoutNode::leaf("inst",   8, 25));
     right.children.push_back(LayoutNode::leaf("trace",  4, 20));
     right.children.push_back(LayoutNode::leaf("events", 4, 20));
     right.children.push_back(LayoutNode::leaf("csr",    6, 20));
@@ -66,6 +67,7 @@ void LayoutTree::buildWide() {
     root.minW = 30;
 
     LayoutNode top = LayoutNode::tabbed();
+    top.children.push_back(LayoutNode::leaf("inst",   8, 25));
     top.children.push_back(LayoutNode::leaf("core", 4, 20));
     top.children.push_back(LayoutNode::leaf("regs", 6, 20));
     top.children.push_back(LayoutNode::leaf("csr",  6, 20));
@@ -88,6 +90,7 @@ void LayoutTree::buildTall() {
     root.minW = 30;
 
     LayoutNode left = LayoutNode::tabbed();
+    left.children.push_back(LayoutNode::leaf("inst",   8, 25));
     left.children.push_back(LayoutNode::leaf("core", 4, 15));
     left.children.push_back(LayoutNode::leaf("regs", 6, 15));
 
@@ -105,6 +108,7 @@ void LayoutTree::buildTall() {
 
 void LayoutTree::buildMinimal() {
     LayoutNode root = LayoutNode::tabbed();
+    root.children.push_back(LayoutNode::leaf("inst",   8, 25));
     root.children.push_back(LayoutNode::leaf("core",   4, 10));
     root.children.push_back(LayoutNode::leaf("regs",   6, 10));
     root.children.push_back(LayoutNode::leaf("csr",    6, 10));

@@ -10,6 +10,7 @@
 #include <utils.hpp>
 #include <macro-def.hpp>
 #include <difftest/dut.hpp>
+#include <device/sram.hpp>
 #include <sim_top.hpp>
 #include <tui/tui_events.hpp>
 
@@ -75,6 +76,7 @@ extern void *flash_io_base;
 extern void *mrom_io_base;
 extern void *psram_io_base;
 extern void *sdram_io_base;
+extern void *sram_io_base;
 
 void difftest_dut_init(const char *refSoFile, int port) {
     assert(refSoFile != nullptr);
@@ -171,12 +173,17 @@ void difftest_dut_syncPayloadMemoryToRef() {
 
     const bool copyPsram = cfg.config_difftestMemMode == "auto" || cfg.config_difftestMemMode == "psram";
     const bool copySdram = cfg.config_difftestMemMode == "auto" || cfg.config_difftestMemMode == "sdram";
+    const bool copySram = cfg.config_difftestMemMode == "auto" || cfg.config_difftestMemMode == "sram";
 
     if (copyPsram) {
         syncRegion(PSRAM_ADDR, PSRAM_LEN, "PSRAM", psram_io_base);
     }
     if (copySdram) {
         syncRegion(SDRAM_ADDR, SDRAM_LEN, "SDRAM", sdram_io_base);
+    }
+    if (copySram) {
+        device_sram_syncShadowFromDUT(SRAM_ADDR, SRAM_LEN);
+        syncRegion(SRAM_ADDR, SRAM_LEN, "SRAM", sram_io_base);
     }
 }
 
@@ -190,6 +197,7 @@ bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t load
     size_t maxAvail;
     void *backingStore;
     const char *regionName;
+    bool isSramRegion = false;
 
     if (loadAddr >= PSRAM_ADDR && loadAddr < PSRAM_ADDR + PSRAM_LEN) {
         baseAddr = PSRAM_ADDR;
@@ -201,8 +209,14 @@ bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t load
         maxAvail = SDRAM_ADDR + SDRAM_LEN - loadAddr;
         backingStore = sdram_io_base;
         regionName = "SDRAM";
+    } else if (loadAddr >= SRAM_ADDR && loadAddr < SRAM_ADDR + SRAM_LEN) {
+        baseAddr = SRAM_ADDR;
+        maxAvail = SRAM_ADDR + SRAM_LEN - loadAddr;
+        backingStore = sram_io_base;
+        regionName = "SRAM";
+        isSramRegion = true;
     } else {
-        std::println("[difftest] 错误: Payload 加载地址 0x{:08x} 不在 PSRAM 或 SDRAM 范围内!", loadAddr);
+        std::println("[difftest] 错误: Payload 加载地址 0x{:08x} 不在 PSRAM / SDRAM / SRAM 范围内!", loadAddr);
         return false;
     }
 
@@ -230,6 +244,10 @@ bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t load
     if (f.fail()) {
         std::println("[difftest] 错误: 读取 payload 文件 {} 失败!", binFilePath);
         return false;
+    }
+
+    if (isSramRegion) {
+        device_sram_syncDUTFromShadow(loadAddr, fileSize);
     }
 
     std::println("[difftest] 成功加载 payload {} ({} 字节) 到 {} 地址 0x{:08x}",

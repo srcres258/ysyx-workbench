@@ -66,7 +66,7 @@ void difftest_dut_syncCurrentProcessorState();
 void difftest_dut_clearSkipRef();
 
 /**
- * @brief DiffTest dut: 将 DUT 的 PSRAM/SDRAM 内存内容同步到 REF。
+ * @brief DiffTest dut: 将 DUT 的 PSRAM/SDRAM/SRAM 内存内容同步到 REF。
  *
  * 在 difftest 激活边界处使用, 以确保 REF 在开始比较前具有与 DUT 相同的
  * 内存内容（bootloader 可能已将 payload 加载到这些区域中）。
@@ -75,7 +75,7 @@ void difftest_dut_syncPayloadMemoryToRef();
 
 
 /**
- * @brief 将 payload 二进制文件加载到 DUT 的 C++ 后备存储 (psram_io_base 或 sdram_io_base).
+ * @brief 将 payload 二进制文件加载到 DUT 的 C++ 后备存储 (psram_io_base, sdram_io_base 或 sram_io_base).
  *
  * Verilog PSRAM/SDRAM 行为模型不会通过 DPI 回调更新 C++ 侧的缓冲,
  * 因此必须在 difftest activation 同步之前将 payload 显式加载到该缓冲中,

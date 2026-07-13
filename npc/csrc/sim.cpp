@@ -492,6 +492,9 @@ bool simulate(bool sdbEnabled) {
                 } else if (sim_config.config_difftestStartPC >= SDRAM_ADDR &&
                            sim_config.config_difftestStartPC < SDRAM_ADDR + SDRAM_LEN) {
                     execRegionBase = SDRAM_ADDR;
+                } else if (sim_config.config_difftestStartPC >= SRAM_ADDR &&
+                           sim_config.config_difftestStartPC < SRAM_ADDR + SRAM_LEN) {
+                    execRegionBase = SRAM_ADDR;
                 }
                 // 计算 loadAddr 所在内存区域的基址, 用于与执行区域比较.
                 // 当 loadAddr 位于 PSRAM 或 SDRAM 范围内时, 其区域基址为对应设备的基址;
@@ -503,6 +506,9 @@ bool simulate(bool sdbEnabled) {
                 } else if (sim_config.config_difftestPayloadLoadAddr >= SDRAM_ADDR &&
                            sim_config.config_difftestPayloadLoadAddr < SDRAM_ADDR + SDRAM_LEN) {
                     loadRegionBase = SDRAM_ADDR;
+                } else if (sim_config.config_difftestPayloadLoadAddr >= SRAM_ADDR &&
+                           sim_config.config_difftestPayloadLoadAddr < SRAM_ADDR + SRAM_LEN) {
+                    loadRegionBase = SRAM_ADDR;
                 }
                 if (execRegionBase != 0 && execRegionBase != loadRegionBase) {
                     std::println("[sim] startPC=0x{:08x} 所在执行区域与 loadAddr=0x{:08x} 不同, "
@@ -520,10 +526,14 @@ bool simulate(bool sdbEnabled) {
                 }
             }
         } else {
-            if (sim_config.config_difftestStartPC >= PSRAM_ADDR ||
-                sim_config.config_difftestStartPC >= SDRAM_ADDR) {
+            if ((sim_config.config_difftestStartPC >= PSRAM_ADDR &&
+                 sim_config.config_difftestStartPC < PSRAM_ADDR + PSRAM_LEN) ||
+                (sim_config.config_difftestStartPC >= SDRAM_ADDR &&
+                 sim_config.config_difftestStartPC < SDRAM_ADDR + SDRAM_LEN) ||
+                (sim_config.config_difftestStartPC >= SRAM_ADDR &&
+                 sim_config.config_difftestStartPC < SRAM_ADDR + SRAM_LEN)) {
                 std::println(stderr,
-                    "[sim] 警告: startPC=0x{:08x} 在 PSRAM/SDRAM 内但未指定 Payload BIN 文件. "
+                    "[sim] 警告: startPC=0x{:08x} 在 PSRAM/SDRAM/SRAM 内但未指定 Payload BIN 文件. "
                     "Activation 时内存同步会将空数据发到 REF, 可能导致 INVALID OPCODE 崩溃.",
                     sim_config.config_difftestStartPC);
             }

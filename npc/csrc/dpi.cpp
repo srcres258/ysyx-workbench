@@ -11,6 +11,7 @@
 #include <device/mrom.hpp>
 #include <device/flash.hpp>
 #include <device/psram.hpp>
+#include <device/sram.hpp>
 #include <macro-def.hpp>
 #include <difftest/dut.hpp>
 #include <tui/tui_events.hpp>
@@ -337,4 +338,14 @@ extern "C" void psram_read(uint32_t addr, uint8_t *data) {
 extern "C" void psram_write(uint32_t addr, uint8_t data) {
     addr_t realAddr = PSRAM_ADDR + addr;
     device_psram_write(realAddr, 1, data);
+}
+
+extern "C" void sram_read(uint32_t addr, uint8_t *data) {
+    addr_t realAddr = SRAM_ADDR + addr;
+    *data = uint8_t(device_sram_read(realAddr, 1));
+}
+
+extern "C" void sram_write(uint32_t addr, uint8_t data) {
+    addr_t realAddr = SRAM_ADDR + addr;
+    device_sram_write(realAddr, 1, data);
 }

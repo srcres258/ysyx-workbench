@@ -76,7 +76,7 @@ word_t IOMap::read(addr_t addr, int len) const {
     checkBound(this, addr, len);
     addr_t offset = addr - low;
     invokeCallback(callback, offset, len, false);
-    word_t ret = memoryHostRead(ioSpace + offset, len);
+    word_t ret = memoryHostRead((uint8_t *) space + offset, len);
     if (sim_config.config_dtrace) {
         dtraceRecord(addr, len, ret, this, "read");
     }
@@ -88,7 +88,7 @@ void IOMap::write(addr_t addr, int len, word_t data) const {
     Assert(len >= 1 && len <= 8);
     checkBound(this, addr, len);
     addr_t offset = addr - low;
-    memoryHostWrite(ioSpace + offset, len, data);
+    memoryHostWrite((uint8_t *) space + offset, len, data);
     invokeCallback(callback, offset, len, true);
     if (sim_config.config_dtrace) {
         dtraceRecord(addr, len, data, this, "write");

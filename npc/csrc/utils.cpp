@@ -306,14 +306,34 @@ void disasm_disassemble(
     char *str, int size, uint64_t pc,
     uint8_t *code, int nbyte
 ) {
-    cs_insn *insn;
+    bool ok = disasm_tryDisassemble(str, size, pc, code, nbyte);
+    assert(ok);
+}
+
+bool disasm_tryDisassemble(
+    char *str, int size, uint64_t pc,
+    uint8_t *code, int nbyte
+) {
+    if (!str || size <= 0) {
+        return false;
+    }
+
+    cs_insn *insn = nullptr;
     size_t count = cs_disasm_dl(handle, code, nbyte, pc, 0, &insn);
-    assert(count == 1);
+    if (count != 1 || insn == nullptr) {
+        str[0] = '\0';
+        if (insn != nullptr && count > 0) {
+            cs_free_dl(insn, count);
+        }
+        return false;
+    }
+
     int ret = snprintf(str, size, "%s", insn->mnemonic);
     if (insn->op_str[0] != '\0') {
         snprintf(str + ret, size - ret, " %s", insn->op_str);
     }
     cs_free_dl(insn, count);
+    return true;
 }
 
 // ----------- memory -----------
