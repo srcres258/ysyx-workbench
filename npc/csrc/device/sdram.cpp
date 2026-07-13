@@ -1,5 +1,6 @@
 #include <utils.hpp>
 #include <device/io/map.hpp>
+#include <cstring>
 #include <device/io.hpp>
 #include <macro-def.hpp>
 
@@ -13,6 +14,9 @@ static void sdram_io_handler(addr_t offset, int len, bool isWrite) {
 
 bool device_sdram_init() {
     sdram_io_base = device_io_map_newSpace(SDRAM_LEN);
+    if (sdram_io_base) {
+        memset(sdram_io_base, 0, SDRAM_LEN);
+    }
     device_io_addMMIOMap("sdram", SDRAM_ADDR, sdram_io_base, SDRAM_LEN, sdram_io_handler);
 
     return true;

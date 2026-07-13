@@ -4,6 +4,7 @@
 #include <utils.hpp>
 #include <device/io.hpp>
 #include <device/io/map.hpp>
+#include <cstring>
 #include <device/mrom.hpp>
 
 void *mrom_io_base = nullptr;
@@ -47,6 +48,9 @@ static void mrom_io_handler(addr_t offset, int len, bool isWrite) {
 
 bool device_mrom_init() {
     mrom_io_base = device_io_map_newSpace(MROM_LEN);
+    if (mrom_io_base) {
+        memset(mrom_io_base, 0, MROM_LEN);
+    }
     device_io_addMMIOMap("mrom", MROM_ADDR, mrom_io_base, MROM_LEN, mrom_io_handler);
 
     if (sim_config.config_mrom) {

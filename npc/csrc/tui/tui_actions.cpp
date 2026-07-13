@@ -318,6 +318,10 @@ void ActionMap::buildFromConfig(const TuiConfig::Keybindings &kb) {
 }
 
 Action ActionMap::lookup(const KeyChord &chord) const {
+    if (chord.mod == kModCtrl && chord.key == static_cast<uint32_t>('c')) {
+        return Action::QUIT;
+    }
+
     auto it = m_map.find(chord);
     if (it != m_map.end()) return it->second;
     return Action::NONE;

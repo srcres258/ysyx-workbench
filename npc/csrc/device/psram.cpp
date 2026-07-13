@@ -1,5 +1,6 @@
 #include <utils.hpp>
 #include <device/io/map.hpp>
+#include <cstring>
 #include <device/io.hpp>
 #include <macro-def.hpp>
 
@@ -13,6 +14,9 @@ static void psram_io_handler(addr_t offset, int len, bool isWrite) {
 
 bool device_psram_init() {
     psram_io_base = device_io_map_newSpace(PSRAM_LEN);
+    if (psram_io_base) {
+        memset(psram_io_base, 0, PSRAM_LEN);
+    }
     device_io_addMMIOMap("psram", PSRAM_ADDR, psram_io_base, PSRAM_LEN, psram_io_handler);
 
     return true;

@@ -4,6 +4,7 @@
 #include <utils.hpp>
 #include <device/io.hpp>
 #include <device/io/map.hpp>
+#include <cstring>
 #include <device/flash.hpp>
 
 void *flash_io_base = nullptr;
@@ -47,6 +48,9 @@ static void flash_io_handler(addr_t offset, int len, bool isWrite) {
 
 bool device_flash_init() {
     flash_io_base = device_io_map_newSpace(FLASH_LEN);
+    if (flash_io_base) {
+        memset(flash_io_base, 0, FLASH_LEN);
+    }
     device_io_addMMIOMap("flash", FLASH_ADDR, flash_io_base, FLASH_LEN, flash_io_handler);
 
     IFDBG std::cout << "Initializing flash from bin file..." << std::endl;

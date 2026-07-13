@@ -29,7 +29,7 @@
 #define PSRAM_LEN  0x400000
 
 #define SDRAM_ADDR 0xa0000000
-#define SDRAM_LEN  0x2000000
+#define SDRAM_LEN  0x8000000
 
 #define SRAM_ADDR  0x0f000000
 #define SRAM_LEN   0x2000

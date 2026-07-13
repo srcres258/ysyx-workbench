@@ -3,8 +3,8 @@
 #include <sim_top.hpp>
 #include <device/io/map.hpp>
 
-// IO space size: 64 MB (PSRAM 4MB + FLASH 16MB + SDRAM 32MB + MROM 4KB ≈ 52MB)
-#define IO_SPACE_MAX (64 * 1024 * 1024)
+// IO space size: 256 MB (covers PSRAM/FLASH/SDRAM full NPC-backed ranges)
+#define IO_SPACE_MAX (256 * 1024 * 1024)
 
 static uint8_t *ioSpace = nullptr;
 static uint8_t *pSpace = nullptr;
@@ -68,7 +68,7 @@ static void dtraceRecord(
 }
 
 bool IOMap::isInside(addr_t addr) const {
-    return addr >= low && addr < high;
+    return addr >= low && addr <= high;
 }
 
 word_t IOMap::read(addr_t addr, int len) const {

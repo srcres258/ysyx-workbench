@@ -123,9 +123,13 @@ void simStepClockPeriod() {
 void simStep() {
     bool executionBegun = false;
     do {
+        if (sim_halt || tui::isPauseRequested()) {
+            break;
+        }
+
         simStepClockPeriod();
 
-        if (top->reset) {
+        if (top->reset || sim_halt || tui::isPauseRequested()) {
             break;
         }
 
