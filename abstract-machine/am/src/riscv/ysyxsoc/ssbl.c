@@ -186,6 +186,7 @@ static void copy_tail_bytes(volatile uint8_t *dst,
     }
 }
 
+#ifdef EMPTY_BSS
 static void zero_bytes_with_progress(volatile uint8_t *dst,
                                      uint32_t bytes) {
     uint32_t next_dot = PROGRESS_STEP;
@@ -201,6 +202,7 @@ static void zero_bytes_with_progress(volatile uint8_t *dst,
         uart_puts("\r\n");
     }
 }
+#endif
 
 static void copy_section_with_log(const char *section_name,
                                   volatile uint8_t *dst,
@@ -236,6 +238,7 @@ static void copy_section_with_log(const char *section_name,
     uart_puts("      done\r\n\r\n");
 }
 
+#ifdef EMPTY_BSS
 static void clear_section_with_log(const char *section_name,
                                    volatile uint8_t *dst,
                                    uint32_t bytes) {
@@ -261,6 +264,7 @@ static void clear_section_with_log(const char *section_name,
     zero_bytes_with_progress(dst, bytes);
     uart_puts("      done\r\n\r\n");
 }
+#endif
 
 /* ================================================================
  * SSBL Entry — Load + Log Output
@@ -284,7 +288,9 @@ static void clear_section_with_log(const char *section_name,
 void ssbl_entry(void) {
     uint32_t text_bytes;
     uint32_t data_extra_bytes, data_bytes;
+#ifdef EMPTY_BSS
     uint32_t bss_extra_bytes, bss_bytes;
+#endif
 
     /* --- UART Initialization --- */
     uart_init();
@@ -319,6 +325,7 @@ void ssbl_entry(void) {
     copy_section_with_log(".data", (volatile uint8_t *)&_data_start,
                           (volatile const uint8_t *)&_data_lma, data_bytes);
 
+#ifdef EMPTY_BSS
     /* ================================================================
      * 4. Zero-initialize .bss.extra section (PSRAM/SDRAM)
      * ================================================================ */
@@ -333,6 +340,7 @@ void ssbl_entry(void) {
     bss_bytes = (uint32_t)(uintptr_t)&_bss_end -
                 (uint32_t)(uintptr_t)&_bss_start;
     clear_section_with_log(".bss", (volatile uint8_t *)&_bss_start, bss_bytes);
+#endif
 
     /* ================================================================
      * 6. Jump to Application
