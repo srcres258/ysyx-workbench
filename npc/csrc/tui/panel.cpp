@@ -91,27 +91,12 @@ static void drawPanelBorder(Canvas &canvas, const Rect &rect,
 }
 
 static addr_t chooseInstAnchorPc(const TuiFrameModel &fm) {
-    std::vector<addr_t> pcs;
-    pcs.reserve(TuiFrameModel::kMaxInstMarks);
-
-    for (size_t i = 0; i < fm.numInstMarks; i++) {
-        const auto &mark = fm.instMarks[i];
-        if (mark.valid && mark.hasPc) {
-            pcs.push_back(mark.pc);
-        }
-    }
-
-    if (!pcs.empty()) {
-        std::sort(pcs.begin(), pcs.end());
-        return pcs[pcs.size() / 2];
+    if (fm.pcStr[0] != '\0') {
+        return static_cast<addr_t>(std::strtoul(fm.pcStr, nullptr, 0));
     }
 
     if (fm.retiredPcRaw != 0) {
         return fm.retiredPcRaw;
-    }
-
-    if (fm.pcStr[0] != '\0') {
-        return static_cast<addr_t>(std::strtoul(fm.pcStr, nullptr, 0));
     }
 
     return 0;
@@ -537,16 +522,8 @@ public:
         addr_t anchorPc = chooseInstAnchorPc(fm);
         anchorPc &= ~static_cast<addr_t>(0x3);
 
-        std::vector<addr_t> activePcs;
-        activePcs.reserve(TuiFrameModel::kMaxInstMarks);
-        for (size_t i = 0; i < fm.numInstMarks; i++) {
-            const auto &mark = fm.instMarks[i];
-            if (mark.valid && mark.hasPc) {
-                activePcs.push_back(mark.pc & ~static_cast<addr_t>(0x3));
-            }
-        }
-        std::sort(activePcs.begin(), activePcs.end());
-        activePcs.erase(std::unique(activePcs.begin(), activePcs.end()), activePcs.end());
+        // TODO(pipeline): re-enable in-flight instruction arrows once NPC becomes pipelined.
+        // For the current multi-cycle core, the current PC line is the only one we mark.
 
         size_t centerOffset = innerH / 2;
         addr_t startPc = anchorPc;
@@ -557,7 +534,7 @@ public:
 
         for (size_t i = 0; i < innerH; i++) {
             addr_t linePc = startPc + static_cast<addr_t>(i) * 4;
-            bool highlighted = std::binary_search(activePcs.begin(), activePcs.end(), linePc);
+            bool highlighted = (linePc == anchorPc);
 
             char disasm[64] = {0};
             uint8_t bytes[4] = {0, 0, 0, 0};
