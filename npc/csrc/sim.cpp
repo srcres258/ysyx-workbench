@@ -284,9 +284,9 @@ static void execute(uint64_t n) {
         }
     }
 
-    if (sim_config.config_itrace) {
-        sim_state_itrace_iringbuf_dump();
-    }
+    // if (sim_config.config_itrace) {
+    //     sim_state_itrace_iringbuf_dump();
+    // }
 }
 
 /**
