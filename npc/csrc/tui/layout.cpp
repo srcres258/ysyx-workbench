@@ -337,19 +337,21 @@ void LayoutTree::toggleMaximize() {
 void LayoutTree::focusTabNext() {
     if (m_focusedPanel.empty()) return;
 
-    // Find the slot for the focused panel to get its tab group
     auto it = m_slots.find(m_focusedPanel);
     if (it == m_slots.end() || it->second.tabCount <= 1) return;
 
-    size_t curTab = it->second.tabIndex;
     size_t tabCount = it->second.tabCount;
 
-    // Find all panels in the same tab group and figure out the next one
-    // We need to modify m_root.activeTab for the parent tabbed node
-    // Strategy: find the tabbed node containing m_focusedPanel, advance its activeTab
     bool found = advanceTabInNode(m_root, m_focusedPanel, tabCount);
     if (found) {
-        // Re-compute layout
+        // After switching tabs, re-target focus to the newly active tab's leaf
+        // so compute() preserves focus within the tabbed node instead of
+        // falling back to m_focusOrder[0].
+        std::string newFocus = getFirstLeafInActiveTab(m_root, m_focusedPanel);
+        if (!newFocus.empty()) {
+            m_focusedPanel = newFocus;
+        }
+
         if (m_termRows > 0) {
             compute(m_termRows, m_termCols, m_statusRows);
         }
@@ -393,6 +395,52 @@ bool LayoutTree::isFocusedInTabbed() const {
     auto it = m_slots.find(m_focusedPanel);
     if (it == m_slots.end()) return false;
     return it->second.tabCount > 1;
+}
+
+// ============================================================================
+// Tab focus helpers
+// ============================================================================
+
+// Find the first leaf reachable through this node (follows active tabs).
+static std::string getFirstLeafReachable(const LayoutNode &node) {
+    if (node.type == LayoutNode::Leaf) {
+        return node.panelId;
+    }
+    if (node.type == LayoutNode::Tabbed) {
+        if (!node.children.empty()) {
+            size_t idx = (node.activeTab < node.children.size()) ? node.activeTab : 0;
+            return getFirstLeafReachable(node.children[idx]);
+        }
+        return "";
+    }
+    // Split node: depth-first, left-to-right
+    for (const auto &child : node.children) {
+        std::string id = getFirstLeafReachable(child);
+        if (!id.empty()) return id;
+    }
+    return "";
+}
+
+// Find the innermost tabbed node containing panelId, then return
+// the first leaf in its currently active child tab.
+std::string LayoutTree::getFirstLeafInActiveTab(const LayoutNode &node,
+                                                  const std::string &panelId) const {
+    if (node.type == LayoutNode::Tabbed) {
+        for (size_t i = 0; i < node.children.size(); i++) {
+            if (isPanelInSubtree(node.children[i], panelId)) {
+                if (node.activeTab < node.children.size()) {
+                    return getFirstLeafReachable(node.children[node.activeTab]);
+                }
+                return "";
+            }
+        }
+    }
+    for (const auto &child : node.children) {
+        if (isPanelInSubtree(child, panelId)) {
+            return getFirstLeafInActiveTab(child, panelId);
+        }
+    }
+    return "";
 }
 
 // ============================================================================

@@ -255,6 +255,10 @@ private:
                            const std::string &panelId,
                            size_t tabCount);
 
+    /** Find the first leaf in the active tab of the tabbed node containing panelId. */
+    std::string getFirstLeafInActiveTab(const LayoutNode &node,
+                                         const std::string &panelId) const;
+
     /** True if panelId lives anywhere under @p node. */
     bool isPanelInSubtree(const LayoutNode &node, const std::string &panelId) const;
 
