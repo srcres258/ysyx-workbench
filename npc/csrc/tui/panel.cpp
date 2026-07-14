@@ -224,17 +224,31 @@ public:
         uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
         if (innerW < 10 || innerH == 0) return;
 
-        // Determine columns: 8 cols if wide enough (≥80 inner), else 4
-        int nCols = (innerW >= 80) ? 8 : 4;
+        bool useAbi  = g_tuiConfig.regs.abi_names;
+        bool doHl    = g_tuiConfig.regs.highlight_changed;
+
+        // Minimum cell width depends on display mode:
+        //   ABI names ("zero") + ":" + value ("0xHHHHHHHH") = 15 chars max
+        //   xN  names ("x31")  + ":" + value ("0xHHHHHHHH") = 14 chars max
+        int minCellW = useAbi ? 15 : 14;
+
+        // Determine columns: prefer 8 or 4 when space permits, else fewer
+        int nCols;
+        if (static_cast<int>(innerW) >= 8 * minCellW) {
+            nCols = 8;
+        } else if (static_cast<int>(innerW) >= 4 * minCellW) {
+            nCols = 4;
+        } else {
+            nCols = std::max(1, static_cast<int>(innerW) / minCellW);
+        }
         uint16_t cellW = innerW / static_cast<uint16_t>(nCols);
-        if (cellW < 9) {
-            nCols = std::max<int>(1, static_cast<int>(innerW / 9));
+
+        // Safety net: if somehow cellW is still too narrow, reduce columns further
+        if (cellW < static_cast<uint16_t>(minCellW)) {
+            nCols = std::max<int>(1, static_cast<int>(innerW / minCellW));
             cellW = innerW / static_cast<uint16_t>(nCols);
         }
         int nRows = (RISCV_GPR_NUM + nCols - 1) / nCols;
-
-        bool useAbi  = g_tuiConfig.regs.abi_names;
-        bool doHl    = g_tuiConfig.regs.highlight_changed;
 
         // Detect changes via local cache
         for (size_t i = 0; i < RISCV_GPR_NUM; i++) {
