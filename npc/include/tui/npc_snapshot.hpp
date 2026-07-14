@@ -7,6 +7,7 @@
 #include <common.hpp>
 #include <processor.hpp>
 #include <utils.hpp>
+#include <perf.hpp>
 #include <tui/tui_events.hpp>
 
 namespace tui {
@@ -36,6 +37,7 @@ struct NpcSnapshot {
     uint64_t      execCount;
     uint64_t      execCountClock;
     bool          difftestActive;
+    std::vector<perf::PerfCounterView> perfCounters;  // from PerfMonitor::view()
     std::vector<CallFrameInfo> callFrames;
 
     static constexpr size_t kMaxRecentEvents = 8;
@@ -88,6 +90,14 @@ struct TuiFrameModel {
     uint64_t execCount;
     uint64_t execCountClock;
     double   ipc;            // computed: execCount / execCountClock (0 if no clocks)
+
+    // ---- Perf counter snapshot (from PerfMonitor) ----
+    static constexpr size_t kNumPerfCounters = perf::PerfCounters::kNumCounters;
+    uint64_t perfValues[kNumPerfCounters];  // zeroed for first frame / perf off
+    double   perfCpi;        // CPI = core.cycle / core.instret, 0 if div-by-zero
+    double   perfIpc;        // IPC = core.instret / core.cycle, 0 if div-by-zero
+    double   perfStallPct;   // Stall% = core.stall.cycle / core.cycle * 100.0
+    bool     perfValid;      // true when perf counters have meaningful data
 
     // ---- State strings ----
     char stateStr[32];       // "RUNNING" / "STOP" / "END" / "ABORT" / "QUIT"

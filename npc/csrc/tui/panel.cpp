@@ -385,7 +385,7 @@ private:
 };
 
 // ============================================================================
-// PerfPanel — performance counters and DiffTest status
+// PerfPanel — performance counters grouped by domain (from PerfMonitor snapshot)
 // ============================================================================
 
 class PerfPanel : public Panel {
@@ -398,110 +398,107 @@ public:
         drawPanelBorder(canvas, rect, " Performance ", focused);
 
         uint16_t r = rect.row + 1;
-        uint16_t c = rect.col + 1;
-        uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (innerW < 10 || r >= rect.row + rect.h) return;
+        const uint16_t c = rect.col + 1;
+        const uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
+        if (innerW < 8 || r >= rect.row + rect.h) return;
 
-        // Compute deltas if we have history
-        uint64_t deltaExec       = 0;
-        uint64_t deltaClock      = 0;
-        double   deltaIpc        = 0.0;
-        if (m_initialized) {
-            if (fm.execCount > m_prevExecCount) {
-                deltaExec = fm.execCount - m_prevExecCount;
+        const uint16_t endRow = rect.row + rect.h;
+
+        // ── No perf data ──
+        if (!fm.perfValid) {
+            if (fm.execCountClock == 0) {
+                writeClippedF(canvas, r, c, c, innerW, styleFg(kColourBlue),
+                              "Waiting for simulation data...");
+            } else {
+                writeClippedF(canvas, r, c, c, innerW, styleFg(kColourBlue),
+                              "Perf counters: inactive");
             }
-            if (fm.execCountClock > m_prevExecCountClock) {
-                deltaClock = fm.execCountClock - m_prevExecCountClock;
-            }
-            if (deltaClock > 0) {
-                deltaIpc = static_cast<double>(deltaExec)
-                         / static_cast<double>(deltaClock);
-            }
+            return;
         }
 
-        // Update cache
-        m_prevExecCount      = fm.execCount;
-        m_prevExecCountClock = fm.execCountClock;
-        m_initialized         = true;
+        const auto &pv = fm.perfValues;
 
-        // --- Instructions ---
-        writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
-                      "Instructions executed:");
-        r++;
-        if (r >= rect.row + rect.h) return;
-        writeClippedF(canvas, r, static_cast<uint16_t>(c + 2), c, innerW,
-                      styleFgBold(kColourGreen), "%lu", fm.execCount);
-        if (deltaExec > 0) {
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 18), c, innerW,
-                          styleFg(kColourCyan), "(+%lu)", deltaExec);
-        }
-        r++;
-        if (r >= rect.row + rect.h) return;
-
-        // --- Clock cycles ---
-        writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
-                      "Clock cycles:");
-        r++;
-        if (r >= rect.row + rect.h) return;
-        writeClippedF(canvas, r, static_cast<uint16_t>(c + 2), c, innerW,
-                      styleFgBold(kColourGreen), "%lu", fm.execCountClock);
-        if (deltaClock > 0) {
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 18), c, innerW,
-                          styleFg(kColourCyan), "(+%lu)", deltaClock);
-        }
-        r++;
-        if (r >= rect.row + rect.h) return;
-
-        // --- IPC ---
-        writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite), "IPC:");
-        r++;
-        if (r >= rect.row + rect.h) return;
-        writeClippedF(canvas, r, static_cast<uint16_t>(c + 2), c, innerW,
-                      styleFgBold(kColourYellow), "%.4f", fm.ipc);
-        if (deltaIpc > 0.0) {
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 14), c, innerW,
-                          styleFg(kColourCyan), "(+%.4f)", deltaIpc);
-        }
-        r++;
-        if (r >= rect.row + rect.h) return;
-
-        // --- State info ---
-        writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
-                      "Sim state:");
-        r++;
-        if (r >= rect.row + rect.h) return;
-
-        ColourIndex stateColor = kColourGreen;
-        if (std::strcmp(fm.stateStr, "STOP") == 0)  stateColor = kColourYellow;
-        if (std::strcmp(fm.stateStr, "ABORT") == 0) stateColor = kColourRed;
-        if (std::strcmp(fm.stateStr, "END") == 0)   stateColor = kColourCyan;
-        writeClippedF(canvas, r, static_cast<uint16_t>(c + 2), c, innerW,
-                      styleFgBold(stateColor), "%s", fm.stateStr);
-        r++;
-        if (r >= rect.row + rect.h) return;
-
-        // --- DiffTest ---
-        if (fm.difftestStr[0]) {
-            ColourIndex dtColor = (std::strstr(fm.difftestStr, "active") != nullptr)
-                ? kColourGreen : kColourBlue;
-            writeClippedF(canvas, r, c, c, innerW, styleFg(dtColor), "%s", fm.difftestStr);
-            r++;
+        // ── Core counters + derived metrics ──
+        {
+            uint64_t cyc = pv[perf::Idx::CORE_CYCLE];
+            uint64_t ins = pv[perf::Idx::CORE_INSTRET];
+            uint64_t busy = pv[perf::Idx::CORE_BUSY_CYCLE];
+            uint64_t stall= pv[perf::Idx::CORE_STALL_CYCLE];
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourGreen),
+                          "Core: c=%lu i=%lu b=%lu s=%lu", cyc, ins, busy, stall);
+            r++; if (r >= endRow) return;
         }
 
-        // --- Event summary if space ---
-        if (r < rect.row + rect.h - 1 && fm.numRecentEvents > 0) {
-            r++;
-            if (r < rect.row + rect.h) {
-                writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
-                              "Recent events: %zu", fm.numRecentEvents);
-            }
+        {
+            const char *cpiFmt = (fm.perfCpi > 0.0) ? "%.2f" : "-";
+            const char *ipcFmt = (fm.perfIpc > 0.0) ? "%.3f" : "-";
+            const char *stFmt  = (fm.perfStallPct > 0.0) ? "%.1f%%" : "-";
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourYellow),
+                          "CPI=");
+            writeClippedF(canvas, r, static_cast<uint16_t>(c + 4), c, innerW,
+                          styleFg(kColourYellow), cpiFmt, fm.perfCpi);
+            writeClippedF(canvas, r, static_cast<uint16_t>(c + 11), c, innerW,
+                          styleFg(kColourYellow), " IPC=");
+            writeClippedF(canvas, r, static_cast<uint16_t>(c + 16), c, innerW,
+                          styleFg(kColourYellow), ipcFmt, fm.perfIpc);
+            writeClippedF(canvas, r, static_cast<uint16_t>(c + 23), c, innerW,
+                          styleFg(kColourYellow), " St%=");
+            writeClippedF(canvas, r, static_cast<uint16_t>(c + 28), c, innerW,
+                          styleFg(kColourYellow), stFmt, fm.perfStallPct);
+            r++; if (r >= endRow) return;
+        }
+
+        // ── Inst Class ──
+        {
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
+                          "ICls: al=%lu ld=%lu st=%lu br=%lu",
+                          pv[perf::Idx::INST_CLASS_ALU_COUNT],
+                          pv[perf::Idx::INST_CLASS_LOAD_COUNT],
+                          pv[perf::Idx::INST_CLASS_STORE_COUNT],
+                          pv[perf::Idx::INST_CLASS_BRANCH_COUNT]);
+            r++; if (r >= endRow) return;
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
+                          "      jl=%lu jr=%lu cs=%lu md=%lu",
+                          pv[perf::Idx::INST_CLASS_JAL_COUNT],
+                          pv[perf::Idx::INST_CLASS_JALR_COUNT],
+                          pv[perf::Idx::INST_CLASS_CSR_COUNT],
+                          pv[perf::Idx::INST_CLASS_MULDIV_COUNT]);
+            r++; if (r >= endRow) return;
+        }
+
+        // ── State ──
+        {
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourCyan),
+                          "Pipe: IF=%lu DE=%lu EX=%lu ME=%lu WB=%lu",
+                          pv[perf::Idx::STATE_FETCH_CYCLE],
+                          pv[perf::Idx::STATE_DECODE_CYCLE],
+                          pv[perf::Idx::STATE_EXECUTE_CYCLE],
+                          pv[perf::Idx::STATE_MEMORY_CYCLE],
+                          pv[perf::Idx::STATE_WRITEBACK_CYCLE]);
+            r++; if (r >= endRow) return;
+        }
+
+        // ── Stall + Mem + Trap (condensed into remaining rows) ──
+        {
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourMagenta),
+                          "Stall: iw=%lu mw=%lu bk=%lu sm=%lu mb=%lu",
+                          pv[perf::Idx::STALL_IFETCH_WAIT_RESP_CYCLE],
+                          pv[perf::Idx::STALL_MEM_WAIT_RESP_CYCLE],
+                          pv[perf::Idx::STALL_MEM_REQ_BLOCKED_CYCLE],
+                          pv[perf::Idx::STALL_STRUCT_SHARED_MEM_CYCLE],
+                          pv[perf::Idx::STALL_MULDIV_BUSY_CYCLE]);
+            r++; if (r >= endRow) return;
+        }
+
+        {
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
+                          "Mem: ld=%lu st=%lu mm=%lu  |  Trap: %lu",
+                          pv[perf::Idx::MEM_LOAD_REQ_COUNT],
+                          pv[perf::Idx::MEM_STORE_REQ_COUNT],
+                          pv[perf::Idx::MEM_MMIO_REQ_COUNT],
+                          pv[perf::Idx::TRAP_EXCEPTION_COUNT]);
         }
     }
-
-private:
-    uint64_t m_prevExecCount      = 0;
-    uint64_t m_prevExecCountClock = 0;
-    bool     m_initialized        = false;
 };
 
 // ============================================================================

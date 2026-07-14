@@ -273,6 +273,22 @@ static void loadConfig() {
         std::cout << "[config] TUI 打印默认配置模式已启用" << std::endl;
     }
 
+    // ---- 性能计数器配置 ----
+    env = std::getenv("NPC_CONFIG_PERF");
+    if (!env) {
+        sim_config.config_perf = true; // default on
+    } else if (strcmp(env, "on") == 0) {
+        sim_config.config_perf = true;
+    } else if (strcmp(env, "off") == 0) {
+        sim_config.config_perf = false;
+    } else {
+        std::cerr << "[config] 无效的 RUN_CONFIG_PERF 值: \"" << env
+                  << "\" (必须为 on 或 off)" << std::endl;
+        std::exit(EXIT_FAILURE);
+    }
+    std::cout << "[config] 性能计数器已"
+              << (sim_config.config_perf ? "启用" : "禁用") << std::endl;
+
     // 跨字段验证: payload 模式下必须指定 payload 二进制文件路径
     if (sim_config.config_difftest
         && sim_config.config_difftestStartMode == "payload"

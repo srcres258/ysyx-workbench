@@ -53,6 +53,7 @@ struct SimConfig {
     bool config_mrom;
 
     bool config_tui;
+    bool config_perf;
     std::string config_tuiConfigFilePath;
     bool config_tuiGenerateConfig;
     bool config_tuiGenerateFullConfig;

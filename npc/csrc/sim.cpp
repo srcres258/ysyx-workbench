@@ -33,6 +33,7 @@
 #include <tui/panel.hpp>
 #include <tui/tui_actions.hpp>
 #include <tui/tui_overlay.hpp>
+#include <perf.hpp>
 
 ExecInfo simExecInfo = {
     .pc = 0x00000000,
@@ -115,6 +116,9 @@ void simStepClockPeriod() {
 #endif
 
     execCountClockPeriod++;
+    if (!top->reset && sim_config.config_perf) {
+        perf::g_perfMonitor.sampleCycle(getDPIModule());
+    }
 }
 
 /**
@@ -145,11 +149,17 @@ void simStep() {
  * @param n 需要进行的时钟周期数
  */
 void simReset(int n) {
+    if (sim_config.config_perf) {
+        perf::g_perfMonitor.onResetBegin();
+    }
     top->reset = 1;
     while (n--) {
         simStepClockPeriod();
     }
     top->reset = 0;
+    if (sim_config.config_perf) {
+        perf::g_perfMonitor.onResetEnd();
+    }
 }
 
 /**
@@ -344,6 +354,9 @@ void simExec(uint64_t n) {
             if (execCountClockPeriod > 0) {
                 double ipc = static_cast<double>(execCount) / static_cast<double>(execCountClockPeriod);
                 std::cout << "IPC = " << std::fixed << std::setprecision(4) << ipc << std::endl;
+            }
+            if (sim_config.config_perf) {
+                perf::g_perfMonitor.dumpSummary(std::cout);
             }
 
             if (sim_state.state == SIM_END) {

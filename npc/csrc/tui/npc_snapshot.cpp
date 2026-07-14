@@ -37,6 +37,10 @@ NpcSnapshot makeNpcSnapshot() {
     snap.execCountClock = getExecCountClockPeriod();
     snap.difftestActive = isDifftestActive();
 
+    if (sim_config.config_perf) {
+        snap.perfCounters = perf::g_perfMonitor.view();
+    }
+
     // Tail of event feed
     snap.numRecentEvents = g_eventFeed.getRecentEvents(
         snap.recentEvents, NpcSnapshot::kMaxRecentEvents);
@@ -131,6 +135,30 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     fm.ipc = (snap.execCountClock > 0)
         ? static_cast<double>(snap.execCount) / static_cast<double>(snap.execCountClock)
         : 0.0;
+
+    // ---- Perf counter snapshot ----
+    fm.perfValid = false;
+    if (!snap.perfCounters.empty()) {
+        // Copy all 26 counter values into the frame model indexed by table position
+        for (size_t i = 0; i < TuiFrameModel::kNumPerfCounters && i < snap.perfCounters.size(); i++) {
+            fm.perfValues[i] = snap.perfCounters[i].value;
+        }
+
+        uint64_t coreCycle   = fm.perfValues[perf::Idx::CORE_CYCLE];
+        uint64_t coreInstret = fm.perfValues[perf::Idx::CORE_INSTRET];
+        uint64_t coreStall   = fm.perfValues[perf::Idx::CORE_STALL_CYCLE];
+
+        fm.perfIpc = (coreCycle > 0)
+            ? static_cast<double>(coreInstret) / static_cast<double>(coreCycle)
+            : 0.0;
+        fm.perfCpi = (coreInstret > 0)
+            ? static_cast<double>(coreCycle) / static_cast<double>(coreInstret)
+            : 0.0;
+        fm.perfStallPct = (coreCycle > 0)
+            ? static_cast<double>(coreStall) / static_cast<double>(coreCycle) * 100.0
+            : 0.0;
+        fm.perfValid = true;
+    }
 
     // ---- State strings ----
     std::snprintf(fm.stateStr, sizeof(fm.stateStr), "%s",
