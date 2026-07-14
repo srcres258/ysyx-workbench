@@ -8,7 +8,7 @@ namespace perf {
 // ── Single point of truth: counter definition table ─────────────────────
 // Positional order MUST match the perf::Idx:: constants.
 static constexpr PerfCounterDef kCounterTable[PerfCounters::kNumCounters] = {
-    /*  0 */ { "core.cycle",                            "cycle", "Core execution cycles (running=1)",                 "dpi->perf_core_running (polling)"               },
+    /*  0 */ { "core.cycle",                            "cycle", "Core clock cycles (!reset)",                        "dpi->perf_core_running (polling)"               },
     /*  1 */ { "core.instret",                          "count", "Retired instructions",                               "dpi->perf_core_commitFire (polling)"            },
     /*  2 */ { "core.busy.cycle",                       "cycle", "Core busy cycles (not idle)",                         "dpi->perf_core_busy (polling)"                  },
     /*  3 */ { "core.stall.cycle",                      "cycle", "Core stall cycles (busy but not committing)",         "dpi->perf_core_stall (polling)"                 },
