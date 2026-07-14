@@ -55,7 +55,8 @@ void LayoutTree::buildDefault() {
     right.children.push_back(LayoutNode::leaf("trace",  4, 20));
     right.children.push_back(LayoutNode::leaf("events", 4, 20));
     right.children.push_back(LayoutNode::leaf("csr",    6, 20));
-    right.children.push_back(LayoutNode::leaf("perf",   6, 20));
+    right.children.push_back(LayoutNode::leaf("perf",    6, 20));
+    right.children.push_back(LayoutNode::leaf("rawperf", 6, 20));
 
     root.children.push_back(std::move(left));
     root.children.push_back(std::move(right));
@@ -79,7 +80,8 @@ void LayoutTree::buildWide() {
     LayoutNode bottom = LayoutNode::tabbed();
     bottom.children.push_back(LayoutNode::leaf("trace",  4, 20));
     bottom.children.push_back(LayoutNode::leaf("events", 4, 20));
-    bottom.children.push_back(LayoutNode::leaf("perf",   6, 20));
+    bottom.children.push_back(LayoutNode::leaf("perf",    6, 20));
+    bottom.children.push_back(LayoutNode::leaf("rawperf", 6, 20));
 
     root.children.push_back(std::move(top));
     root.children.push_back(std::move(bottom));
@@ -103,7 +105,8 @@ void LayoutTree::buildTall() {
     right.children.push_back(LayoutNode::leaf("trace",  4, 15));
     right.children.push_back(LayoutNode::leaf("events", 4, 15));
     right.children.push_back(LayoutNode::leaf("csr",    6, 15));
-    right.children.push_back(LayoutNode::leaf("perf",   6, 15));
+    right.children.push_back(LayoutNode::leaf("perf",    6, 15));
+    right.children.push_back(LayoutNode::leaf("rawperf", 6, 15));
 
     root.children.push_back(std::move(left));
     root.children.push_back(std::move(right));
@@ -120,7 +123,8 @@ void LayoutTree::buildMinimal() {
     root.children.push_back(LayoutNode::leaf("csr",    6, 10));
     root.children.push_back(LayoutNode::leaf("trace",  4, 10));
     root.children.push_back(LayoutNode::leaf("events", 4, 10));
-    root.children.push_back(LayoutNode::leaf("perf",   6, 10));
+    root.children.push_back(LayoutNode::leaf("perf",    6, 10));
+    root.children.push_back(LayoutNode::leaf("rawperf", 6, 10));
 
     setRoot(std::move(root));
 }

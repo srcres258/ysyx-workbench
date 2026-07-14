@@ -892,6 +892,57 @@ private:
 };
 
 // ============================================================================
+// RawPerfPanel — raw perf counter table (name + value pairs)
+// ============================================================================
+
+class RawPerfPanel : public Panel {
+public:
+    const char *id()          const override { return "rawperf"; }
+    const char *displayName() const override { return "Raw Perf"; }
+
+    void render(Canvas &canvas, const Rect &rect,
+                const TuiFrameModel &fm, bool focused) override {
+        drawPanelBorder(canvas, rect, " Raw Perf ", focused);
+
+        uint16_t r = rect.row + 1;
+        const uint16_t c = rect.col + 1;
+        const uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
+        const uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
+        if (innerW < 20 || innerH == 0) return;
+
+        const uint16_t endRow = rect.row + rect.h;
+        const size_t numCounters = static_cast<size_t>(perf::PerfCounters::kNumCounters);
+
+        // ── No perf data ──
+        if (!fm.perfValid) {
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourBlue),
+                          "No perf counter data available");
+            return;
+        }
+
+        // ── Column headers ──
+        writeClippedF(canvas, r, c, c, innerW, styleFgBold(kColourCyan),
+                      "%-40s %s", "Name", "Value");
+        r++; if (r >= endRow) return;
+
+        // ── Counter rows ──
+        for (size_t i = 0; i < numCounters; i++) {
+            if (r >= endRow) break;
+
+            const auto &def = perf::PerfMonitor::counterDef(i);
+            uint64_t val = fm.perfValues[i];
+
+            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourGreen),
+                          "%-40s", def.name);
+
+            writeClippedF(canvas, r, static_cast<uint16_t>(c + 41), c, innerW,
+                          styleFg(kColourWhite), "%lu", val);
+            r++;
+        }
+    }
+};
+
+// ============================================================================
 // registerBuiltins
 // ============================================================================
 
@@ -904,6 +955,7 @@ void PanelRegistry::registerBuiltins() {
     registerPanel(std::make_unique<TracePanel>());
     registerPanel(std::make_unique<EventsPanel>());
     registerPanel(std::make_unique<PerfPanel>());
+    registerPanel(std::make_unique<RawPerfPanel>());
 }
 
 } // namespace tui
