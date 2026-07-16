@@ -79,17 +79,17 @@ is_truthy() {
 bootstrap_yosys_sta() {
   local need_init=0
   [ -x "${YOSYS_STA_HOME}/bin/iEDA" ] || need_init=1
-  [ -d "${YOSYS_STA_HOME}/pdk/icsprout55" ] || need_init=1
+  [ -d "${YOSYS_STA_HOME}/pdk/nangate45" ] || need_init=1
 
   if [ "${need_init}" -eq 0 ]; then
     return 0
   fi
 
   if ! is_truthy "${YOSYS_STA_AUTO_INIT}"; then
-    die "yosys-sta is not initialized (missing bin/iEDA and/or pdk/icsprout55). Run 'make -C ${YOSYS_STA_HOME} init' first, or re-run with YOSYS_STA_AUTO_INIT=on to bootstrap automatically"
+    die "yosys-sta is not initialized (missing bin/iEDA and/or pdk/nangate45). Run 'make -C ${YOSYS_STA_HOME} init' first, or re-run with YOSYS_STA_AUTO_INIT=on to bootstrap automatically"
   fi
 
-  info "Bootstrapping yosys-sta (missing iEDA and/or icsprout55 PDK)..."
+  info "Bootstrapping yosys-sta (missing iEDA and/or nangate45 PDK)..."
   require_cmd wget
   require_cmd git
   if ! make -C "${YOSYS_STA_HOME}" init; then
@@ -97,7 +97,7 @@ bootstrap_yosys_sta() {
   fi
 
   [ -x "${YOSYS_STA_HOME}/bin/iEDA" ] || die "yosys-sta bootstrap did not produce ${YOSYS_STA_HOME}/bin/iEDA"
-  [ -d "${YOSYS_STA_HOME}/pdk/icsprout55" ] || die "yosys-sta bootstrap did not produce ${YOSYS_STA_HOME}/pdk/icsprout55"
+  [ -d "${YOSYS_STA_HOME}/pdk/nangate45" ] || die "yosys-sta bootstrap did not produce ${YOSYS_STA_HOME}/pdk/nangate45"
 }
 
 # ── pre-flight validation ──────────────────────────────────────────
@@ -137,8 +137,8 @@ fi
 info "yosys version: ${YOSYS_VER}"
 
 # Validate PDK availability
-require_dir "${YOSYS_STA_HOME}/pdk/icsprout55" || \
-  die "icsprout55 PDK not found at ${YOSYS_STA_HOME}/pdk/icsprout55"
+require_dir "${YOSYS_STA_HOME}/pdk/nangate45" || \
+die "nangate45 PDK not found at ${YOSYS_STA_HOME}/pdk/nangate45"
 
 # ── collect RTL sources ────────────────────────────────────────────
 info "Collecting RTL sources from ${RTL_GEN_DIR}..."
@@ -234,7 +234,7 @@ if [ "${SYNTH_SEARCH}" = "on" ] || [ "${SYNTH_SEARCH}" = "1" ] || [ "${SYNTH_SEA
 
 else
   # ── single-shot mode ─────────────────────────────────────────────
-  info "Launching yosys-sta (PDK: icsprout55)..."
+  info "Launching yosys-sta (PDK: nangate45)..."
 
   set +e
   make -C "${YOSYS_STA_HOME}" syn sta \

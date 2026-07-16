@@ -163,9 +163,12 @@ def parse_sta_report(rpt_path) -> Dict[str, float]:
 #      Number of cells:               9876
 
 _SYNTH_CELLS_LEGACY_RE = re.compile(r"^\s*Number of cells:\s+([\d,]+)\s*$", re.MULTILINE)
-_SYNTH_CELLS_CURRENT_RE = re.compile(r"^\s*([\d,]+)\s+[\d.]+\s+cells\s*$", re.MULTILINE)
+_SYNTH_CELLS_CURRENT_RE = re.compile(
+    r"^\s*([\d,]+)\s+[\d.]+(?:[eE][+-]?\d+)?\s+cells\s*$",
+    re.MULTILINE,
+)
 _SYNTH_AREA_RE = re.compile(
-    r"^\s*Chip area for (?:top )?module\s+['\"]?\\?(\S+?)['\"]?\s*:\s+([\d.]+)\s*$",
+    r"^\s*Chip area for (?:top )?module\s+['\"]?\\?(\S+?)['\"]?\s*:\s+([\d.]+(?:[eE][+-]?\d+)?)\s*$",
     re.MULTILINE,
 )
 _SYNTH_CANT_FIND_AREA_RE = re.compile(
@@ -179,7 +182,7 @@ def parse_synth_stat(
     """Parse Yosys synthesis statistics report.
 
     Returns:
-        {"cell_count": int, "area_um2": float}   — area in µm² (icsprout55)
+        {"cell_count": int, "area_um2": float}   — area in µm² for the selected PDK
 
     Raises:
         ParseError:  field not found, ambiguous, or file unreadable

@@ -345,7 +345,7 @@ def _mock_search(args: argparse.Namespace) -> None:
             =============================================================================
             Design: {args.design}
             Clock:  core_clock  ({mid} MHz)
-            PDK:    icsprout55
+            PDK:    nangate45
             =============================================================================
             ...
             Start-of-path
