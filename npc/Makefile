@@ -396,7 +396,8 @@ perf: synth $(BIN)
 	@echo ""
 	@python3 $(PERF_AGGREGATOR) \
 	 --perf-json $(PERF_DIR)/perf.json \
-	 --synth-json $(SYNTH_OUT_DIR)/synth_summary.json
+	 --synth-json $(SYNTH_OUT_DIR)/synth_summary.json \
+	 --output-file $(PERF_DIR)/perf.txt
 
 perf-clean:
 	rm -rf $(PERF_DIR)

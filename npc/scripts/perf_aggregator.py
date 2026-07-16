@@ -10,6 +10,7 @@
 # ============================================================================
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, NoReturn
@@ -44,20 +45,38 @@ def require_field(data: Dict[str, Any], field: str, source: str) -> Any:
     return value
 
 
-def print_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> None:
-    """Print the stable perf summary block to stdout.
+def format_value(value: Any) -> str:
+    """Format numeric values without forcing trailing decimals."""
+    if isinstance(value, bool):
+        return str(value)
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        return str(int(value)) if value.is_integer() else f"{value:g}"
+    return str(value)
 
-    Fixed output order (matches plan contract):
-      --- perf data ---
-      cycles <int>
-      instret <int>
-      IPC <float>
-      frequency <int> MHz
-      area <float> um2
-      <counter 0 name> <counter 0 value>
-      ...
-      <counter 25 name> <counter 25 value>
-    """
+
+def get_git_metadata() -> tuple[str, str]:
+    """Return the current commit id and title for the report header."""
+    try:
+        commit_id = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"], text=True
+        ).strip()
+        commit_title = subprocess.check_output(
+            ["git", "log", "-1", "--pretty=%s"], text=True
+        ).strip()
+    except (OSError, subprocess.CalledProcessError) as e:
+        fail(f"Unable to query git metadata: {e}")
+
+    if not commit_id:
+        fail("git metadata: empty commit id")
+    if not commit_title:
+        fail("git metadata: empty commit title")
+    return commit_id, commit_title
+
+
+def build_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> str:
+    """Build the required perf report block."""
 
     # ── Core perf metrics from perf.json ──────────────────────────────
     cycles = require_field(perf_data, "cycles", "perf.json")
@@ -77,14 +96,19 @@ def print_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> N
     # ── Synth metrics from synth_summary.json ─────────────────────────
     final_mhz = require_field(synth_data, "final_mhz", "synth_summary.json")
     area_um2 = require_field(synth_data, "area_um2", "synth_summary.json")
+    commit_id, commit_title = get_git_metadata()
 
-    # ── Print the fixed-order block ───────────────────────────────────
-    print("--- perf data ---")
-    print(f"cycles  {cycles}")
-    print(f"instret  {instret}")
-    print(f"IPC  {ipc}")
-    print(f"frequency  {final_mhz} MHz")
-    print(f"area  {area_um2} um2")
+    lines: List[str] = [
+        f"commit: {commit_id}",
+        f"说明: {commit_title}",
+        f"仿真周期数: {format_value(cycles)}",
+        f"指令数: {format_value(instret)}",
+        f"IPC: {format_value(ipc)}",
+        f"综合频率: {format_value(final_mhz)}MHz",
+        f"综合面积: {format_value(area_um2)}",
+        "",
+        "--- perf counters ---",
+    ]
 
     for idx, ctr in enumerate(perf_counters):
         name = ctr.get("name")
@@ -93,7 +117,9 @@ def print_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> N
             fail(f"perf.json: perf_counter[{idx}] missing 'name'")
         if value is None:
             fail(f"perf.json: perf_counter[{idx}] '{name}' missing 'value'")
-        print(f"{name}  {value}")
+        lines.append(f"{name}: {format_value(value)}")
+
+    return "\n".join(lines) + "\n"
 
 
 def main() -> None:
@@ -114,6 +140,11 @@ def main() -> None:
         required=True,
         help="Path to npc/build/synth/synth_summary.json (from task 3 synth summary)",
     )
+    ap.add_argument(
+        "--output-file",
+        type=Path,
+        help="Optional path to write the same perf report block",
+    )
     args = ap.parse_args()
 
     perf_data = load_json(args.perf_json)
@@ -129,7 +160,14 @@ def main() -> None:
             f"(expected 1)"
         )
 
-    print_perf_block(perf_data, synth_data)
+    report = build_perf_block(perf_data, synth_data)
+    sys.stdout.write(report)
+    if args.output_file is not None:
+        try:
+            args.output_file.parent.mkdir(parents=True, exist_ok=True)
+            args.output_file.write_text(report, encoding="utf-8")
+        except OSError as e:
+            fail(f"Cannot write {args.output_file}: {e}")
 
 
 if __name__ == "__main__":
