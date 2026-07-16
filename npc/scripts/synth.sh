@@ -61,6 +61,14 @@ SYNTH_LOW_MHZ="${SYNTH_LOW_MHZ:-1}"
 SYNTH_HIGH_MHZ="${SYNTH_HIGH_MHZ:-500}"
 YOSYS_STA_AUTO_INIT="${YOSYS_STA_AUTO_INIT:-on}"
 
+abspath_path() {
+  python3 - "$1" <<'PY'
+from pathlib import Path
+import sys
+print(Path(sys.argv[1]).resolve())
+PY
+}
+
 is_truthy() {
   case "$1" in
     1|true|TRUE|on|ON|yes|YES) return 0 ;;
@@ -97,6 +105,17 @@ info "=== NPC Synthesis: ${DESIGN} @ ${CLK_FREQ_MHZ}MHz (clock port: ${CLK_PORT_
 
 [ -n "${NPC_HOME}" ]       || die "NPC_HOME is not set"
 [ -n "${YOSYS_STA_HOME}" ] || die "YOSYS_STA_HOME is not set"
+
+# Normalize paths so `make -C yosys-sta` cannot reinterpret them relative to
+# yosys-sta/ itself. This is crucial for fresh builds and direct script use.
+NPC_HOME="$(abspath_path "${NPC_HOME}")"
+YOSYS_STA_HOME="$(abspath_path "${YOSYS_STA_HOME}")"
+OUTPUT_DIR="$(abspath_path "${OUTPUT_DIR}")"
+SDC_FILE="$(abspath_path "${SDC_FILE}")"
+RTL_GEN_DIR="$(abspath_path "${RTL_GEN_DIR}")"
+STUB_DIR="$(abspath_path "${STUB_DIR}")"
+SCRIPT_DIR="$(abspath_path "${SCRIPT_DIR}")"
+
 require_dir "${NPC_HOME}"
 require_dir "${YOSYS_STA_HOME}"
 require_dir "${RTL_GEN_DIR}"

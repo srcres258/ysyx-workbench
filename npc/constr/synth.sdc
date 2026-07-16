@@ -37,17 +37,24 @@ create_clock -name core_clock -period $clk_period_ns $clk_port
 # Assume 30% of clock period for external logic + board delay
 set io_delay_ns [expr $clk_period_ns * 0.3]
 
-# Apply to all non-clock, non-reset ports
-set all_inputs  [remove_from_collection [all_inputs]  $clk_port]
-set all_outputs [all_outputs]
-
-if {[sizeof_collection $all_inputs] > 0} {
-  set_input_delay  -clock core_clock -max $io_delay_ns $all_inputs
-  set_input_delay  -clock core_clock -min 0.0           $all_inputs
+# iEDA does not support remove_from_collection / sizeof_collection, so use
+# plain Tcl list operations to filter out the clock port.
+set input_ports {}
+foreach p [all_inputs] {
+  if {[string compare $p $CLK_PORT_NAME] != 0} {
+    lappend input_ports $p
+  }
 }
-if {[sizeof_collection $all_outputs] > 0} {
-  set_output_delay -clock core_clock -max $io_delay_ns $all_outputs
-  set_output_delay -clock core_clock -min 0.0           $all_outputs
+
+if {[llength $input_ports] > 0} {
+  set_input_delay  -clock core_clock -max $io_delay_ns $input_ports
+  set_input_delay  -clock core_clock -min 0.0           $input_ports
+}
+
+set output_ports [all_outputs]
+if {[llength $output_ports] > 0} {
+  set_output_delay -clock core_clock -max $io_delay_ns $output_ports
+  set_output_delay -clock core_clock -min 0.0           $output_ports
 }
 
 # ── Clock uncertainty (jitter + skew margin) ─────────────────────

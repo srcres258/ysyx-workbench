@@ -357,7 +357,7 @@ gen_header: chisel-gen
 # npc/build/perf/perf.json.  This target orchestrates:
 #   1. synth    — (re)run synthesis if RTL changed, produce synth_summary.json
 #   2. $(BIN)   — build the simulator if needed
-#   3. microbench train — build with mainargs=train, ARCH=riscv32e-ysyxsoc
+#   3. microbench — build with mainargs=test, ARCH=riscv32e-ysyxsoc
 #   4. sim run  — execute with all noisy knobs disabled, perf counters enabled
 #   5. aggregate — parse perf.json + synth_summary.json, print stable block
 
@@ -371,8 +371,8 @@ MICROBENCH_ELF     = $(MICROBENCH_DIR)/build/microbench-riscv32e-ysyxsoc.elf
 # counter collection while keeping the ysyxsoc latency model intact.
 # Must NOT override RUN_CONFIG_SIM_MODE — default "ysyxsoc" is correct.
 perf: synth $(BIN)
-	@echo "[Perf] Building microbench train..."
-	@$(MAKE) -C $(MICROBENCH_DIR) ARCH=riscv32e-ysyxsoc mainargs=train
+	@echo "[Perf] Building microbench..."
+	@$(MAKE) -C $(MICROBENCH_DIR) ARCH=riscv32e-ysyxsoc insert-arg mainargs=test USE_SDRAM=1
 	@echo "[Perf] Running simulation with perf counters..."
 	@ASAN_OPTIONS=detect_leaks=0:exitcode=0 \
 	 IMG=$(MICROBENCH_BIN) \
@@ -386,7 +386,7 @@ perf: synth $(BIN)
 	 NPC_CONFIG_FTRACE=off \
 	 NPC_CONFIG_DTRACE=off \
 	 NPC_CONFIG_ETRACE=off \
-	 NPC_CONFIG_DEVICE=off \
+	 NPC_CONFIG_DEVICE=on \
 	 NPC_CONFIG_DEBUG_OUTPUT=off \
 	 NPC_CONFIG_MROM=off \
 	 NPC_CONFIG_PERF=on \

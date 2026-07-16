@@ -26,17 +26,33 @@ class ParseError(Exception):
 # STA timing report parsing  (iEDA/iSTA  report_timing  output)
 # ---------------------------------------------------------------------------
 
-# iEDA STA report format (example):
-#   ...
-#   wns                     -0.123
-#   tns                    -4.567
-#   ...
-# The fields are lowercase, separated by whitespace from their values.
-# We require an EXACT label match,  not a substring guess.
+# iEDA STA report formats we support:
+#   1) legacy/mock format:
+#        wns   -0.123
+#        tns   -4.567
+#        End-of-path
+#   2) current yosys-sta/iEDA format:
+#        | ... | max | ... | slack | freq |
+#        | Clock | Delay Type | TNS |
+# We accept both so mock tests and real synthesis runs stay compatible.
 
-_STA_WNS_RE = re.compile(r"^wns\s+([-]?\d+\.?\d*)", re.MULTILINE)
-_STA_TNS_RE = re.compile(r"^tns\s+([-]?\d+\.?\d*)", re.MULTILINE)
+_STA_LEGACY_WNS_RE = re.compile(r"^wns\s+([-]?\d+\.?\d*)", re.MULTILINE)
+_STA_LEGACY_TNS_RE = re.compile(r"^tns\s+([-]?\d+\.?\d*)", re.MULTILINE)
 _STA_ENDPATH_RE = re.compile(r"^End-of-path", re.MULTILINE)
+
+_STA_SUMMARY_ROW_RE = re.compile(
+    r"^\|\s*(?P<endpoint>[^|]+?)\s*\|\s*(?P<clock_group>[^|]+?)\s*\|\s*"
+    r"(?P<delay_type>max|min)\s*\|\s*(?P<path_delay>[^|]+?)\s*\|\s*"
+    r"(?P<path_required>[^|]+?)\s*\|\s*(?P<cppr>[^|]+?)\s*\|\s*"
+    r"(?P<slack>[-]?\d+\.?\d*)\s*\|\s*(?P<freq>[^|]+?)\s*\|$",
+    re.MULTILINE,
+)
+
+_STA_TNS_ROW_RE = re.compile(
+    r"^\|\s*(?P<clock>[^|]+?)\s*\|\s*(?P<delay_type>max|min)\s*\|\s*"
+    r"(?P<tns>[-]?\d+\.?\d*)\s*\|$",
+    re.MULTILINE,
+)
 
 
 def parse_sta_report(rpt_path) -> Dict[str, float]:
@@ -55,54 +71,80 @@ def parse_sta_report(rpt_path) -> Dict[str, float]:
 
     text = rpt_path.read_text(encoding="utf-8", errors="replace")
 
-    # --- sanity check: at least an End-of-path marker exists ---
+    # --- current yosys-sta/iEDA format ---
+    summary_rows = [
+        m for m in _STA_SUMMARY_ROW_RE.finditer(text)
+        if m.group("delay_type") == "max"
+    ]
+    tns_rows = [
+        m for m in _STA_TNS_ROW_RE.finditer(text)
+        if m.group("delay_type") == "max"
+    ]
+
+    if summary_rows or tns_rows:
+        if not summary_rows:
+            raise ParseError(
+                f"STA report {rpt_path}: cannot find any setup-path rows in the current timing summary table."
+            )
+        if not tns_rows:
+            raise ParseError(
+                f"STA report {rpt_path}: cannot find any TNS rows in the current timing summary table."
+            )
+
+        try:
+            wns = min(float(m.group("slack")) for m in summary_rows)
+        except ValueError as e:
+            raise ParseError(
+                f"STA report {rpt_path}: one of the setup slack values is not a valid float: {e}"
+            )
+
+        try:
+            tns = min(float(m.group("tns")) for m in tns_rows)
+        except ValueError as e:
+            raise ParseError(
+                f"STA report {rpt_path}: one of the TNS values is not a valid float: {e}"
+            )
+
+        return {"wns": wns, "tns": tns}
+
+    # --- legacy/mock format ---
     if not _STA_ENDPATH_RE.search(text):
         raise ParseError(
-            f"STA report {rpt_path} appears truncated or incomplete: "
-            f"missing 'End-of-path' marker"
+            f"STA report {rpt_path} appears truncated or incomplete: missing both the current timing-summary table and the legacy 'End-of-path' marker"
         )
 
-    # --- WNS ---
-    wns_match = _STA_WNS_RE.search(text)
+    wns_match = _STA_LEGACY_WNS_RE.search(text)
     if wns_match is None:
         raise ParseError(
-            f"STA report {rpt_path}: cannot find 'wns' field. "
-            f"Expected a line matching 'wns  <value>' in iEDA timing output."
+            f"STA report {rpt_path}: cannot find 'wns' field in the legacy format. Expected a line matching 'wns  <value>'."
         )
-    # Check there is exactly one unambiguous match
-    wns_matches = _STA_WNS_RE.findall(text)
+    wns_matches = _STA_LEGACY_WNS_RE.findall(text)
     if len(wns_matches) > 1:
         raise ParseError(
-            f"STA report {rpt_path}: ambiguous — found {len(wns_matches)} "
-            f"'wns' fields. Expected exactly one."
+            f"STA report {rpt_path}: ambiguous — found {len(wns_matches)} legacy 'wns' fields. Expected exactly one."
         )
     try:
         wns = float(wns_match.group(1))
     except ValueError:
         raise ParseError(
-            f"STA report {rpt_path}: 'wns' value '{wns_match.group(1)}' "
-            f"is not a valid float."
+            f"STA report {rpt_path}: 'wns' value '{wns_match.group(1)}' is not a valid float."
         )
 
-    # --- TNS ---
-    tns_match = _STA_TNS_RE.search(text)
+    tns_match = _STA_LEGACY_TNS_RE.search(text)
     if tns_match is None:
         raise ParseError(
-            f"STA report {rpt_path}: cannot find 'tns' field. "
-            f"Expected a line matching 'tns  <value>' in iEDA timing output."
+            f"STA report {rpt_path}: cannot find 'tns' field in the legacy format. Expected a line matching 'tns  <value>'."
         )
-    tns_matches = _STA_TNS_RE.findall(text)
+    tns_matches = _STA_LEGACY_TNS_RE.findall(text)
     if len(tns_matches) > 1:
         raise ParseError(
-            f"STA report {rpt_path}: ambiguous — found {len(tns_matches)} "
-            f"'tns' fields. Expected exactly one."
+            f"STA report {rpt_path}: ambiguous — found {len(tns_matches)} legacy 'tns' fields. Expected exactly one."
         )
     try:
         tns = float(tns_match.group(1))
     except ValueError:
         raise ParseError(
-            f"STA report {rpt_path}: 'tns' value '{tns_match.group(1)}' "
-            f"is not a valid float."
+            f"STA report {rpt_path}: 'tns' value '{tns_match.group(1)}' is not a valid float."
         )
 
     return {"wns": wns, "tns": tns}
@@ -120,9 +162,11 @@ def parse_sta_report(rpt_path) -> Dict[str, float]:
 #      ...
 #      Number of cells:               9876
 
-_SYNTH_CELLS_RE = re.compile(r"^\s*Number of cells:\s+([\d,]+)\s*$", re.MULTILINE)
+_SYNTH_CELLS_LEGACY_RE = re.compile(r"^\s*Number of cells:\s+([\d,]+)\s*$", re.MULTILINE)
+_SYNTH_CELLS_CURRENT_RE = re.compile(r"^\s*([\d,]+)\s+[\d.]+\s+cells\s*$", re.MULTILINE)
 _SYNTH_AREA_RE = re.compile(
-    r"^\s*Chip area for top module\s+\\?'?(\S+?)\\?'?\s*:\s+([\d.]+)\s*", re.MULTILINE
+    r"^\s*Chip area for (?:top )?module\s+['\"]?\\?(\S+?)['\"]?\s*:\s+([\d.]+)\s*$",
+    re.MULTILINE,
 )
 _SYNTH_CANT_FIND_AREA_RE = re.compile(
     r"Don't know how to get chip area", re.MULTILINE
@@ -148,25 +192,22 @@ def parse_synth_stat(
     text = stat_path.read_text(encoding="utf-8", errors="replace")
 
     # --- cell count ---
-    cells_match = _SYNTH_CELLS_RE.search(text)
+    cells_match = _SYNTH_CELLS_CURRENT_RE.search(text) or _SYNTH_CELLS_LEGACY_RE.search(text)
     if cells_match is None:
         raise ParseError(
-            f"synth_stat.txt {stat_path}: cannot find 'Number of cells:' field. "
-            f"Expected a line matching 'Number of cells:  <count>' "
-            f"in yosys stat output."
+            f"synth_stat.txt {stat_path}: cannot find a cell-count field. "
+            f"Expected either 'Number of cells:  <count>' or '<count>  <area> cells'."
         )
-    cells_matches = _SYNTH_CELLS_RE.findall(text)
+    cells_matches = _SYNTH_CELLS_CURRENT_RE.findall(text) or _SYNTH_CELLS_LEGACY_RE.findall(text)
     if len(cells_matches) > 1:
         raise ParseError(
-            f"synth_stat.txt {stat_path}: ambiguous — found {len(cells_matches)} "
-            f"'Number of cells:' fields. Expected exactly one."
+            f"synth_stat.txt {stat_path}: ambiguous — found {len(cells_matches)} cell-count fields. Expected exactly one."
         )
     try:
         cell_count = int(cells_match.group(1).replace(",", ""))
     except ValueError:
         raise ParseError(
-            f"synth_stat.txt {stat_path}: 'Number of cells' value "
-            f"'{cells_match.group(1)}' is not a valid integer."
+            f"synth_stat.txt {stat_path}: cell-count value '{cells_match.group(1)}' is not a valid integer."
         )
 
     # --- chip area ---
@@ -183,25 +224,21 @@ def parse_synth_stat(
     area_match = _SYNTH_AREA_RE.search(text)
     if area_match is None:
         raise ParseError(
-            f"synth_stat.txt {stat_path}: cannot find "
-            f"'Chip area for top module' field. "
-            f"Expected a line matching "
-            f"'Chip area for top module \\'{design_name}\\':  <value>' "
-            f"in yosys stat output."
+            f"synth_stat.txt {stat_path}: cannot find the chip-area line. "
+            f"Expected either 'Chip area for top module \\'{design_name}\\':  <value>' "
+            f"or 'Chip area for module \\'{design_name}\\':  <value>'."
         )
     area_matches = _SYNTH_AREA_RE.findall(text)
     if len(area_matches) > 1:
         raise ParseError(
-            f"synth_stat.txt {stat_path}: ambiguous — found {len(area_matches)} "
-            f"'Chip area for top module ...' fields. Expected exactly one."
+            f"synth_stat.txt {stat_path}: ambiguous — found {len(area_matches)} chip-area fields. Expected exactly one."
         )
 
-    top_name = area_match.group(1).strip("\\'")
+    top_name = area_match.group(1).strip("\\'\"")
     area_str = area_match.group(2)
     if top_name != design_name:
         raise ParseError(
-            f"synth_stat.txt {stat_path}: 'Chip area for top module' "
-            f"references '{top_name}', but expected design is '{design_name}'. "
+            f"synth_stat.txt {stat_path}: chip area references '{top_name}', but expected design is '{design_name}'. "
             f"Mismatch — possibly the wrong RTL was synthesized."
         )
 
