@@ -8,6 +8,9 @@
 !*.sv
 !*.cc
 !*.cpp
+!*.sh
+!*.sdc
+!*.py
 !.gitignore
 !README.md
 build/

@@ -357,6 +357,7 @@ void simExec(uint64_t n) {
             }
             if (sim_config.config_perf) {
                 perf::g_perfMonitor.dumpSummary(std::cout);
+                perf::g_perfMonitor.dumpJson("build/perf/perf.json");
             }
 
             if (sim_state.state == SIM_END) {

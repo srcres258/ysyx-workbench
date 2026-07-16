@@ -2,6 +2,10 @@
 #include <iomanip>
 #include <cmath>
 #include <algorithm>
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <system_error>
 
 namespace perf {
 
@@ -173,6 +177,47 @@ void PerfMonitor::dumpSummary(std::ostream &os) const {
     os << "    trap:   exception=" << get(Idx::TRAP_EXCEPTION_COUNT) << '\n';
 
     os << std::flush;
+}
+
+bool PerfMonitor::dumpJson(const std::string &path) const {
+    try {
+        namespace fs = std::filesystem;
+        fs::path p(path);
+        std::error_code ec;
+        fs::create_directories(p.parent_path(), ec);
+        if (ec) return false;
+
+        std::ofstream ofs(path);
+        if (!ofs.is_open()) return false;
+
+        auto cyc  = get(Idx::CORE_CYCLE);
+        auto iret = get(Idx::CORE_INSTRET);
+        double ipc = (cyc > 0) ? static_cast<double>(iret) / static_cast<double>(cyc) : 0.0;
+
+        std::ostringstream json;
+        json << std::fixed << std::setprecision(4);
+        json << "{";
+        json << "\"schema_version\":1";
+        json << ",\"cycles\":" << cyc;
+        json << ",\"instret\":" << iret;
+        json << ",\"ipc\":" << ipc;
+        json << ",\"perf_counters\":[";
+        for (size_t i = 0; i < kNumCounters; i++) {
+            if (i > 0) json << ",";
+            const auto &def = counterDef(i);
+            json << "{\"name\":\"" << def.name << "\""
+                 << ",\"unit\":\"" << def.unit << "\""
+                 << ",\"value\":" << get(i) << "}";
+        }
+        json << "]";
+        json << "}\n";
+
+        ofs << json.str();
+        ofs.close();
+        return ofs.good();
+    } catch (...) {
+        return false;
+    }
 }
 
 } // namespace perf

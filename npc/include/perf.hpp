@@ -155,6 +155,10 @@ public:
     /// Print a summary of all counters to an output stream.
     void dumpSummary(std::ostream &os) const;
 
+    /// Write cycles, instret, ipc, and every perf counter as JSON.
+    /// Returns true on success; fails closed on any I/O or formatting error.
+    bool dumpJson(const std::string &path) const;
+
 private:
     void accumulateCore(uint64_t running, uint64_t commitFire,
                         uint64_t busy, uint64_t stall) {

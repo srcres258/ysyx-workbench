@@ -19,6 +19,7 @@
       gtkwave
       circt
       iverilog
+      yosys
 
       # needed for building NEMU kconfig tools (mconf)
       ncurses
@@ -46,9 +47,11 @@
       sdl3
       sdl3-ttf
       sdl3-image
+      libunwind
       libelf
       capstone
       readline
+      stdenv.cc.cc.lib
     ];
   in {
     devShells.default = pkgs.mkShell {
@@ -75,4 +78,3 @@
     };
   });
 }
-

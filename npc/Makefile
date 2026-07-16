@@ -66,6 +66,62 @@ chisel-clean:
 	rm -rf $(CHISEL_GEN_OUT)
 	rm -rf $(NPC_GEN_DIR)
 
+# Synthesis with yosys-sta (ASIC synthesis + STA for ysyx_25070190)
+# Runs the latest generated RTL; use `make chisel-gen` first to (re)generate RTL.
+YOSYS_STA_HOME ?= $(abspath ../yosys-sta)
+SYNTH_TOP     ?= ysyx_25070190
+SYNTH_CLK_MHZ  ?= 100
+SYNTH_CLK_PORT ?= clock
+SYNTH_OUT_DIR  = $(BUILD_DIR)/synth
+SYNTH_SDC      = $(abspath ./constr/synth.sdc)
+SYNTH_STUB_DIR = $(abspath ./vsrc/synth)
+SYNTH_DONE     = $(SYNTH_OUT_DIR)/.synth_done
+
+# Frequency search knobs (set SYNTH_SEARCH=on to enable binary search)
+SYNTH_SEARCH   ?= off
+SYNTH_LOW_MHZ  ?= 1
+SYNTH_HIGH_MHZ ?= 500
+# Bootstrap yosys-sta automatically on first synth if bin/iEDA or the PDK are
+# missing. This keeps fresh clones self-contained while still allowing users to
+# disable the behavior explicitly when needed.
+YOSYS_STA_AUTO_INIT ?= on
+
+# RTL file list for incremental dependency tracking.
+# Evaluated at parse time; if generated/ does not yet exist these are empty
+# and synthesis will fail with a clear "run chisel-gen first" message.
+SYNTH_RTL_DEPS = $(shell find $(NPC_GEN_DIR) \( -name "*.sv" -o -name "*.v" \) \
+	-not -name "GeneralDPIAdapter.sv" -not -name "StandaloneMemDPI.sv" \
+	-not -path "*/verification/*" 2>/dev/null)
+SYNTH_STUB_DEPS = $(shell find $(SYNTH_STUB_DIR) \( -name "*.sv" -o -name "*.v" \) 2>/dev/null)
+
+synth: $(SYNTH_DONE)
+
+$(SYNTH_DONE): $(SYNTH_SDC) $(SYNTH_RTL_DEPS) $(SYNTH_STUB_DEPS)
+	@if [ ! -f "$(NPC_GEN_DIR)/$(SYNTH_TOP).sv" ]; then \
+		echo "[Synth] ERROR: Generated RTL not found at $(NPC_GEN_DIR)/$(SYNTH_TOP).sv" >&2; \
+		echo "[Synth] Run 'make chisel-gen' to generate RTL first." >&2; \
+		exit 1; \
+	fi
+	@NPC_HOME=$(abspath .) \
+	 YOSYS_STA_HOME=$(YOSYS_STA_HOME) \
+	 DESIGN=$(SYNTH_TOP) \
+	 CLK_FREQ_MHZ=$(SYNTH_CLK_MHZ) \
+	 CLK_PORT_NAME=$(SYNTH_CLK_PORT) \
+	 OUTPUT_DIR=$(SYNTH_OUT_DIR) \
+	 SDC_FILE=$(SYNTH_SDC) \
+	 SYNTH_SEARCH=$(SYNTH_SEARCH) \
+	 SYNTH_LOW_MHZ=$(SYNTH_LOW_MHZ) \
+	 SYNTH_HIGH_MHZ=$(SYNTH_HIGH_MHZ) \
+	 YOSYS_STA_AUTO_INIT=$(YOSYS_STA_AUTO_INIT) \
+	 $(abspath ./scripts/synth.sh)
+
+# Convenience target for frequency search mode
+synth-search:
+	@$(MAKE) synth SYNTH_SEARCH=on
+
+synth-clean:
+	rm -rf $(SYNTH_OUT_DIR)
+
 # Verilated 生成的代码输出目录
 VERILATOR_MDIR = $(OBJ_DIR)
 NPC_INC += $(abspath $(VERILATOR_MDIR))
@@ -296,4 +352,53 @@ gen_header: chisel-gen
 		$$(find $(NPC_GEN_DIR) \( -name "*.v" -or -name "*.sv" \) -not -path "*/verification/assert/*" 2>/dev/null) \
 		--timescale "1ns/1ns" --no-timing
 
-.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean
+# ── Performance profiling ─────────────────────────────────────────────────
+# Perf counters are collected at simulation exit (task 4) and exported to
+# npc/build/perf/perf.json.  This target orchestrates:
+#   1. synth    — (re)run synthesis if RTL changed, produce synth_summary.json
+#   2. $(BIN)   — build the simulator if needed
+#   3. microbench train — build with mainargs=train, ARCH=riscv32e-ysyxsoc
+#   4. sim run  — execute with all noisy knobs disabled, perf counters enabled
+#   5. aggregate — parse perf.json + synth_summary.json, print stable block
+
+PERF_DIR           = $(BUILD_DIR)/perf
+PERF_AGGREGATOR    = $(abspath ./scripts/perf_aggregator.py)
+MICROBENCH_DIR     = $(abspath ../am-kernels/benchmarks/microbench)
+MICROBENCH_BIN     = $(MICROBENCH_DIR)/build/microbench-riscv32e-ysyxsoc.bin
+MICROBENCH_ELF     = $(MICROBENCH_DIR)/build/microbench-riscv32e-ysyxsoc.elf
+
+# Perf overrides: disable all interactive/UI/noisy knobs for deterministic
+# counter collection while keeping the ysyxsoc latency model intact.
+# Must NOT override RUN_CONFIG_SIM_MODE — default "ysyxsoc" is correct.
+perf: synth $(BIN)
+	@echo "[Perf] Building microbench train..."
+	@$(MAKE) -C $(MICROBENCH_DIR) ARCH=riscv32e-ysyxsoc mainargs=train
+	@echo "[Perf] Running simulation with perf counters..."
+	@ASAN_OPTIONS=detect_leaks=0:exitcode=0 \
+	 IMG=$(MICROBENCH_BIN) \
+	 NPC_SDB_ENABLED=false \
+	 NPC_CONFIG_TUI=off \
+	 NPC_CONFIG_NVBOARD=off \
+	 NPC_CONFIG_WAVE=off \
+	 NPC_CONFIG_DIFFTEST=off \
+	 NPC_CONFIG_ITRACE=off \
+	 NPC_CONFIG_MTRACE=off \
+	 NPC_CONFIG_FTRACE=off \
+	 NPC_CONFIG_DTRACE=off \
+	 NPC_CONFIG_ETRACE=off \
+	 NPC_CONFIG_DEVICE=off \
+	 NPC_CONFIG_DEBUG_OUTPUT=off \
+	 NPC_CONFIG_MROM=off \
+	 NPC_CONFIG_PERF=on \
+	 NPC_CONFIG_FLASH_BIN_FILE_PATH=$(MICROBENCH_BIN) \
+	 NPC_CONFIG_FLASH_ELF_FILE_PATH=$(MICROBENCH_ELF) \
+	 $(BIN)
+	@echo ""
+	@python3 $(PERF_AGGREGATOR) \
+	 --perf-json $(PERF_DIR)/perf.json \
+	 --synth-json $(SYNTH_OUT_DIR)/synth_summary.json
+
+perf-clean:
+	rm -rf $(PERF_DIR)
+
+.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean
