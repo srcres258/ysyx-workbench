@@ -11,9 +11,6 @@
 [submodule "rt-thread"]
 	path = rt-thread
 	url = https://codeberg.org/srcres258/rt-thread-am.git
-[submodule "npc-frontend"]
-	path = rt-thread
-	url = https://codeberg.org/srcres258/npc-sim-frontend.git
 [submodule "standard"]
 	path = rt-thread
 	url = https://codeberg.org/srcres258/ysyx-standard.git
