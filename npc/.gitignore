@@ -18,3 +18,4 @@ build/
 !include/**/*.hpp
 vsrc/generated/
 !vsrc-chisel/
+!docs/*.md
