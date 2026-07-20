@@ -1,0 +1,4 @@
+=== wrong_design ===
+   Number of wires:               100
+   Number of cells:               500
+   Chip area for top module '\wrong_design':  999.0

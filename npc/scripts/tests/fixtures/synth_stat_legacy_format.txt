@@ -1,0 +1,4 @@
+=== ysyx_25070190 ===
+// This file has the legacy Number of cells format
+   Number of cells:               5,432
+   Chip area for top module '\ysyx_25070190':  9999.50

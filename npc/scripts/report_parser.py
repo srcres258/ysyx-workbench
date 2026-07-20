@@ -5,6 +5,9 @@
 # Parses:
 #   - iEDA/iSTA timing report       (*.rpt)  → WNS (ns), TNS (ns)
 #   - Yosys synthesis statistics  (synth_stat.txt) → cell count, chip area
+#   - iSTA classified timing       (*.rpt + .fanout + .netlist.v)
+#                                   → reg2reg/in2reg/reg2out/in2out/hold/
+#                                     high-fanout/unconstrained
 #
 # Design principle: ALWAYS fail closed.
 #   - Missing field    → exception with precise field name
@@ -15,11 +18,34 @@
 import re
 import sys
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, List
 
 
 class ParseError(Exception):
     """Raised when a required report field is missing or ambiguous."""
+
+
+# ── module name normalization ────────────────────────────────────────
+# Yosys ``stat -json`` emits Verilog escaped identifiers for module
+# names (e.g. ``\\ysyx_25070190``).  The rest of the toolchain uses
+# plain names.  Normalize once at the parse boundary.
+
+_ESCAPED_MODULE_RE = re.compile(r"^\\(?P<name>\S+)")
+
+
+def _normalize_module_name(name: str) -> str:
+    """Strip a single leading backslash from a Verilog escaped identifier.
+
+    ``\\modname`` or ``\\modname  `` → ``modname``.
+    Already-plain names pass through unchanged.
+    """
+    m = _ESCAPED_MODULE_RE.match(name)
+    return m.group("name") if m else name
+
+
+def _normalize_module_keys(d: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a new dict with every key passed through ``_normalize_module_name``."""
+    return {_normalize_module_name(k): v for k, v in d.items()}
 
 
 # ---------------------------------------------------------------------------
@@ -257,6 +283,228 @@ def parse_synth_stat(
 
 
 # ---------------------------------------------------------------------------
+# Yosys JSON statistics  (synth_stat.json  —  `stat -json -liberty $LIBS`)
+# ---------------------------------------------------------------------------
+
+# JSON schema produced by `stat -json -liberty <file>`:
+#   {
+#     "creator": "Yosys <version>",
+#     "modules": {
+#       "<name>": {
+#         "num_cells": <int> | {"count": N, "area": F, "local_count": N, "local_area": F},
+#         "num_cells_by_type": { "<cell>": <int> | { ... } },
+#         ...
+#       }
+#     }
+#   }
+# With -liberty, each field is a 4-key object; without, it is a bare integer.
+# This parser handles BOTH formats (conservative, fail-closed).
+
+def parse_synth_json(json_path) -> Dict:
+    """Parse the Yosys ``stat -json`` artifact.
+
+    Returns:
+        ``{"creator": str, "modules": {module_name: {field: value}}}``
+
+    Raises:
+        ParseError: missing required fields, malformed JSON, or type mismatch
+        FileNotFoundError: file does not exist
+        json.JSONDecodeError: file is not valid JSON
+    """
+    import json as _json
+
+    json_path = Path(json_path)
+    if not json_path.is_file():
+        raise FileNotFoundError(f"JSON stats artifact not found: {json_path}")
+
+    try:
+        data = _json.loads(json_path.read_text(encoding="utf-8", errors="replace"))
+    except _json.JSONDecodeError as e:
+        raise ParseError(
+            f"JSON stats artifact {json_path} is not valid JSON: {e}"
+        )
+
+    if not isinstance(data, dict):
+        raise ParseError(
+            f"JSON stats artifact {json_path}: expected a JSON object at top level, "
+            f"got {type(data).__name__}"
+        )
+
+    modules = data.get("modules")
+    if modules is None:
+        raise ParseError(
+            f"JSON stats artifact {json_path}: missing required key 'modules'. "
+            f"Available keys: {sorted(data.keys())}"
+        )
+    if not isinstance(modules, dict):
+        raise ParseError(
+            f"JSON stats artifact {json_path}: 'modules' must be a JSON object, "
+            f"got {type(modules).__name__}"
+        )
+    if len(modules) == 0:
+        raise ParseError(
+            f"JSON stats artifact {json_path}: 'modules' object is empty — "
+            f"no module statistics found. The synthesis may have failed silently."
+        )
+
+    # Validate each module entry has at least num_cells
+    for mod_name, mod_data in modules.items():
+        if not isinstance(mod_data, dict):
+            raise ParseError(
+                f"JSON stats artifact {json_path}: module {mod_name!r} data "
+                f"is not a JSON object (got {type(mod_data).__name__})"
+            )
+        if "num_cells" not in mod_data:
+            raise ParseError(
+                f"JSON stats artifact {json_path}: module {mod_name!r} is "
+                f"missing the 'num_cells' field. Module data keys: {sorted(mod_data.keys())}"
+            )
+
+    # Normalize escaped Verilog identifiers (``\\\\ysyx_25070190`` → ``ysyx_25070190``)
+    # so downstream code uses plain module names consistently.
+    data["modules"] = _normalize_module_keys(modules)
+
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Netlist hierarchy parsing  (mapped netlist .v  →  module→children map)
+# ---------------------------------------------------------------------------
+
+_NETLIST_MODULE_RE = re.compile(
+    r"^\s*module\s+(?P<name>\S+)\s*[(<]",
+    re.MULTILINE,
+)
+_NETLIST_INSTANCE_RE = re.compile(
+    r"^\s*(?P<type>\S+)\s+(?P<name>\S+)\s*[(]\s*[.]",
+    re.MULTILINE,
+)
+_NETLIST_ENDMODULE_RE = re.compile(r"^\s*endmodule\b", re.MULTILINE)
+
+
+def parse_netlist_hierarchy(netlist_path) -> Dict[str, Dict]:
+    """Extract module hierarchy from a Yosys-mapped Verilog netlist.
+
+    Parses module declarations and their direct cell/submodule
+    instantiations to build a parent→children multiplicity map.
+
+    Returns:
+        ``{module_name: {"cells": {cell_type: count},
+                         "submodules": {child_type: instance_count}}}``
+
+    Raises:
+        ParseError: if the netlist has zero modules or is unparseable
+        FileNotFoundError: file does not exist
+    """
+    netlist_path = Path(netlist_path)
+    if not netlist_path.is_file():
+        raise FileNotFoundError(f"Netlist not found: {netlist_path}")
+
+    text = netlist_path.read_text(encoding="utf-8", errors="replace")
+
+    modules: Dict[str, Dict] = {}
+    module_names = [m.group("name") for m in _NETLIST_MODULE_RE.finditer(text)]
+
+    if not module_names:
+        raise ParseError(
+            f"Netlist {netlist_path}: no 'module' declarations found. "
+            f"File may be empty or not a valid Verilog netlist."
+        )
+
+    module_set = frozenset(module_names)
+
+    mod_positions = [
+        (m.group("name"), m.start())
+        for m in _NETLIST_MODULE_RE.finditer(text)
+    ]
+    end_positions = [m.end() for m in _NETLIST_ENDMODULE_RE.finditer(text)]
+
+    if len(mod_positions) != len(end_positions):
+        raise ParseError(
+            f"Netlist {netlist_path}: found {len(mod_positions)} module "
+            f"declarations but {len(end_positions)} endmodule markers — "
+            f"suspect truncated or malformed file."
+        )
+
+    for i, (mod_name, mod_start) in enumerate(mod_positions):
+        mod_end = end_positions[i]
+        cells: Dict[str, int] = {}
+        submodules: Dict[str, int] = {}
+
+        mod_body = text[mod_start:mod_end]
+        for m in _NETLIST_INSTANCE_RE.finditer(mod_body):
+            cell_type = m.group("type")
+            if cell_type in module_set:
+                submodules[cell_type] = submodules.get(cell_type, 0) + 1
+            else:
+                cells[cell_type] = cells.get(cell_type, 0) + 1
+
+        modules[mod_name] = {
+            "cells": cells,
+            "submodules": submodules,
+        }
+
+    return _normalize_module_keys(modules)
+
+
+# ---------------------------------------------------------------------------
+# Hierarchy area tree builder  (orchestrates JSON + netlist → area tree)
+# ---------------------------------------------------------------------------
+
+def build_hierarchy_area_tree(
+    json_path,
+    netlist_path=None,
+    top_module: str = "ysyx_25070190",
+) -> List[Dict]:
+    """Build a flattened hierarchical area tree from synth artifacts.
+
+    Consumes the Yosys ``stat -json`` artifact and, optionally, the
+    mapped Verilog netlist, and returns a list of ``HierarchyRow`` dicts
+    representing every module in the design with:
+    - instance path, module name, parent path, depth
+    - local and recursive cell counts, area, % of top area
+    - cell-category breakdown (sequential, combinational, etc.)
+
+    If ``netlist_path`` is ``None``, the hierarchy is derived solely
+    from the JSON modules dict, which is sufficient when the design is
+    flattened or when the JSON already encodes the full hierarchy.
+
+    Args:
+        json_path: Path to ``synth_stat.json``.
+        netlist_path: Path to the mapped ``.netlist.v`` (optional).
+        top_module: Name of the top-level RTL module (for JSON lookup).
+
+    Returns:
+        List of dicts, each a serialised ``HierarchyRow``.
+    """
+    from synth_hierarchy import build_hierarchy_tree as _build
+
+    json_data = parse_synth_json(json_path)
+    json_modules = json_data["modules"]
+
+    # Override top_module if netlist declares one
+    if netlist_path is not None and Path(netlist_path).is_file():
+        netlist_hier = parse_netlist_hierarchy(netlist_path)
+        # If the netlist has a single module, use it as top
+        netlist_modules = list(netlist_hier.keys())
+        if len(netlist_modules) == 1:
+            top_module = netlist_modules[0]
+    else:
+        # No netlist → use JSON modules as-is with no submodule hierarchy
+        netlist_hier = {name: {"cells": {}, "submodules": {}} for name in json_modules}
+
+    # Build child maps from netlist hierarchy
+    child_map = {
+        mod: data.get("submodules", {})
+        for mod, data in netlist_hier.items()
+    }
+
+    rows = _build(json_modules, child_map, top_module)
+    from synth_hierarchy import flatten_tree as _flatten
+    return _flatten(rows)
+
+
+# ---------------------------------------------------------------------------
 # Frequency derivation from timing slack
 # ---------------------------------------------------------------------------
 
@@ -323,6 +571,44 @@ def derive_max_frequency(
 
 
 # ---------------------------------------------------------------------------
+# Classified timing report parsing  (orchestrates synth_timing.py)
+# ---------------------------------------------------------------------------
+
+def parse_classified_timing(
+    rpt_path,
+    fanout_path=None,
+    netlist_path=None,
+    top_reg2reg: int = 50,
+    top_others: int = 20,
+) -> Dict:
+    """Parse the iSTA unified timing report plus companion files into
+    classified setup/hold/DRV data.
+
+    Args:
+        rpt_path: Path to the iSTA ``.rpt`` file.
+        fanout_path: Path to the ``.fanout`` file (optional).
+        netlist_path: Path to the mapped ``.netlist.v`` (optional).
+        top_reg2reg: Max reg2reg paths to retain (default 50).
+        top_others: Max paths for in2reg/reg2out/in2out/hold/fanout
+                    (default 20).
+
+    Returns:
+        Dict with keys ``reg2reg``, ``in2reg``, ``reg2out``, ``in2out``,
+        ``hold``, ``path_groups``, ``high_fanout``, ``unconstrained``,
+        ``wns``, ``tns``, ``warnings``.
+    """
+    from synth_timing import build_timing_report
+
+    return build_timing_report(
+        rpt_path=str(rpt_path),
+        fanout_path=str(fanout_path) if fanout_path else None,
+        netlist_path=str(netlist_path) if netlist_path else None,
+        top_reg2reg_count=top_reg2reg,
+        top_other_count=top_others,
+    )
+
+
+# ---------------------------------------------------------------------------
 # CLI  (for testing / debugging standalone)
 # ---------------------------------------------------------------------------
 
@@ -355,6 +641,91 @@ def _cli_parse_stat() -> None:
         sys.exit(1)
 
 
+def _cli_parse_hierarchy() -> None:
+    import argparse, json
+    ap = argparse.ArgumentParser(description="Build hierarchical area tree from synth artifacts")
+    ap.add_argument("json_path", type=Path, help="Path to synth_stat.json")
+    ap.add_argument("--netlist", type=Path, default=None, help="Path to mapped .netlist.v")
+    ap.add_argument("--top", default="ysyx_25070190", help="Top module name")
+    ap.add_argument("--json-out", action="store_true", help="Output as JSON")
+    args = ap.parse_args()
+    try:
+        rows = build_hierarchy_area_tree(args.json_path, args.netlist, args.top)
+        if args.json_out:
+            print(json.dumps(rows, indent=2))
+        else:
+            for r in rows:
+                cats_str = ", ".join(
+                    f"{cat}={r['categories'][cat]['count']}"
+                    for cat in ("sequential", "combinational", "clock-gating",
+                                "buffer/inverter", "mux", "arithmetic", "other")
+                )
+                print(
+                    f"{r['instance_path']:50s} "
+                    f"cells(loc/rec)={r['local_cells']:5d}/{r['recursive_cells']:5d}  "
+                    f"area(loc/rec)={r['local_area']:10.3f}/{r['recursive_area']:10.3f}  "
+                    f"%top={r['pct_of_top_area']:6.2f}  "
+                    f"cats: {cats_str}"
+                )
+    except (ParseError, FileNotFoundError, KeyError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def _cli_parse_timing() -> None:
+    import argparse, json
+    ap = argparse.ArgumentParser(description="Classify STA timing paths and extract DRV data")
+    ap.add_argument("rpt", type=Path, help="Path to .rpt file")
+    ap.add_argument("--fanout", type=Path, default=None, help="Path to .fanout file")
+    ap.add_argument("--netlist", type=Path, default=None, help="Path to .netlist.v file")
+    ap.add_argument("--json-out", action="store_true", help="Output as JSON")
+    ap.add_argument("--top-reg2reg", type=int, default=50, help="Max reg2reg paths")
+    ap.add_argument("--top-others", type=int, default=20, help="Max other-category paths")
+    args = ap.parse_args()
+    try:
+        result = parse_classified_timing(
+            rpt_path=args.rpt,
+            fanout_path=args.fanout,
+            netlist_path=args.netlist,
+            top_reg2reg=args.top_reg2reg,
+            top_others=args.top_others,
+        )
+        if args.json_out:
+            print(json.dumps(result, indent=2))
+        else:
+            print("=== Timing Classification ===")
+            print(f"Global WNS (setup): {result['wns']} ns")
+            print(f"Global TNS (setup): {result['tns']} ns")
+            for cat in ("reg2reg", "in2reg", "reg2out", "in2out"):
+                paths = result[cat]
+                print(f"\n--- {cat} ({len(paths)} paths) ---")
+                for p in paths[:5]:
+                    print(f"  {p['startpoint']} → {p['endpoint']}  slack={p['slack']}ns")
+                if len(paths) > 5:
+                    print(f"  ... and {len(paths) - 5} more")
+            print(f"\n--- hold ({len(result['hold'])} endpoints) ---")
+            for h in result["hold"][:5]:
+                print(f"  {h['endpoint']}  slack={h['slack']}ns")
+            if len(result["hold"]) > 5:
+                print(f"  ... and {len(result['hold']) - 5} more")
+            print(f"\n--- path groups ({len(result['path_groups'])}) ---")
+            for pg in result["path_groups"]:
+                print(f"  {pg['clock_group']}/{pg['delay_type']}: {pg['endpoint_count']} endpoints, WNS={pg['wns']}ns, TNS={pg['tns']}ns")
+            print(f"\n--- high fanout ({len(result['high_fanout'])} nets) ---")
+            for n in result["high_fanout"][:5]:
+                print(f"  {n['net_name']}: fanout={n['fanout']}, driver={n['driver_pin']}")
+            print(f"\n--- unconstrained ({len(result['unconstrained'])} endpoints) ---")
+            for u in result["unconstrained"][:5]:
+                print(f"  {u['pin_name']} ({u['pin_type']})")
+            if result["warnings"]:
+                print(f"\n--- warnings ({len(result['warnings'])}) ---")
+                for w in result["warnings"]:
+                    print(f"  {w}")
+    except (FileNotFoundError, ValueError) as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "sta":
         sys.argv.pop(1)
@@ -362,6 +733,12 @@ if __name__ == "__main__":
     elif len(sys.argv) > 1 and sys.argv[1] == "stat":
         sys.argv.pop(1)
         _cli_parse_stat()
+    elif len(sys.argv) > 1 and sys.argv[1] == "hierarchy":
+        sys.argv.pop(1)
+        _cli_parse_hierarchy()
+    elif len(sys.argv) > 1 and sys.argv[1] == "timing":
+        sys.argv.pop(1)
+        _cli_parse_timing()
     else:
-        print("Usage: report_parser.py {sta|stat} [args...]", file=sys.stderr)
+        print("Usage: report_parser.py {sta|stat|hierarchy|timing} [args...]", file=sys.stderr)
         sys.exit(2)

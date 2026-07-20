@@ -94,8 +94,23 @@ def build_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> s
         )
 
     # ── Synth metrics from synth_summary.json ─────────────────────────
+    # final_mhz and area_um2 exist in both v1 and v2 schemas.
     final_mhz = require_field(synth_data, "final_mhz", "synth_summary.json")
     area_um2 = require_field(synth_data, "area_um2", "synth_summary.json")
+
+    # core_reg2reg_fmax_mhz is a v2-only field.  When present and usable
+    # (non-null integer), prefer it for the per-category core Fmax line.
+    # When absent (v1 schema), silently omit — no warning, no fake number.
+    # When present but null (v2, no reg2reg paths in STA report), emit an
+    # explicit "N/A" marker so downstream consumers are not misled.
+    core_reg2reg_fmax = synth_data.get("core_reg2reg_fmax_mhz")
+    if core_reg2reg_fmax is not None:
+        core_fmax_str = f"核心 reg2reg 频率: {core_reg2reg_fmax}MHz"
+    elif "core_reg2reg_fmax_mhz" in synth_data:
+        core_fmax_str = "核心 reg2reg 频率: N/A (no reg2reg paths in STA report)"
+    else:
+        core_fmax_str = None  # v1 schema — omit silently
+
     commit_id, commit_title = get_git_metadata()
 
     lines: List[str] = [
@@ -105,10 +120,14 @@ def build_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> s
         f"指令数: {format_value(instret)}",
         f"IPC: {format_value(ipc)}",
         f"综合频率: {format_value(final_mhz)}MHz",
+    ]
+    if core_fmax_str is not None:
+        lines.append(core_fmax_str)
+    lines.extend([
         f"综合面积: {format_value(area_um2)}",
         "",
         "--- perf counters ---",
-    ]
+    ])
 
     for idx, ctr in enumerate(perf_counters):
         name = ctr.get("name")

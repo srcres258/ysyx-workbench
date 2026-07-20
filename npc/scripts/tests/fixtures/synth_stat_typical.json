@@ -1,0 +1,29 @@
+{
+  "creator": "Yosys 0.48+82",
+  "invocation": "stat -json -liberty nangate45.lib",
+  "modules": {
+    "ysyx_25070190": {
+      "num_wires": {"count": 12345, "area": 0, "local_count": 12345, "local_area": 0},
+      "num_wire_bits": {"count": 54321, "area": 0, "local_count": 54321, "local_area": 0},
+      "num_cells": {"count": 9876, "area": 12345.678, "local_count": 9876, "local_area": 12345.678},
+      "num_cells_by_type": {
+        "DFF_X1": {"count": 500, "area": 600.0, "local_count": 500, "local_area": 600.0},
+        "NAND2_X1": {"count": 2000, "area": 2000.0, "local_count": 2000, "local_area": 2000.0},
+        "NOR2_X1": {"count": 1500, "area": 1800.0, "local_count": 1500, "local_area": 1800.0},
+        "INV_X1": {"count": 1000, "area": 800.0, "local_count": 1000, "local_area": 800.0},
+        "BUF_X1": {"count": 500, "area": 500.0, "local_count": 500, "local_area": 500.0},
+        "AND2_X1": {"count": 800, "area": 960.0, "local_count": 800, "local_area": 960.0},
+        "OR2_X1": {"count": 600, "area": 720.0, "local_count": 600, "local_area": 720.0},
+        "XOR2_X1": {"count": 300, "area": 450.0, "local_count": 300, "local_area": 450.0},
+        "MUX2_X1": {"count": 400, "area": 600.0, "local_count": 400, "local_area": 600.0},
+        "AOI21_X1": {"count": 200, "area": 280.0, "local_count": 200, "local_area": 280.0},
+        "CLKGATE_X1": {"count": 50, "area": 75.0, "local_count": 50, "local_area": 75.0},
+        "FA_X1": {"count": 100, "area": 180.0, "local_count": 100, "local_area": 180.0},
+        "SDFF_X1": {"count": 200, "area": 300.0, "local_count": 200, "local_area": 300.0},
+        "FILL_X1": {"count": 126, "area": 80.678, "local_count": 126, "local_area": 80.678},
+        "TIEHI_X1": {"count": 10, "area": 5.0, "local_count": 10, "local_area": 5.0}
+      },
+      "area": 12345.678
+    }
+  }
+}

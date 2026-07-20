@@ -81,6 +81,9 @@ SYNTH_DONE     = $(SYNTH_OUT_DIR)/.synth_done
 SYNTH_SEARCH   ?= off
 SYNTH_LOW_MHZ  ?= 1
 SYNTH_HIGH_MHZ ?= 500
+# Area budget in µm² for the synthesis summary text report.
+# Override with SYNTH_AREA_BUDGET_UM2=30000 to set a tighter budget.
+SYNTH_AREA_BUDGET_UM2 ?= 23000
 # Bootstrap yosys-sta automatically on first synth if bin/iEDA or the PDK are
 # missing. This keeps fresh clones self-contained while still allowing users to
 # disable the behavior explicitly when needed.
@@ -109,6 +112,7 @@ $(SYNTH_DONE): $(SYNTH_SDC) $(SYNTH_RTL_DEPS) $(SYNTH_STUB_DEPS)
 	 CLK_PORT_NAME=$(SYNTH_CLK_PORT) \
 	 OUTPUT_DIR=$(SYNTH_OUT_DIR) \
 	 SDC_FILE=$(SYNTH_SDC) \
+	 SYNTH_AREA_BUDGET_UM2=$(SYNTH_AREA_BUDGET_UM2) \
 	 SYNTH_SEARCH=$(SYNTH_SEARCH) \
 	 SYNTH_LOW_MHZ=$(SYNTH_LOW_MHZ) \
 	 SYNTH_HIGH_MHZ=$(SYNTH_HIGH_MHZ) \

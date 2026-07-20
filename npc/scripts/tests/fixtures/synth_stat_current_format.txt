@@ -1,0 +1,4 @@
+=== ysyx_25070190 ===
+// This file uses the current Yosys format with area
+  5432  9999.50 cells
+   Chip area for top module '\ysyx_25070190':  9999.50

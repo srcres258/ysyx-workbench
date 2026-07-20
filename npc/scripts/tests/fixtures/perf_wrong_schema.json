@@ -1,0 +1,7 @@
+{
+  "schema_version": 99,
+  "cycles": 50000000,
+  "instret": 20000000,
+  "ipc": 0.4,
+  "perf_counters": []
+}

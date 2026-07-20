@@ -1,0 +1,68 @@
+{
+  "schema_version": 2,
+  "design": "ysyx_25070190",
+  "target_mhz": 100,
+  "final_mhz": 125,
+  "wns_ns": 1.7000,
+  "tns_ns": 0.0000,
+  "cell_count": 9876,
+  "area_um2": 12345.68,
+  "global_derived_fmax_mhz": 125,
+  "core_reg2reg_fmax_mhz": 130,
+  "area_budget_um2": 23000,
+  "area_by_hierarchy": [
+    {
+      "instance_path": "ysyx_25070190",
+      "module_name": "ysyx_25070190",
+      "parent_path": "",
+      "depth": 0,
+      "instance_count": 1,
+      "local_cells": 9876,
+      "local_area": 12345.68,
+      "recursive_cells": 9876,
+      "recursive_area": 12345.68,
+      "pct_of_top_area": 100.0,
+      "categories": {
+        "sequential": {"count": 700, "area": 900.0},
+        "combinational": {"count": 7500, "area": 10210.0},
+        "clock-gating": {"count": 50, "area": 75.0},
+        "buffer/inverter": {"count": 1500, "area": 1300.0},
+        "mux": {"count": 400, "area": 600.0},
+        "arithmetic": {"count": 100, "area": 180.0},
+        "other": {"count": 126, "area": 80.68}
+      }
+    }
+  ],
+  "area_by_cell_class": {
+    "sequential": {"cell_count": 700, "area_um2": 900.0},
+    "combinational": {"cell_count": 7500, "area_um2": 10210.0},
+    "clock-gating": {"cell_count": 50, "area_um2": 75.0},
+    "buffer/inverter": {"cell_count": 1500, "area_um2": 1300.0},
+    "mux": {"cell_count": 400, "area_um2": 600.0},
+    "arithmetic": {"cell_count": 100, "area_um2": 180.0},
+    "other": {"cell_count": 126, "area_um2": 80.68}
+  },
+  "timing": {
+    "global": {"wns_ns": 1.7, "tns_ns": 0.0},
+    "reg2reg": {
+      "wns_ns": -0.1,
+      "tns_ns": -0.5,
+      "path_count": 3,
+      "top_paths": [
+        {"startpoint": "cpu/alu/result_reg/CK", "endpoint": "cpu/alu/result_reg/D", "startpoint_type": "sequential", "endpoint_type": "sequential", "delay_type": "max", "clock_group": "core_clock", "slack": -0.1, "path_delay": 8.5, "path_required": 8.4, "category": "reg2reg"},
+        {"startpoint": "cpu/dec/op_reg/CK", "endpoint": "cpu/dec/op_reg/D", "startpoint_type": "sequential", "endpoint_type": "sequential", "delay_type": "max", "clock_group": "core_clock", "slack": 0.3, "path_delay": 7.1, "path_required": 7.4, "category": "reg2reg"},
+        {"startpoint": "cpu/wb_reg/CK", "endpoint": "cpu/wb_reg/D", "startpoint_type": "sequential", "endpoint_type": "sequential", "delay_type": "max", "clock_group": "core_clock", "slack": 0.5, "path_delay": 6.9, "path_required": 7.4, "category": "reg2reg"}
+      ]
+    },
+    "in2reg": {"wns_ns": 0.85, "tns_ns": 0.0, "path_count": 2, "top_paths": []},
+    "reg2out": {"wns_ns": 0.46, "tns_ns": 0.0, "path_count": 1, "top_paths": []},
+    "in2out": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "hold": {"wns_ns": 0.1, "tns_ns": 0.0, "endpoint_count": 5, "top_paths": []}
+  },
+  "path_groups": [
+    {"clock_group": "core_clock", "delay_type": "max", "endpoint_count": 5, "wns": -0.1, "tns": 0.0}
+  ],
+  "high_fanout": [],
+  "unconstrained": [],
+  "warnings": []
+}

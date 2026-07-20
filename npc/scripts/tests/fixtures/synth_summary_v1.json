@@ -1,0 +1,9 @@
+{
+  "design": "ysyx_25070190",
+  "target_mhz": 100,
+  "final_mhz": 125,
+  "wns_ns": 1.7000,
+  "tns_ns": 0.0000,
+  "cell_count": 9876,
+  "area_um2": 12345.68
+}

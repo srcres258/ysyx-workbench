@@ -1,0 +1,14 @@
+{
+  "creator": "Yosys 0.48+82",
+  "modules": {
+    "ysyx_25070190": {
+      "num_wires": 5000,
+      "num_cells": 3000,
+      "num_cells_by_type": {
+        "DFF_X1": 100,
+        "NAND2_X1": 500,
+        "INV_X1": 300
+      }
+    }
+  }
+}

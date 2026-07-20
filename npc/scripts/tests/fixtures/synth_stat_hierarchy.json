@@ -1,0 +1,33 @@
+{
+  "creator": "Yosys 0.48+82",
+  "invocation": "stat -json -liberty nangate45.lib",
+  "modules": {
+    "top": {
+      "num_wires": {"count": 800, "area": 0, "local_count": 800, "local_area": 0},
+      "num_cells": {"count": 510, "area": 2500.0, "local_count": 100, "local_area": 500.0},
+      "num_cells_by_type": {
+        "DFF_X1": {"count": 50, "area": 100.0, "local_count": 20, "local_area": 40.0},
+        "NAND2_X1": {"count": 60, "area": 120.0, "local_count": 30, "local_area": 60.0},
+        "INV_X1": {"count": 40, "area": 40.0, "local_count": 20, "local_area": 20.0}
+      },
+      "area": 2500.0
+    },
+    "sub_a": {
+      "num_wires": {"count": 100, "area": 0, "local_count": 100, "local_area": 0},
+      "num_cells": {"count": 220, "area": 1000.0, "local_count": 220, "local_area": 1000.0},
+      "num_cells_by_type": {
+        "DFF_X1": {"count": 220, "area": 1000.0, "local_count": 220, "local_area": 1000.0}
+      },
+      "area": 1000.0
+    },
+    "sub_b": {
+      "num_wires": {"count": 150, "area": 0, "local_count": 150, "local_area": 0},
+      "num_cells": {"count": 190, "area": 1000.0, "local_count": 190, "local_area": 1000.0},
+      "num_cells_by_type": {
+        "DFF_X1": {"count": 100, "area": 450.0, "local_count": 100, "local_area": 450.0},
+        "NAND2_X1": {"count": 90, "area": 550.0, "local_count": 90, "local_area": 550.0}
+      },
+      "area": 1000.0
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "creator": "Yosys 0.48+82",
+  "modules": {
+    "\\ysyx_25070190": {
+      "num_wires": {"count": 5000, "area": 0, "local_count": 5000, "local_area": 0},
+      "num_cells": {"count": 3000, "area": 8000.0, "local_count": 3000, "local_area": 8000.0},
+      "num_cells_by_type": {
+        "DFF_X1": {"count": 200, "area": 300.0, "local_count": 200, "local_area": 300.0},
+        "NAND2_X1": {"count": 800, "area": 1000.0, "local_count": 800, "local_area": 1000.0},
+        "INV_X1": {"count": 400, "area": 400.0, "local_count": 400, "local_area": 400.0}
+      },
+      "area": 8000.0
+    }
+  }
+}

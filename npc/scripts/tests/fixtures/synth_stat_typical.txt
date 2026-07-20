@@ -1,0 +1,12 @@
+=== ysyx_25070190 ===
+   Number of wires:               12345
+   Number of wire bits:           54321
+   Number of public wires:         1234
+   Number of public wire bits:     4321
+   Number of memories:                0
+   Number of memory bits:             0
+   Number of processes:               0
+   Number of cells:                9876
+   Chip area for top module '\ysyx_25070190':  12345.678
+
+9876  12345.678 cells

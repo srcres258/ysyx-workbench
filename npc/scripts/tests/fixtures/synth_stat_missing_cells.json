@@ -1,0 +1,8 @@
+{
+  "creator": "Yosys 0.48+82",
+  "modules": {
+    "ysyx_25070190": {
+      "num_wires": 5000
+    }
+  }
+}

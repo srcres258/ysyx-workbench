@@ -11,6 +11,9 @@
 !*.sh
 !*.sdc
 !*.py
+!scripts/tests/**/*.rpt
+!scripts/tests/**/*.txt
+!scripts/tests/**/*.json
 !.gitignore
 !README.md
 build/
