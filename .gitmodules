@@ -16,4 +16,5 @@
 	url = https://codeberg.org/srcres258/ysyx-standard.git
 [submodule "yosys-sta"]
 	path = yosys-sta
-	url = https://github.com/OSCPU/yosys-sta.git
+	url = https://github.com/srcres258/yosys-sta.git
+	branch = own
