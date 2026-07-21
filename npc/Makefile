@@ -67,7 +67,8 @@ chisel-clean:
 	rm -rf $(NPC_GEN_DIR)
 
 # Synthesis with yosys-sta (ASIC synthesis + STA for ysyx_25070190)
-# Runs the latest generated RTL; use `make chisel-gen` first to (re)generate RTL.
+# Synth always rebuilds a clean, DPI-free RTL snapshot first so the report
+# reflects the physical netlist boundary instead of simulation-only DPI nets.
 YOSYS_STA_HOME ?= $(abspath ../yosys-sta)
 SYNTH_TOP     ?= ysyx_25070190
 SYNTH_CLK_MHZ  ?= 100
@@ -90,19 +91,23 @@ SYNTH_AREA_BUDGET_UM2 ?= 23000
 YOSYS_STA_AUTO_INIT ?= on
 
 # RTL file list for incremental dependency tracking.
-# Evaluated at parse time; if generated/ does not yet exist these are empty
-# and synthesis will fail with a clear "run chisel-gen first" message.
+# Evaluated at parse time; if generated/ does not yet exist these are empty,
+# but `make synth` will regenerate the DPI-free RTL snapshot before running STA.
 SYNTH_RTL_DEPS = $(shell find $(NPC_GEN_DIR) \( -name "*.sv" -o -name "*.v" \) \
 	-not -name "GeneralDPIAdapter.sv" -not -name "StandaloneMemDPI.sv" \
 	-not -path "*/verification/*" 2>/dev/null)
 SYNTH_STUB_DEPS = $(shell find $(SYNTH_STUB_DIR) \( -name "*.sv" -o -name "*.v" \) 2>/dev/null)
 
-synth: $(SYNTH_DONE)
+synth:
+	@echo "[Synth] Rebuilding clean RTL without DPI nets..."
+	@$(MAKE) chisel-clean
+	@$(MAKE) chisel-gen RUN_CONFIG_DPI=off
+	@$(MAKE) $(SYNTH_DONE)
 
 $(SYNTH_DONE): $(SYNTH_SDC) $(SYNTH_RTL_DEPS) $(SYNTH_STUB_DEPS)
 	@if [ ! -f "$(NPC_GEN_DIR)/$(SYNTH_TOP).sv" ]; then \
 		echo "[Synth] ERROR: Generated RTL not found at $(NPC_GEN_DIR)/$(SYNTH_TOP).sv" >&2; \
-		echo "[Synth] Run 'make chisel-gen' to generate RTL first." >&2; \
+		echo "[Synth] Run 'make synth' or 'make chisel-gen RUN_CONFIG_DPI=off' first." >&2; \
 		exit 1; \
 	fi
 	@NPC_HOME=$(abspath .) \
@@ -358,12 +363,9 @@ gen_header: chisel-gen
 
 # ── Performance profiling ─────────────────────────────────────────────────
 # Perf counters are collected at simulation exit (task 4) and exported to
-# npc/build/perf/perf.json.  This target orchestrates:
-#   1. synth    — (re)run synthesis if RTL changed, produce synth_summary.json
-#   2. $(BIN)   — build the simulator if needed
-#   3. microbench — build with mainargs=train, ARCH=riscv32e-ysyxsoc
-#   4. sim run  — execute with all noisy knobs disabled, perf counters enabled
-#   5. aggregate — parse perf.json + synth_summary.json, print stable block
+# npc/build/perf/perf.json. Perf must not reuse the DPI-free RTL from synth,
+# so the flow is serialized in the recipe: synth first, then rebuild the
+# simulator with DPI enabled, then run the benchmark.
 
 PERF_DIR           = $(BUILD_DIR)/perf
 PERF_AGGREGATOR    = $(abspath ./scripts/perf_aggregator.py)
@@ -374,29 +376,33 @@ MICROBENCH_ELF     = $(MICROBENCH_DIR)/build/microbench-riscv32e-ysyxsoc.elf
 # Perf overrides: disable all interactive/UI/noisy knobs for deterministic
 # counter collection while keeping the ysyxsoc latency model intact.
 # Must NOT override RUN_CONFIG_SIM_MODE — default "ysyxsoc" is correct.
-perf: synth $(BIN)
+perf:
+	@$(MAKE) synth
+	@echo "[Perf] Rebuilding simulator with DPI-enabled RTL..."
+	@$(MAKE) chisel-clean
+	@$(MAKE) $(BIN) RUN_CONFIG_DPI=on
 	@echo "[Perf] Building microbench..."
-	@$(MAKE) -C $(MICROBENCH_DIR) ARCH=riscv32e-ysyxsoc insert-arg mainargs=train USE_SDRAM=1
+	@$(MAKE) -C $(MICROBENCH_DIR) ARCH=riscv32e-ysyxsoc insert-arg mainargs=test USE_SDRAM=1
 	@echo "[Perf] Running simulation with perf counters..."
 	@ASAN_OPTIONS=detect_leaks=0:exitcode=0 \
-	 IMG=$(MICROBENCH_BIN) \
-	 NPC_SDB_ENABLED=false \
-	 NPC_CONFIG_TUI=off \
-	 NPC_CONFIG_NVBOARD=off \
-	 NPC_CONFIG_WAVE=off \
-	 NPC_CONFIG_DIFFTEST=off \
-	 NPC_CONFIG_ITRACE=off \
-	 NPC_CONFIG_MTRACE=off \
-	 NPC_CONFIG_FTRACE=off \
-	 NPC_CONFIG_DTRACE=off \
-	 NPC_CONFIG_ETRACE=off \
-	 NPC_CONFIG_DEVICE=on \
-	 NPC_CONFIG_DEBUG_OUTPUT=off \
-	 NPC_CONFIG_MROM=off \
-	 NPC_CONFIG_PERF=on \
-	 NPC_CONFIG_FLASH_BIN_FILE_PATH=$(MICROBENCH_BIN) \
-	 NPC_CONFIG_FLASH_ELF_FILE_PATH=$(MICROBENCH_ELF) \
-	 $(BIN)
+		 IMG=$(MICROBENCH_BIN) \
+		 NPC_SDB_ENABLED=false \
+		 NPC_CONFIG_TUI=off \
+		 NPC_CONFIG_NVBOARD=off \
+		 NPC_CONFIG_WAVE=off \
+		 NPC_CONFIG_DIFFTEST=off \
+		 NPC_CONFIG_ITRACE=off \
+		 NPC_CONFIG_MTRACE=off \
+		 NPC_CONFIG_FTRACE=off \
+		 NPC_CONFIG_DTRACE=off \
+		 NPC_CONFIG_ETRACE=off \
+		 NPC_CONFIG_DEVICE=on \
+		 NPC_CONFIG_DEBUG_OUTPUT=off \
+		 NPC_CONFIG_MROM=off \
+		 NPC_CONFIG_PERF=on \
+		 NPC_CONFIG_FLASH_BIN_FILE_PATH=$(MICROBENCH_BIN) \
+		 NPC_CONFIG_FLASH_ELF_FILE_PATH=$(MICROBENCH_ELF) \
+		 $(BIN)
 	@echo ""
 	@python3 $(PERF_AGGREGATOR) \
 	 --perf-json $(PERF_DIR)/perf.json \
