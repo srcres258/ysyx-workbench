@@ -382,7 +382,7 @@ perf:
 	@$(MAKE) chisel-clean
 	@$(MAKE) $(BIN) RUN_CONFIG_DPI=on
 	@echo "[Perf] Building microbench..."
-	@$(MAKE) -C $(MICROBENCH_DIR) ARCH=riscv32e-ysyxsoc insert-arg mainargs=test USE_SDRAM=1
+	@$(MAKE) -C $(MICROBENCH_DIR) ARCH=riscv32e-ysyxsoc insert-arg mainargs=train USE_SDRAM=1
 	@echo "[Perf] Running simulation with perf counters..."
 	@ASAN_OPTIONS=detect_leaks=0:exitcode=0 \
 		 IMG=$(MICROBENCH_BIN) \
