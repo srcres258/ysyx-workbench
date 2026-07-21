@@ -1,10 +1,10 @@
 {
-  "schema_version": 2,
+  "schema_version": 3,
   "design": "ysyx_25070190",
   "target_mhz": 100,
   "final_mhz": 125,
-  "wns_ns": 1.7000,
-  "tns_ns": 0.0000,
+  "wns_ns": 1.7,
+  "tns_ns": 0.0,
   "cell_count": 9876,
   "area_um2": 12345.68,
   "global_derived_fmax_mhz": 125,
@@ -43,6 +43,7 @@
     "arithmetic": {"cell_count": 100, "area_um2": 180.0},
     "other": {"cell_count": 126, "area_um2": 80.68}
   },
+  "area_hierarchy_source": "hierarchy-preserved",
   "timing": {
     "global": {"wns_ns": 1.7, "tns_ns": 0.0},
     "reg2reg": {
@@ -75,5 +76,65 @@
   ],
   "high_fanout": [],
   "unconstrained": [],
-  "warnings": []
+  "warnings": [],
+  "area": {
+    "total_cells": 9876,
+    "total_area_um2": 12345.68,
+    "budget_um2": 23000,
+    "utilisation_pct": 53.7,
+    "by_hierarchy": [
+      {
+        "instance_path": "ysyx_25070190",
+        "module_name": "ysyx_25070190",
+        "parent_path": "",
+        "depth": 0,
+        "instance_count": 1,
+        "local_cells": 9876,
+        "local_area": 12345.68,
+        "recursive_cells": 9876,
+        "recursive_area": 12345.68,
+        "pct_of_top_area": 100.0,
+        "categories": {
+          "sequential": {"count": 700, "area": 900.0},
+          "combinational": {"count": 7500, "area": 10210.0},
+          "clock-gating": {"count": 50, "area": 75.0},
+          "buffer/inverter": {"count": 1500, "area": 1300.0},
+          "mux": {"count": 400, "area": 600.0},
+          "arithmetic": {"count": 100, "area": 180.0},
+          "other": {"count": 126, "area": 80.68}
+        }
+      }
+    ],
+    "by_cell_class": {
+      "sequential": {"cell_count": 700, "area_um2": 900.0},
+      "combinational": {"cell_count": 7500, "area_um2": 10210.0},
+      "clock-gating": {"cell_count": 50, "area_um2": 75.0},
+      "buffer/inverter": {"cell_count": 1500, "area_um2": 1300.0},
+      "mux": {"cell_count": 400, "area_um2": 600.0},
+      "arithmetic": {"cell_count": 100, "area_um2": 180.0},
+      "other": {"cell_count": 126, "area_um2": 80.68}
+    },
+    "hierarchy_source": "hierarchy-preserved"
+  },
+  "fanout": {
+    "high_fanout_nets": [],
+    "source": "full_netlist"
+  },
+  "constraints": {
+    "constrained_endpoints": 22,
+    "total_endpoints_in_netlist": 2476,
+    "unconstrained_endpoints": [],
+    "coverage_status": "LOWER_BOUND"
+  },
+  "provenance": {
+    "yosys_version": "0.48",
+    "ieda_version": "2025-03-15",
+    "pdk": "nangate45",
+    "liberty": "NangateOpenCellLibrary_ss_typical.lib",
+    "workbench_commit": "abc1234",
+    "cpu_commit": "def5678",
+    "target_mhz": "100",
+    "generated_at": "2026-07-21T00:00:00Z",
+    "sta_tool": "iEDA"
+  }
 }

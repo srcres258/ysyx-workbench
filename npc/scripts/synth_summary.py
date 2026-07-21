@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
 # ============================================================================
-# synth_summary.py — Schema-v2 synthesis summary renderer.
+# synth_summary.py — Schema-v3 synthesis summary renderer.
 # ============================================================================
 # Consumes:
 #   - Parsed area model     (report_parser.parse_synth_stat / build_hierarchy_area_tree)
 #   - Parsed timing model   (report_parser.parse_classified_timing)
 #   - Budget via CLI        (SYNTH_AREA_BUDGET_UM2 from Makefile)
+#   - Provenance via CLI    (commit hashes, tool versions, PDK info)
 #
 # Produces:
-#   - npc/build/synth/synth_summary.json   (schema v2, backward-compatible v1 fields)
-#   - npc/build/synth/synth_summary.txt    (human-readable baseline report)
+#   - npc/build/synth/synth_summary.json       (schema v3, nested sections + legacy flat aliases)
+#   - npc/build/synth/synth_summary.txt        (human-readable baseline report)
+#   - npc/build/synth/optimization_hotspots.txt (evidence-backed hotspot analysis)
 #
 # Design principle: fail-closed.  Missing reg2reg stays null/warned, never
-# fabricated.  V1 fields preserved exactly — no rename, no removal.
+# fabricated.  V1/V2 fields preserved exactly — no rename, no removal.
+# Schema v3 adds nested sections (area, timing, fanout, constraints, warnings,
+# provenance) while keeping flat legacy aliases for backward compatibility.
 # ============================================================================
 
 from __future__ import annotations
@@ -122,16 +126,23 @@ def build_summary_json(
     timing_result: Dict,
     area_by_class: Dict[str, Dict[str, float]],
     area_budget_um2: int,
+    provenance: Optional[Dict[str, str]] = None,
+    fanout_source: str = "unknown",
+    coverage_status: str = "unknown",
+    coverage_note: str = "",
 ) -> Dict[str, Any]:
-    """Assemble the schema-v2 synth summary JSON dict."""
+    """Assemble the schema-v3 synth summary JSON dict.
+
+    Emits nested sections (area, timing, fanout, constraints, warnings,
+    provenance) while preserving flat legacy aliases for backward compatibility.
+    """
 
     cell_count = int(area_result.get("cell_count", 0))
     area_um2 = float(area_result.get("area_um2", 0.0))
 
-    global_wns = timing_result.get("wns", 0.0)  # already from parse_sta_report or classified
+    global_wns = timing_result.get("wns", 0.0)
     global_tns = timing_result.get("tns", 0.0)
 
-    # Global derived Fmax from global WNS
     try:
         global_fmax = derive_max_frequency(global_wns, target_mhz)
     except (ValueError, TypeError):
@@ -148,11 +159,22 @@ def build_summary_json(
     else:
         core_reg2reg_fmax = None
 
+    data_reg2reg_data = _per_category_wns_tns(timing_result, "data_reg2reg")
+    data_reg2reg_wns = data_reg2reg_data["wns_ns"]
+    if data_reg2reg_wns is not None:
+        try:
+            core_data_reg2reg_fmax = derive_max_frequency(data_reg2reg_wns, target_mhz)
+        except (ValueError, TypeError):
+            core_data_reg2reg_fmax = None
+    else:
+        core_data_reg2reg_fmax = None
+
     # ── per-category timing sections ───────────────────────────
     timing_section: Dict[str, Any] = {
         "global": {"wns_ns": round(global_wns, 4), "tns_ns": round(global_tns, 4)},
     }
-    for cat in ("reg2reg", "in2reg", "reg2out", "in2out"):
+    for cat in ("reg2reg", "data_reg2reg", "in2reg", "reg2out", "in2out",
+                 "clock_enable", "clock_gating_setup"):
         cat_wns_tns = _per_category_wns_tns(timing_result, cat)
         paths = timing_result.get(cat, [])
         timing_section[cat] = {
@@ -162,43 +184,85 @@ def build_summary_json(
             "top_paths": paths,
         }
 
-    # hold
     hold_paths = timing_result.get("hold", [])
     hold_slacks = [h["slack"] for h in hold_paths if "slack" in h]
+    hold_classified = timing_result.get("hold_classified", [])
+    hold_sub_cats = timing_result.get("hold_sub_categories", {})
     timing_section["hold"] = {
         "wns_ns": round(min(hold_slacks), 4) if hold_slacks else None,
         "tns_ns": round(sum(s for s in hold_slacks if s < 0), 4) if hold_slacks else None,
         "endpoint_count": len(hold_paths),
         "top_paths": hold_paths,
+        "classified_paths": hold_classified,
+        "sub_categories": hold_sub_cats,
     }
 
-    # ── assemble ───────────────────────────────────────────────
+    total_endpoints = timing_result.get("total_endpoints_in_netlist", 0)
+    constrained_count = timing_result.get("constrained_endpoint_count", 0)
+    unconstrained = timing_result.get("unconstrained", [])
+
+    hierarchy_source = hierarchy_rows[0].get("hierarchy_source", "unknown") if hierarchy_rows else "unknown"
+
+    # ── v3 area section ────────────────────────────────────────
+    area_rounded = round(area_um2, 2)
+    utilisation = (area_rounded / area_budget_um2 * 100.0) if area_budget_um2 > 0 else None
+    area_section: Dict[str, Any] = {
+        "total_cells": cell_count,
+        "total_area_um2": area_rounded,
+        "budget_um2": area_budget_um2,
+        "utilisation_pct": round(utilisation, 1) if utilisation is not None else None,
+        "by_hierarchy": hierarchy_rows,
+        "by_cell_class": area_by_class,
+        "hierarchy_source": hierarchy_source,
+    }
+
+    # ── v3 fanout section ─────────────────────────────────────
+    fanout_nets = timing_result.get("high_fanout", [])
+    fanout_section: Dict[str, Any] = {
+        "high_fanout_nets": fanout_nets,
+        "source": fanout_source,
+    }
+
+    # ── v3 constraints section ─────────────────────────────────
+    constraints_section: Dict[str, Any] = {
+        "constrained_endpoints": constrained_count,
+        "total_endpoints_in_netlist": total_endpoints,
+        "unconstrained_endpoints": unconstrained,
+        "coverage_status": coverage_status,
+    }
+    if coverage_note:
+        constraints_section["coverage_note"] = coverage_note
+
+    # ── assemble v3 ────────────────────────────────────────────
     summary: Dict[str, Any] = {
-        "schema_version": 2,
-        # v1 compatibility fields (unchanged names, unchanged semantics)
+        "schema_version": 3,
+        # ── v1/v2 flat compatibility fields (unchanged) ───────
         "design": design,
         "target_mhz": target_mhz,
-        "final_mhz": global_fmax,  # compat: global derived fmax
+        "final_mhz": global_fmax,
         "wns_ns": round(global_wns, 4),
         "tns_ns": round(global_tns, 4),
         "cell_count": cell_count,
-        "area_um2": round(area_um2, 2),
-        # v2 additions — timing
+        "area_um2": area_rounded,
         "global_derived_fmax_mhz": global_fmax,
         "core_reg2reg_fmax_mhz": core_reg2reg_fmax,
-        # v2 additions — area
+        "core_data_reg2reg_fmax_mhz": core_data_reg2reg_fmax,
         "area_budget_um2": area_budget_um2,
         "area_by_hierarchy": hierarchy_rows,
         "area_by_cell_class": area_by_class,
-        # v2 additions — timing categories
+        "area_hierarchy_source": hierarchy_source,
         "timing": timing_section,
         "path_groups": timing_result.get("path_groups", []),
-        "high_fanout": timing_result.get("high_fanout", []),
-        "unconstrained": timing_result.get("unconstrained", []),
+        "high_fanout": fanout_nets,
+        "unconstrained": unconstrained,
         "warnings": timing_result.get("warnings", []),
+        # ── v3 nested sections ────────────────────────────────
+        "area": area_section,
+        "fanout": fanout_section,
+        "constraints": constraints_section,
+        "provenance": provenance if provenance else {},
     }
 
-    # Propagate parse errors if the area/timing dicts had them
     if "timing_parse_error" in area_result:
         summary["timing_parse_error"] = area_result["timing_parse_error"]
     if "area_parse_error" in area_result:
@@ -220,6 +284,7 @@ def build_summary_text(
     buf = io.StringIO()
 
     design = summary["design"]
+    schema_ver = summary.get("schema_version", 2)
     target = summary["target_mhz"]
     area_um2 = summary["area_um2"]
     budget = summary.get("area_budget_um2", 0)
@@ -230,12 +295,32 @@ def build_summary_text(
     cell_count = summary["cell_count"]
     warnings = summary.get("warnings", [])
     timing = summary.get("timing", {})
+    provenance = summary.get("provenance", {})
 
     _wr(buf, "=" * 60)
     _wr(buf, f" SYNTHESIS SUMMARY: {design} @ {target} MHz target")
-    _wr(buf, f" Schema version: {summary['schema_version']}")
+    _wr(buf, f" Schema version: {schema_ver}")
+    hierarchy_source = summary.get("area_hierarchy_source", "unknown")
+    _wr(buf, f" Hierarchy source: {hierarchy_source}")
     _wr(buf, "=" * 60)
     _wr(buf)
+
+    # ── Provenance ────────────────────────────────────────────
+    if provenance:
+        _wr(buf, "--- Provenance ---")
+        for key, label in [
+            ("yosys_version", "Yosys"),
+            ("ieda_version", "iEDA"),
+            ("pdk", "PDK"),
+            ("liberty", "Liberty"),
+            ("workbench_commit", "Workbench commit"),
+            ("cpu_commit", "CPU commit"),
+            ("target_mhz", "Target"),
+            ("generated_at", "Generated"),
+        ]:
+            val = provenance.get(key) or "N/A"
+            _wr(buf, f"  {label:<20s} {val}")
+        _wr(buf)
 
     # ── Area Budget ────────────────────────────────────────────
     _wr(buf, "--- Area Budget ---")
@@ -294,7 +379,20 @@ def build_summary_text(
 
     # ── Core reg2reg Timing ────────────────────────────────────
     reg2reg_info = timing.get("reg2reg", {})
+    data_reg2reg_info = timing.get("data_reg2reg", {})
     _wr(buf, "--- Core reg2reg Timing ---")
+    if data_reg2reg_info.get("wns_ns") is not None:
+        _wr(buf, f"  data_reg2reg WNS:       {data_reg2reg_info['wns_ns']} ns")
+        _wr(buf, f"  data_reg2reg TNS:       {data_reg2reg_info['tns_ns']} ns")
+        _wr(buf, f"  data_reg2reg paths:     {data_reg2reg_info['path_count']}")
+    else:
+        _wr(buf, "  data_reg2reg WNS:       N/A (no Q→D paths in report)")
+    data_fmax = summary.get("core_data_reg2reg_fmax_mhz")
+    if data_fmax is not None:
+        _wr(buf, f"  Core Fmax (data):       {data_fmax} MHz")
+    else:
+        _wr(buf, "  Core Fmax (data):       N/A (no Q→D data paths in report)")
+    _wr(buf)
     if reg2reg_info.get("wns_ns") is not None:
         _wr(buf, f"  reg2reg WNS:            {reg2reg_info['wns_ns']} ns")
         _wr(buf, f"  reg2reg TNS:            {reg2reg_info['tns_ns']} ns")
@@ -331,13 +429,46 @@ def build_summary_text(
             _wr(buf, "  (no paths in this category)")
         _wr(buf)
 
+    # ── Clock-Enable / Clock-Gating Setup ────────────────────────
+    for cat_name, cat_label in [("clock_enable", "Clock-Enable (EN/E pins)"),
+                                 ("clock_gating_setup", "Clock-Gating Setup")]:
+        cat_info = timing.get(cat_name, {})
+        _wr(buf, f"--- {cat_label} ---")
+        if cat_info.get("wns_ns") is not None:
+            cat_wns = cat_info["wns_ns"]
+            cat_tns = cat_info["tns_ns"]
+            cat_count = cat_info["path_count"]
+            _wr(buf, f"  WNS:       {cat_wns} ns")
+            _wr(buf, f"  TNS:       {cat_tns} ns")
+            _wr(buf, f"  Paths:     {cat_count}")
+            top_paths = cat_info.get("top_paths", [])
+            if top_paths:
+                worst = top_paths[0]
+                _wr(buf, f"  Worst:     {worst['startpoint']} → {worst['endpoint']}  slack={worst['slack']}ns")
+        else:
+            _wr(buf, "  (no paths in this category)")
+        _wr(buf)
+
     # ── Hold Timing ────────────────────────────────────────────
     hold_info = timing.get("hold", {})
     _wr(buf, "--- Hold Timing ---")
     if hold_info.get("wns_ns") is not None:
         _wr(buf, f"  WNS:       {hold_info['wns_ns']} ns")
         _wr(buf, f"  TNS:       {hold_info['tns_ns']} ns")
-        _wr(buf, f"  Endpoints: {hold_info['endpoint_count']}")
+        _wr(buf, f"  Endpoints: {hold_info['endpoint_count']} (summary table)")
+
+        classified_hold = hold_info.get("classified_paths", [])
+        if classified_hold:
+            _wr(buf, f"  Classified: {len(classified_hold)} paths (detailed tables)")
+
+        hold_sub = hold_info.get("sub_categories", {})
+        if hold_sub:
+            _wr(buf, "  Sub-categories:")
+            for sub_cat in ("data_reg2reg", "clock_enable", "clock_gating", "reg2reg"):
+                sc = hold_sub.get(sub_cat)
+                if sc:
+                    _wr(buf, f"    {sub_cat:<20s} WNS={sc['wns_ns']:>8}ns "
+                         f"TNS={sc['tns_ns']:>8}ns  paths={sc['path_count']:>4}")
     else:
         _wr(buf, "  (no hold data)")
     _wr(buf)
@@ -391,6 +522,225 @@ def build_summary_text(
     return buf.getvalue()
 
 
+# ── optimization hotspots text ───────────────────────────────────────
+
+def build_hotspots_text(
+    summary: Dict[str, Any],
+) -> str:
+    """Render evidence-backed optimization hotspots from the v3 summary.
+
+    Only surfaces hotspots that are directly supported by evidence in the
+    synthesis data.  Hypotheses (inferences beyond the data) are explicitly
+    marked as such.  No RTL conclusions are invented.
+    """
+    import io
+    from datetime import datetime
+
+    buf = io.StringIO()
+
+    design = summary["design"]
+    schema_ver = summary.get("schema_version", 2)
+    target = summary["target_mhz"]
+    budget = summary.get("area_budget_um2", 0)
+    area_um2 = summary["area_um2"]
+    cell_count = summary["cell_count"]
+    global_fmax = summary.get("global_derived_fmax_mhz", 0)
+    data_fmax = summary.get("core_data_reg2reg_fmax_mhz")
+    warnings_list = summary.get("warnings", [])
+    timing = summary.get("timing", {})
+
+    _wr(buf, "=" * 70)
+    _wr(buf, " OPTIMIZATION HOTSPOTS")
+    _wr(buf, f" Design: {design}  |  Target: {target} MHz  |  Schema v{schema_ver}")
+    _wr(buf, f" Generated: {datetime.now().isoformat()}")
+    _wr(buf, "=" * 70)
+    _wr(buf)
+    _wr(buf, "DISCLAIMER: This report is evidence-backed only.  Items marked")
+    _wr(buf, "(HYPOTHESIS) are inferences beyond the direct synthesis data and should")
+    _wr(buf, "be verified before committing to RTL changes.")
+    _wr(buf)
+
+    # ── Hotspot 1: Area utilisation ────────────────────────────
+    _wr(buf, "── 1. Area Utilisation")
+    if budget > 0:
+        util = area_um2 / budget * 100.0
+        _wr(buf, f"  Total area:       {area_um2:>12.2f} µm²")
+        _wr(buf, f"  Budget:           {budget:>12d} µm²")
+        _wr(buf, f"  Utilisation:      {util:>11.1f}%")
+        if util > 100:
+            _wr(buf, "  STATUS: OVER BUDGET")
+            _wr(buf, f"  Slack:            {area_um2 - budget:>12.2f} µm² over")
+            _wr(buf)
+            _wr(buf, "  EVIDENCE: top-level cell area from Yosys stat -liberty; real mapped")
+            _wr(buf, "  netlist area.  Any optimisation must reduce gate count or switch to")
+            _wr(buf, "  smaller cell variants.")
+        elif util > 90:
+            _wr(buf, "  STATUS: NEAR BUDGET — limited headroom for additions")
+        else:
+            _wr(buf, "  STATUS: WITHIN BUDGET")
+    else:
+        _wr(buf, "  (no budget set — area utilisation cannot be assessed)")
+    _wr(buf)
+
+    # ── Hotspot 2: Top area contributors ───────────────────────
+    hierarchy_rows = summary.get("area_by_hierarchy", [])
+    area_by_class = summary.get("area_by_cell_class", {})
+    _wr(buf, "── 2. Top Area Contributors")
+    if hierarchy_rows:
+        top = sorted(hierarchy_rows, key=lambda r: r.get("local_area", 0), reverse=True)
+        _wr(buf, f"  {'Module':<45s} {'Area (µm²)':>12s}  {'% of Top':>8s}")
+        _wr(buf, f"  {'-'*45} {'-'*12}  {'-'*8}")
+        for row in top[:5]:
+            name = row.get("module_name", row.get("instance_path", "?"))
+            larea = row.get("local_area", 0)
+            pct = row.get("pct_of_top_area", 0)
+            _wr(buf, f"  {name:<45s} {larea:>12.2f}  {pct:>7.1f}%")
+        _wr(buf)
+        _wr(buf, "  EVIDENCE: per-module area from hierarchy-preserved stat -json.")
+        _wr(buf, "  The module(s) above dominate area; focus optimisation effort there.")
+    else:
+        _wr(buf, "  (no hierarchy data — cannot identify top contributors)")
+    _wr(buf)
+
+    # ── Hotspot 3: Cell class distribution ─────────────────────
+    _wr(buf, "── 3. Cell Class Distribution")
+    if area_by_class:
+        class_order = ["sequential", "combinational", "clock-gating",
+                       "buffer/inverter", "mux", "arithmetic", "other"]
+        total_class_area = sum(v["area_um2"] for v in area_by_class.values())
+        _wr(buf, f"  {'Category':<20s} {'Cells':>8s} {'Area (µm²)':>12s}  {'% Area':>7s}")
+        _wr(buf, f"  {'-'*20} {'-'*8} {'-'*12}  {'-'*7}")
+        for cat in class_order:
+            if cat in area_by_class:
+                d = area_by_class[cat]
+                cat_area = d["area_um2"]
+                cat_pct = (cat_area / total_class_area * 100) if total_class_area > 0 else 0
+                _wr(buf, f"  {cat:<20s} {d['cell_count']:>8d} {cat_area:>12.2f}  {cat_pct:>6.1f}%")
+        _wr(buf)
+
+        sequential = area_by_class.get("sequential", {})
+        combinational = area_by_class.get("combinational", {})
+        if sequential.get("area_um2", 0) > combinational.get("area_um2", 0) * 0.5:
+            _wr(buf, "  (HYPOTHESIS) Sequential cells account for a large fraction; consider:")
+            _wr(buf, "    - Reducing pipeline stage width or register file entries")
+            _wr(buf, "    - Merging equivalent state registers across modules")
+        if area_by_class.get("buffer/inverter", {}).get("area_um2", 0) > total_class_area * 0.15:
+            _wr(buf, "  (HYPOTHESIS) Buffer/inverter area is significant; high-fanout nets or")
+            _wr(buf, "    long wire buffering may be inflating the gate count.")
+    else:
+        _wr(buf, "  (no cell class data)")
+    _wr(buf)
+
+    # ── Hotspot 4: Timing headroom ─────────────────────────────
+    _wr(buf, "── 4. Timing Headroom")
+    _wr(buf, f"  Global Fmax (spec):  {global_fmax} MHz  (target: {target} MHz)")
+    if global_fmax >= target * 1.5:
+        _wr(buf, "  STATUS: Ample headroom — timing is not a constraint at target frequency.")
+    elif global_fmax >= target:
+        _wr(buf, "  STATUS: Met — timing passes but headroom is limited.")
+    else:
+        _wr(buf, f"  STATUS: FAIL — target {target} MHz not met; max achievable ~{global_fmax} MHz.")
+
+    data_info = timing.get("data_reg2reg", {})
+    if data_fmax is not None:
+        _wr(buf, f"  Core data reg2reg Fmax: {data_fmax} MHz")
+        if data_fmax >= target * 2:
+            _wr(buf, "  EVIDENCE: Core data paths are fast — the critical path is elsewhere.")
+    reg2reg_info = timing.get("reg2reg", {})
+    if reg2reg_info.get("path_count", 0) == 0:
+        _wr(buf, "  NOTE: No reg2reg paths in top-N STA report.  Core data paths may be")
+        _wr(buf, "    faster than the worst I/O or clock-gating paths captured.")
+    _wr(buf)
+
+    # ── Hotspot 5: Critical path category ──────────────────────
+    _wr(buf, "── 5. Worst-Path Category")
+    worst_cat = None
+    worst_wns = float("inf")
+    for cat in ("reg2reg", "data_reg2reg", "in2reg", "reg2out", "in2out",
+                 "clock_enable", "clock_gating_setup"):
+        ci = timing.get(cat, {})
+        if ci.get("wns_ns") is not None and ci["wns_ns"] < worst_wns:
+            worst_wns = ci["wns_ns"]
+            worst_cat = cat
+    if worst_cat:
+        _wr(buf, f"  Worst category: {worst_cat}  (WNS = {worst_wns} ns)")
+        cat_labels = {
+            "in2out": "I/O paths (input→output)",
+            "in2reg": "I/O paths (input→register)",
+            "reg2out": "I/O paths (register→output)",
+            "reg2reg": "Internal register→register paths",
+            "data_reg2reg": "True data register→register paths (Q→D)",
+            "clock_enable": "Clock-enable control paths",
+            "clock_gating_setup": "Clock-gating setup paths",
+        }
+        _wr(buf, f"  Meaning: {cat_labels.get(worst_cat, worst_cat)}")
+        if worst_cat in ("in2out", "in2reg", "reg2out"):
+            _wr(buf, "  EVIDENCE: The critical path is I/O-dominated.  Internal logic has")
+            _wr(buf, "    substantial headroom.  (HYPOTHESIS) Reducing I/O timing constraints")
+            _wr(buf, "    or adding pipeline registers at interfaces could raise Fmax.")
+        if worst_cat in ("clock_enable", "clock_gating_setup"):
+            _wr(buf, "  EVIDENCE: The critical path involves clock-gating control.  Review")
+            _wr(buf, "    the clock-gating enable generation logic for long combinational chains.")
+    else:
+        _wr(buf, "  (no timing category data available)")
+    _wr(buf)
+
+    # ── Hotspot 6: High-fanout nets ────────────────────────────
+    fanout = summary.get("fanout", {})
+    fanout_nets = fanout.get("high_fanout_nets", summary.get("high_fanout", []))
+    _wr(buf, "── 6. High-Fanout Nets")
+    if fanout_nets:
+        fanout_src = fanout.get("source", "unknown")
+        _wr(buf, f"  Source: {fanout_src}")
+        _wr(buf, f"  Count: {len(fanout_nets)} net(s) above threshold")
+        for n in fanout_nets[:5]:
+            fo = n.get("fanout", 0)
+            net = n.get("net_name", "?")
+            driver = n.get("driver_pin", "?")
+            _wr(buf, f"  - fanout={fo:>4d}  net={net}")
+            _wr(buf, f"    driver={driver}")
+        if len(fanout_nets) < 5:
+            _wr(buf, "  EVIDENCE: Few high-fanout nets — fanout is not a dominant issue.")
+        else:
+            _wr(buf, "  (HYPOTHESIS) High-fanout nets may benefit from buffering or")
+            _wr(buf, "    replication to reduce delay and improve routability.")
+    else:
+        _wr(buf, "  (no high-fanout data)")
+    _wr(buf)
+
+    # ── Hotspot 7: Constraint coverage ─────────────────────────
+    constraints = summary.get("constraints", {})
+    _wr(buf, "── 7. Constraint Coverage")
+    total_ep = constraints.get("total_endpoints_in_netlist", 0)
+    constrained_ep = constraints.get("constrained_endpoints", 0)
+    coverage_status = constraints.get("coverage_status", "unknown")
+    if total_ep > 0:
+        _wr(buf, f"  Total endpoints in netlist:   {total_ep}")
+        _wr(buf, f"  Constrained (in STA report):  {constrained_ep}")
+        _wr(buf, f"  Coverage status:              {coverage_status}")
+        note = constraints.get("coverage_note", "")
+        if note:
+            _wr(buf, f"  Note: {note}")
+    else:
+        _wr(buf, "  (no constraint coverage data)")
+    _wr(buf)
+
+    # ── Warnings ───────────────────────────────────────────────
+    if warnings_list:
+        _wr(buf, "── 8. Caveats")
+        meaningful = [w for w in warnings_list
+                      if not w.startswith("Unconstrained count suppressed")]
+        for w in meaningful[:10]:
+            _wr(buf, f"  - {w}")
+        _wr(buf)
+
+    _wr(buf, "=" * 70)
+    _wr(buf, " End of optimization hotspots.")
+    _wr(buf, "=" * 70)
+
+    return buf.getvalue()
+
+
 # ── main entrypoint ──────────────────────────────────────────────────
 
 def render_summary(
@@ -402,12 +752,16 @@ def render_summary(
     sta_rpt: Optional[str] = None,
     synth_stat: Optional[str] = None,
     synth_stat_json: Optional[str] = None,
+    synth_hierarchy_json: Optional[str] = None,
     netlist: Optional[str] = None,
     fanout: Optional[str] = None,
     top_reg2reg: int = 50,
     top_others: int = 20,
+    max_path: int = 50,
+    provenance: Optional[Dict[str, str]] = None,
+    fanout_source: str = "unknown",
 ) -> int:
-    """Render schema-v2 JSON and text synth summaries from parsed artifacts.
+    """Render schema-v3 JSON, text synth summaries, and optimization hotspots.
 
     Returns 0 on success, non-zero on failure.
     """
@@ -446,17 +800,23 @@ def render_summary(
         warnings.append(f"synth_stat.txt not found or not provided: {synth_stat}")
 
     # ── Parse hierarchy ────────────────────────────────────────
-    if synth_stat_json and Path(synth_stat_json).is_file():
+    # Prefer the hierarchy-preserved artifact (captured before flattening)
+    # when available; fall back to the flat synth_stat.json otherwise.
+    hierarchy_json_path = synth_hierarchy_json
+    if not (hierarchy_json_path and Path(hierarchy_json_path).is_file()):
+        hierarchy_json_path = synth_stat_json
+
+    if hierarchy_json_path and Path(hierarchy_json_path).is_file():
         try:
             hierarchy_rows = build_hierarchy_area_tree(
-                synth_stat_json,
+                hierarchy_json_path,
                 netlist if (netlist and Path(netlist).is_file()) else None,
                 design,
             )
         except Exception as e:
             warnings.append(f"Hierarchy parse error: {e}")
     else:
-        warnings.append(f"synth_stat.json not found or not provided: {synth_stat_json}")
+        warnings.append(f"No hierarchy JSON available (tried synth_hierarchy.json and synth_stat.json)")
 
     # ── Parse timing ───────────────────────────────────────────
     if sta_rpt and Path(sta_rpt).is_file():
@@ -479,6 +839,8 @@ def render_summary(
                 netlist_path=netlist if (netlist and Path(netlist).is_file()) else None,
                 top_reg2reg=top_reg2reg,
                 top_others=top_others,
+                result_dir=result_dir,
+                max_path=max_path,
             )
             timing_result.update(classified)
             # classified warnings are already in timing_result["warnings"]
@@ -494,7 +856,150 @@ def render_summary(
     # ── Build per-category area by cell class ──────────────────
     area_by_class = _build_area_by_cell_class(hierarchy_rows)
 
-    # ── Build v2 JSON ──────────────────────────────────────────
+    # ── Liberty-backed area reports ────────────────────────────
+    # Generate area_cell_types.rpt, area_cell_classes.rpt, and
+    # area_modules.rpt from the hierarchy-preserved JSON when
+    # available.  Falls back to flat synth_stat.json with explicit
+    # "UNAVAILABLE" warnings when Liberty per-type areas are absent.
+    from synth_hierarchy import (
+        extract_cell_types_from_json,
+        write_area_cell_types_report,
+        write_area_cell_classes_report,
+        write_area_modules_report,
+        extract_register_inventory,
+        write_register_inventory_report,
+        extract_clock_gating_inventory,
+        write_clock_gating_inventory_report,
+    )
+
+    result_dir_p = Path(result_dir)
+    result_dir_p.mkdir(parents=True, exist_ok=True)
+
+    # Determine the best JSON source for cell-type area data.
+    # Prefer the hierarchy-preserved artifact (post-tech-mapping,
+    # pre-flatten) because its num_cells_by_type has Liberty-backed
+    # per-cell-type areas.  The flat post-flatten synth_stat.json
+    # has counts but no per-type area data.
+    cell_types_json = hierarchy_json_path
+    if not (cell_types_json and Path(cell_types_json).is_file()):
+        # Fall back to flat synth_stat.json — will produce
+        # count-only records with zero areas + explicit warnings.
+        cell_types_json = synth_stat_json
+        if cell_types_json and Path(cell_types_json).is_file():
+            warnings.append(
+                "Cell-type area source: flat synth_stat.json (no per-type Liberty area — "
+                "areas will be zero). For non-zero areas, enable hierarchy-preserved synthesis."
+            )
+
+    area_report_warnings: List[str] = []
+    top_recursive_area = (
+        hierarchy_rows[0].get("recursive_area", 0.0)
+        if hierarchy_rows else 0.0
+    )
+
+    if cell_types_json and Path(cell_types_json).is_file():
+        try:
+            cell_type_records, liberty_top_area, ct_warnings = (
+                extract_cell_types_from_json(cell_types_json)
+            )
+            area_report_warnings.extend(ct_warnings)
+
+            write_area_cell_types_report(
+                cell_type_records,
+                liberty_top_area,
+                result_dir_p / "area_cell_types.rpt",
+                extra_warnings=area_report_warnings,
+            )
+            print(f"[synth_summary] Wrote {result_dir_p / 'area_cell_types.rpt'}")
+
+            write_area_cell_classes_report(
+                cell_type_records,
+                liberty_top_area,
+                result_dir_p / "area_cell_classes.rpt",
+                extra_warnings=area_report_warnings,
+            )
+            print(f"[synth_summary] Wrote {result_dir_p / 'area_cell_classes.rpt'}")
+        except Exception as e:
+            warnings.append(f"Cell-type area report generation failed: {e}")
+    else:
+        warnings.append(
+            "STATUS: UNAVAILABLE — No JSON stats source available for cell-type area reports."
+        )
+
+    # area_modules.rpt: uses hierarchy_rows (which may be empty if
+    # hierarchy JSON couldn't be parsed).  Writes closure status
+    # and explicit warnings regardless.
+    try:
+        write_area_modules_report(
+            hierarchy_rows,
+            top_recursive_area,
+            result_dir_p / "area_modules.rpt",
+            extra_warnings=area_report_warnings,
+        )
+        print(f"[synth_summary] Wrote {result_dir_p / 'area_modules.rpt'}")
+    except Exception as e:
+        warnings.append(f"Module area report generation failed: {e}")
+
+    # ── Register inventory report ────────────────────────────────
+    # Generate register_inventory.rpt from the hierarchy-preserved JSON
+    # plus the hierarchical netlist for clock-gating connectivity.
+    synth_hierarchy_v = result_dir_p / "synth_hierarchy.v"
+    if cell_types_json and Path(cell_types_json).is_file():
+        try:
+            reg_records, reg_total_area, reg_total_cells, reg_warnings = (
+                extract_register_inventory(
+                    cell_types_json,
+                    netlist_path=str(synth_hierarchy_v) if synth_hierarchy_v.is_file() else None,
+                    hierarchy_rows=hierarchy_rows,
+                )
+            )
+            write_register_inventory_report(
+                reg_records,
+                reg_total_area,
+                int(reg_total_cells),
+                result_dir_p / "register_inventory.rpt",
+                extra_warnings=list(area_report_warnings) + reg_warnings,
+            )
+            print(f"[synth_summary] Wrote {result_dir_p / 'register_inventory.rpt'}")
+        except Exception as e:
+            warnings.append(f"Register inventory report generation failed: {e}")
+    else:
+        warnings.append(
+            "STATUS: UNAVAILABLE — No JSON stats source for register inventory."
+        )
+
+    # ── Clock-gating inventory report ─────────────────────────────
+    if cell_types_json and Path(cell_types_json).is_file():
+        try:
+            cg_records, cg_total_area, cg_total_cells, cg_warnings = (
+                extract_clock_gating_inventory(
+                    cell_types_json,
+                    netlist_path=str(synth_hierarchy_v) if synth_hierarchy_v.is_file() else None,
+                    hierarchy_rows=hierarchy_rows,
+                )
+            )
+            write_clock_gating_inventory_report(
+                cg_records,
+                cg_total_area,
+                cg_total_cells,
+                result_dir_p / "clock_gating_inventory.rpt",
+                extra_warnings=list(area_report_warnings) + cg_warnings,
+            )
+            print(f"[synth_summary] Wrote {result_dir_p / 'clock_gating_inventory.rpt'}")
+        except Exception as e:
+            warnings.append(f"Clock-gating inventory report generation failed: {e}")
+    else:
+        warnings.append(
+            "STATUS: UNAVAILABLE — No JSON stats source for clock-gating inventory."
+        )
+
+    # ── Build v3 JSON ──────────────────────────────────────────
+    # Determine coverage / fanout status from timing data
+    # (these are set by the classified timing parser)
+    coverage_status = timing_result.get("coverage_status", "unknown")
+    coverage_note = timing_result.get("coverage_note", "")
+    fanout_src = timing_result.get("fanout_source", fanout_source)
+
     summary = build_summary_json(
         design=design,
         target_mhz=target_mhz,
@@ -503,6 +1008,10 @@ def render_summary(
         timing_result=timing_result,
         area_by_class=area_by_class,
         area_budget_um2=area_budget_um2,
+        provenance=provenance,
+        fanout_source=fanout_src,
+        coverage_status=coverage_status,
+        coverage_note=coverage_note,
     )
 
     # ── Write JSON ─────────────────────────────────────────────
@@ -527,6 +1036,16 @@ def render_summary(
         print(f"[synth_summary] ERROR: failed to write {txt_path}: {e}", file=sys.stderr)
         return 1
 
+    # ── Build and write optimization hotspots ──────────────────
+    hotspots = build_hotspots_text(summary)
+    hotspots_path = output_dir_p / "optimization_hotspots.txt"
+    try:
+        hotspots_path.write_text(hotspots, encoding="utf-8")
+        print(f"[synth_summary] Wrote {hotspots_path}")
+    except OSError as e:
+        print(f"[synth_summary] ERROR: failed to write {hotspots_path}: {e}", file=sys.stderr)
+        # Non-fatal: synthesis succeeded; hotspot rendering is advisory
+
     return 0
 
 
@@ -536,7 +1055,7 @@ def main() -> None:
     import argparse
 
     ap = argparse.ArgumentParser(
-        description="Render schema-v2 synth summary (JSON + text) from parsed artifacts."
+        description="Render schema-v3 synth summary (JSON + text + hotspots) from parsed artifacts."
     )
     ap.add_argument("--design", required=True, help="Top-level design name (e.g. ysyx_25070190)")
     ap.add_argument("--target-mhz", type=int, required=True, help="Target clock frequency in MHz")
@@ -545,12 +1064,36 @@ def main() -> None:
     ap.add_argument("--area-budget", type=int, default=23000, help="Area budget in µm² (default: 23000)")
     ap.add_argument("--sta-rpt", default=None, help="Path to STA timing .rpt file")
     ap.add_argument("--synth-stat", default=None, help="Path to synth_stat.txt")
-    ap.add_argument("--synth-stat-json", default=None, help="Path to synth_stat.json")
+    ap.add_argument("--synth-stat-json", default=None, help="Path to synth_stat.json (flat)")
+    ap.add_argument("--synth-hierarchy-json", default=None, help="Path to synth_hierarchy.json (hierarchy-preserved, preferred for area tree)")
     ap.add_argument("--netlist", default=None, help="Path to mapped netlist .v file")
     ap.add_argument("--fanout", default=None, help="Path to .fanout report")
     ap.add_argument("--top-reg2reg", type=int, default=50, help="Max reg2reg paths (default: 50)")
     ap.add_argument("--top-others", type=int, default=20, help="Max paths for other categories (default: 20)")
+    ap.add_argument("--max-path", type=int, default=50, help="-max_path used by report_timing (default: 50)")
+    # Provenance arguments
+    ap.add_argument("--yosys-version", default=None, help="Yosys version string")
+    ap.add_argument("--ieda-version", default=None, help="iEDA/STA version string")
+    ap.add_argument("--pdk", default="nangate45", help="PDK name (default: nangate45)")
+    ap.add_argument("--liberty", default=None, help="Liberty file path or description")
+    ap.add_argument("--workbench-commit", default=None, help="Workbench git commit (short)")
+    ap.add_argument("--cpu-commit", default=None, help="CPU RTL git commit (short)")
+    ap.add_argument("--fanout-source", default="unknown", help="Source of fanout data (full_netlist, timing_sampled, etc.)")
+    ap.add_argument("--generated-at", default=None, help="ISO 8601 timestamp of synthesis run")
     args = ap.parse_args()
+
+    # Build provenance dict from CLI args
+    provenance: Dict[str, str] = {
+        "yosys_version": args.yosys_version or "N/A",
+        "ieda_version": args.ieda_version or "N/A",
+        "pdk": args.pdk,
+        "liberty": args.liberty or "N/A",
+        "workbench_commit": args.workbench_commit or "N/A",
+        "cpu_commit": args.cpu_commit or "N/A",
+        "target_mhz": str(args.target_mhz),
+        "generated_at": args.generated_at or "N/A",
+        "sta_tool": "iEDA",
+    }
 
     # Derive individual artifact paths from result_dir if not explicitly given
     result_dir = Path(args.result_dir)
@@ -559,6 +1102,7 @@ def main() -> None:
     sta_rpt = args.sta_rpt or str(result_dir / f"{design}.rpt")
     synth_stat = args.synth_stat or str(result_dir / "synth_stat.txt")
     synth_stat_json = args.synth_stat_json or str(result_dir / "synth_stat.json")
+    synth_hierarchy_json = args.synth_hierarchy_json or str(result_dir / "synth_hierarchy.json")
     netlist = args.netlist or str(result_dir / f"{design}.netlist.v")
     fanout = args.fanout or str(result_dir / f"{design}.fanout")
 
@@ -571,10 +1115,14 @@ def main() -> None:
         sta_rpt=sta_rpt,
         synth_stat=synth_stat,
         synth_stat_json=synth_stat_json,
+        synth_hierarchy_json=synth_hierarchy_json,
         netlist=netlist,
         fanout=fanout,
         top_reg2reg=args.top_reg2reg,
         top_others=args.top_others,
+        max_path=args.max_path,
+        provenance=provenance,
+        fanout_source=args.fanout_source,
     )
     sys.exit(rc)
 

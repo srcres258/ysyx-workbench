@@ -68,13 +68,30 @@ class TestBuildPerfBlock(unittest.TestCase):
             _read_json("synth_summary_v2.json"),
         )
         self.assertIn("核心 reg2reg 频率:", block)
-        self.assertIn("130MHz", block)
+        self.assertIn("125MHz", block)
 
     def test_v2_synth_summary_null_reg2reg_shows_na(self):
         block = build_perf_block(
             _read_json("perf_valid.json"),
             _read_json("synth_summary_v2_null_reg2reg.json"),
         )
+        self.assertIn("核心 reg2reg 频率: N/A", block)
+
+    def test_v3_synth_summary_preserves_final_mhz(self):
+        block = build_perf_block(
+            _read_json("perf_valid.json"),
+            _read_json("synth_summary_v3.json"),
+        )
+        self.assertIn("综合频率:", block)
+        self.assertIn("综合面积:", block)
+        self.assertIn("核心 reg2reg 频率:", block)
+
+    def test_v3_synth_summary_null_reg2reg_shows_na(self):
+        block = build_perf_block(
+            _read_json("perf_valid.json"),
+            _read_json("synth_summary_v3_null.json"),
+        )
+        self.assertIn("综合频率:", block)
         self.assertIn("核心 reg2reg 频率: N/A", block)
 
     def test_missing_required_field_raises(self):

@@ -448,6 +448,52 @@ def parse_netlist_hierarchy(netlist_path) -> Dict[str, Dict]:
 
 
 # ---------------------------------------------------------------------------
+# JSON-inferred hierarchy helpers
+# ---------------------------------------------------------------------------
+
+def _resolve_submodule_count(val) -> int:
+    """Extract instance count from a ``num_submodules_by_type`` entry.
+
+    Handles both the plain-int format (no ``-liberty``) and the
+    ``{count, area}`` object format produced when ``-liberty`` is active.
+    """
+    if isinstance(val, (int, float)):
+        return int(val)
+    if isinstance(val, dict):
+        return int(val.get("count", val.get("local_count", 0)))
+    return 0
+
+
+def _extract_child_map_from_json(json_modules: Dict[str, Dict]) -> Dict[str, Dict[str, int]]:
+    """Derive parent→child multiplicity maps from per-module JSON stats.
+
+    Yosys ``stat -json -liberty`` populates ``num_submodules_by_type``
+    for each module that instantiates children.  This function extracts
+    those entries and returns a dict suitable as a ``child_map`` for
+    ``build_hierarchy_tree``.
+
+    Modules without children (or without the key) default to an empty
+    child map.
+
+    Returns:
+        ``{parent_module: {child_module_type: instance_count}}``
+    """
+    child_map: Dict[str, Dict[str, int]] = {}
+    for mod_name, mod_data in json_modules.items():
+        sub_by_type = mod_data.get("num_submodules_by_type", {})
+        if not isinstance(sub_by_type, dict):
+            child_map[mod_name] = {}
+            continue
+        children: Dict[str, int] = {}
+        for sub_type, sub_val in sub_by_type.items():
+            cnt = _resolve_submodule_count(sub_val)
+            if cnt > 0:
+                children[sub_type] = cnt
+        child_map[mod_name] = children
+    return child_map
+
+
+# ---------------------------------------------------------------------------
 # Hierarchy area tree builder  (orchestrates JSON + netlist → area tree)
 # ---------------------------------------------------------------------------
 
@@ -465,12 +511,24 @@ def build_hierarchy_area_tree(
     - local and recursive cell counts, area, % of top area
     - cell-category breakdown (sequential, combinational, etc.)
 
-    If ``netlist_path`` is ``None``, the hierarchy is derived solely
-    from the JSON modules dict, which is sufficient when the design is
-    flattened or when the JSON already encodes the full hierarchy.
+    Child-module relationships are resolved in priority order:
+
+    1. **Netlist-derived** — when the mapped netlist has multiple
+       modules, their instantiated children provide the ground-truth
+       hierarchy.  This is the gold-standard path for hierarchy-preserved
+       synth runs.
+    2. **JSON-inferred** — when the netlist is flat (single module,
+       the common STA-flow case) AND the JSON contains multiple modules
+       with ``num_submodules_by_type``, the hierarchy is reconstructed
+       from those submodule-count entries.
+    3. **Flat fallback** — when neither source yields submodule
+       information, every module is treated as a leaf with no children
+       (single-row tree).
 
     Args:
-        json_path: Path to ``synth_stat.json``.
+        json_path: Path to a ``stat -json`` artifact (either flat
+            ``synth_stat.json`` or hierarchy-preserved
+            ``synth_hierarchy.json``).
         netlist_path: Path to the mapped ``.netlist.v`` (optional).
         top_module: Name of the top-level RTL module (for JSON lookup).
 
@@ -482,26 +540,46 @@ def build_hierarchy_area_tree(
     json_data = parse_synth_json(json_path)
     json_modules = json_data["modules"]
 
-    # Override top_module if netlist declares one
+    # ── step 1: try netlist-based hierarchy ──────────────────────
+    child_map: Dict[str, Dict[str, int]] = {}
+    hierarchy_source = "flat-fallback"
+
     if netlist_path is not None and Path(netlist_path).is_file():
         netlist_hier = parse_netlist_hierarchy(netlist_path)
-        # If the netlist has a single module, use it as top
         netlist_modules = list(netlist_hier.keys())
         if len(netlist_modules) == 1:
             top_module = netlist_modules[0]
-    else:
-        # No netlist → use JSON modules as-is with no submodule hierarchy
-        netlist_hier = {name: {"cells": {}, "submodules": {}} for name in json_modules}
 
-    # Build child maps from netlist hierarchy
-    child_map = {
-        mod: data.get("submodules", {})
-        for mod, data in netlist_hier.items()
-    }
+        child_map = {
+            mod: data.get("submodules", {})
+            for mod, data in netlist_hier.items()
+        }
+        # If any module has non-empty submodules, the netlist is the
+        # authoritative hierarchy source.
+        if any(len(v) > 0 for v in child_map.values()):
+            hierarchy_source = "netlist-derived"
+
+    # ── step 2: fall back to JSON-inferred hierarchy ─────────────
+    if hierarchy_source == "flat-fallback":
+        json_child_map = _extract_child_map_from_json(json_modules)
+        if any(len(v) > 0 for v in json_child_map.values()):
+            child_map = json_child_map
+            hierarchy_source = "json-derived"
+
+    # Build child_map for modules that appear in JSON but not in
+    # child_map (leaves with no children).
+    for mod_name in json_modules:
+        if mod_name not in child_map:
+            child_map[mod_name] = {}
 
     rows = _build(json_modules, child_map, top_module)
+
+    # ── annotate hierarchy source in each row ────────────────────
     from synth_hierarchy import flatten_tree as _flatten
-    return _flatten(rows)
+    flat_rows = _flatten(rows)
+    for r in flat_rows:
+        r["hierarchy_source"] = hierarchy_source
+    return flat_rows
 
 
 # ---------------------------------------------------------------------------
@@ -580,6 +658,8 @@ def parse_classified_timing(
     netlist_path=None,
     top_reg2reg: int = 50,
     top_others: int = 20,
+    result_dir=None,
+    max_path: int = 50,
 ) -> Dict:
     """Parse the iSTA unified timing report plus companion files into
     classified setup/hold/DRV data.
@@ -588,13 +668,20 @@ def parse_classified_timing(
         rpt_path: Path to the iSTA ``.rpt`` file.
         fanout_path: Path to the ``.fanout`` file (optional).
         netlist_path: Path to the mapped ``.netlist.v`` (optional).
-        top_reg2reg: Max reg2reg paths to retain (default 50).
+        top_reg2reg: Max reg2reg/data_reg2reg paths to retain (default 50).
         top_others: Max paths for in2reg/reg2out/in2out/hold/fanout
-                    (default 20).
+                    plus clock_enable/clock_gating_setup (default 20).
+        result_dir: If provided, writes ``constraint_coverage.rpt``,
+            ``unconstrained_endpoints.rpt``, ``high_fanout_nets.rpt``,
+            and ``analysis_warnings.rpt`` to this directory.
+        max_path: The ``-max_path`` value used by ``report_timing``
+            (default 50, matching sta.tcl).
 
     Returns:
-        Dict with keys ``reg2reg``, ``in2reg``, ``reg2out``, ``in2out``,
-        ``hold``, ``path_groups``, ``high_fanout``, ``unconstrained``,
+        Dict with keys ``reg2reg``, ``data_reg2reg``, ``in2reg``,
+        ``reg2out``, ``in2out``, ``clock_enable``, ``clock_gating_setup``,
+        ``hold``, ``hold_classified``, ``hold_sub_categories``,
+        ``path_groups``, ``high_fanout``, ``unconstrained``,
         ``wns``, ``tns``, ``warnings``.
     """
     from synth_timing import build_timing_report
@@ -605,6 +692,8 @@ def parse_classified_timing(
         netlist_path=str(netlist_path) if netlist_path else None,
         top_reg2reg_count=top_reg2reg,
         top_other_count=top_others,
+        result_dir=str(result_dir) if result_dir else None,
+        max_path=max_path,
     )
 
 
@@ -678,6 +767,9 @@ def _cli_parse_timing() -> None:
     ap.add_argument("rpt", type=Path, help="Path to .rpt file")
     ap.add_argument("--fanout", type=Path, default=None, help="Path to .fanout file")
     ap.add_argument("--netlist", type=Path, default=None, help="Path to .netlist.v file")
+    ap.add_argument("--result-dir", type=Path, default=None,
+                    help="Write constraint_coverage.rpt, unconstrained_endpoints.rpt, "
+                         "and analysis_warnings.rpt to this directory")
     ap.add_argument("--json-out", action="store_true", help="Output as JSON")
     ap.add_argument("--top-reg2reg", type=int, default=50, help="Max reg2reg paths")
     ap.add_argument("--top-others", type=int, default=20, help="Max other-category paths")
@@ -689,6 +781,7 @@ def _cli_parse_timing() -> None:
             netlist_path=args.netlist,
             top_reg2reg=args.top_reg2reg,
             top_others=args.top_others,
+            result_dir=args.result_dir,
         )
         if args.json_out:
             print(json.dumps(result, indent=2))
@@ -696,7 +789,8 @@ def _cli_parse_timing() -> None:
             print("=== Timing Classification ===")
             print(f"Global WNS (setup): {result['wns']} ns")
             print(f"Global TNS (setup): {result['tns']} ns")
-            for cat in ("reg2reg", "in2reg", "reg2out", "in2out"):
+            for cat in ("data_reg2reg", "reg2reg", "clock_enable",
+                         "clock_gating_setup", "in2reg", "reg2out", "in2out"):
                 paths = result[cat]
                 print(f"\n--- {cat} ({len(paths)} paths) ---")
                 for p in paths[:5]:
@@ -708,6 +802,22 @@ def _cli_parse_timing() -> None:
                 print(f"  {h['endpoint']}  slack={h['slack']}ns")
             if len(result["hold"]) > 5:
                 print(f"  ... and {len(result['hold']) - 5} more")
+
+            hold_sub = result.get("hold_sub_categories", {})
+            if hold_sub:
+                print(f"\n--- hold sub-categories ---")
+                for sub_cat in ("data_reg2reg", "clock_enable", "clock_gating", "reg2reg"):
+                    sc = hold_sub.get(sub_cat)
+                    if sc:
+                        print(f"  {sub_cat}: WNS={sc['wns_ns']}ns, TNS={sc['tns_ns']}ns, paths={sc['path_count']}")
+
+            hold_classified = result.get("hold_classified", [])
+            if hold_classified:
+                print(f"\n--- hold classified ({len(hold_classified)} paths from detailed tables) ---")
+                for hp in hold_classified[:5]:
+                    cat = hp.get("category", "?")
+                    print(f"  [{cat}] {hp['startpoint']} → {hp['endpoint']}  slack={hp['slack']}ns")
+
             print(f"\n--- path groups ({len(result['path_groups'])}) ---")
             for pg in result["path_groups"]:
                 print(f"  {pg['clock_group']}/{pg['delay_type']}: {pg['endpoint_count']} endpoints, WNS={pg['wns']}ns, TNS={pg['tns']}ns")
