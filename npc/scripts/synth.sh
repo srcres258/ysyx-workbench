@@ -61,6 +61,10 @@ SYNTH_LOW_MHZ="${SYNTH_LOW_MHZ:-1}"
 SYNTH_HIGH_MHZ="${SYNTH_HIGH_MHZ:-500}"
 YOSYS_STA_AUTO_INIT="${YOSYS_STA_AUTO_INIT:-on}"
 
+# QoR view selection: canonical_flat (authoritative, flattened) or
+# hierarchy_attribution (analysis-only, hierarchy-preserved).
+SYNTH_QOR_VIEW="${SYNTH_QOR_VIEW:-canonical_flat}"
+
 abspath_path() {
   python3 - "$1" <<'PY'
 from pathlib import Path
@@ -121,6 +125,20 @@ require_dir "${YOSYS_STA_HOME}"
 require_dir "${RTL_GEN_DIR}"
 require_dir "${STUB_DIR}"
 require_file "${SDC_FILE}"
+
+# Validate QoR view selection
+case "${SYNTH_QOR_VIEW}" in
+  canonical_flat)
+    SYNTH_FLATTEN=1
+    ;;
+  hierarchy_attribution)
+    SYNTH_FLATTEN=0
+    ;;
+  *)
+    die "Unknown SYNTH_QOR_VIEW='${SYNTH_QOR_VIEW}' — must be 'canonical_flat' or 'hierarchy_attribution'"
+    ;;
+esac
+export SYNTH_FLATTEN
 
 # Validate toolchain
 require_cmd yosys
@@ -185,7 +203,8 @@ RTL_FILE_LIST="${RTL_FILES[*]}"
 mkdir -p "${OUTPUT_DIR}"
 
 SYNTH_MAKE_LOG="${OUTPUT_DIR}/synth_make.log"
-RESULT_DIR="${OUTPUT_DIR}/${DESIGN}-${CLK_FREQ_MHZ}MHz"
+VIEW_OUT_DIR="${OUTPUT_DIR}/${SYNTH_QOR_VIEW}"
+RESULT_DIR="${VIEW_OUT_DIR}/${DESIGN}-${CLK_FREQ_MHZ}MHz"
 
 if [ "${SYNTH_SEARCH}" = "on" ] || [ "${SYNTH_SEARCH}" = "1" ] || [ "${SYNTH_SEARCH}" = "true" ]; then
   # ── frequency search mode ────────────────────────────────────────
@@ -234,7 +253,7 @@ if [ "${SYNTH_SEARCH}" = "on" ] || [ "${SYNTH_SEARCH}" = "1" ] || [ "${SYNTH_SEA
 
 else
   # ── single-shot mode ─────────────────────────────────────────────
-  info "Launching yosys-sta (PDK: nangate45)..."
+  info "Launching yosys-sta (PDK: nangate45, view: ${SYNTH_QOR_VIEW})..."
 
   set +e
   make -C "${YOSYS_STA_HOME}" syn sta \
@@ -243,7 +262,7 @@ else
     CLK_FREQ_MHZ="${CLK_FREQ_MHZ}" \
     CLK_PORT_NAME="${CLK_PORT_NAME}" \
     RTL_FILES="${RTL_FILE_LIST}" \
-    O="${OUTPUT_DIR}" \
+    O="${VIEW_OUT_DIR}" \
     >"${SYNTH_MAKE_LOG}" 2>&1
   SYNTH_EXIT=$?
   set -e
@@ -496,10 +515,18 @@ PROV_GENERATED_AT="$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2>/dev/null || echo 'N/A')"
 # Determine fanout source: full-netlist (from Task 5) or timing-sampled
 PROV_FANOUT_SOURCE="full_netlist"
 
+# For canonical_flat, write summary to the root output directory (backward compat).
+# For hierarchy_attribution, write summary inside the view directory.
+if [ "${SYNTH_QOR_VIEW}" = "canonical_flat" ]; then
+  SUMMARY_OUT_DIR="${OUTPUT_DIR}"
+else
+  SUMMARY_OUT_DIR="${VIEW_OUT_DIR}"
+fi
+
 python3 "${SCRIPT_DIR}/synth_summary.py" \
   --design "${DESIGN}" \
   --target-mhz "${CLK_FREQ_MHZ}" \
-  --output-dir "${OUTPUT_DIR}" \
+  --output-dir "${SUMMARY_OUT_DIR}" \
   --result-dir "${RESULT_DIR}" \
   --area-budget "${SYNTH_AREA_BUDGET}" \
   --yosys-version "${PROV_YOSYS_VER}" \
@@ -510,6 +537,10 @@ python3 "${SCRIPT_DIR}/synth_summary.py" \
   --cpu-commit "${PROV_CPU_COMMIT}" \
   --generated-at "${PROV_GENERATED_AT}" \
   --fanout-source "${PROV_FANOUT_SOURCE}" \
+  --qor-view "${SYNTH_QOR_VIEW}" \
+  --sdc-file "${SDC_FILE}" \
+  --ieda-bin "${YOSYS_STA_HOME}/bin/iEDA" \
+  --yosys-sta-home "${YOSYS_STA_HOME}" \
   || warn "Failed to write synth summary JSON/text/hotspots"
 
 # ── verify timing classification report files (post rendering) ─────
@@ -519,6 +550,11 @@ TIMING_CLASSIFICATION_REPORTS=(
   "unconstrained_endpoints.rpt"
   "analysis_warnings.rpt"
   "high_fanout_nets.rpt"
+  "ista_report_timing_capabilities.rpt"
+  "data_startpoints_q.txt"
+  "data_endpoints_d.txt"
+  "timing_reg2reg_data.json"
+  "timing_reg2reg_data.rpt"
 )
 
 MISSING_CLASSIFICATION=()
@@ -547,6 +583,51 @@ if [ ${#MISSING_CLASSIFICATION[@]} -gt 0 ]; then
   done
 else
   info "All timing classification reports present ✓"
+fi
+
+# ── promote task-2 artifacts to root output dir (canonical_flat only) ─
+# The capability report and pin inventories are canonical-flat-derived
+# but are consumed by later pipeline steps from the root output directory.
+if [ "${SYNTH_QOR_VIEW}" = "canonical_flat" ]; then
+  TASK2_ARTIFACTS=(
+    "ista_report_timing_capabilities.rpt"
+    "data_startpoints_q.txt"
+    "data_endpoints_d.txt"
+    "timing_reg2reg_data.json"
+    "timing_reg2reg_data.rpt"
+  )
+  for art in "${TASK2_ARTIFACTS[@]}"; do
+    if [ -f "${RESULT_DIR}/${art}" ]; then
+      cp "${RESULT_DIR}/${art}" "${OUTPUT_DIR}/${art}"
+      info "Promoted ${art} → ${OUTPUT_DIR}/${art}"
+    else
+      warn "Task-2 artifact missing: ${RESULT_DIR}/${art}"
+    fi
+  done
+fi
+
+# ── area flow comparison report (when both views exist) ──────────────────
+# Only meaningful in single-shot mode; search mode has its own multi-probe
+# output and doesn't need a cross-view comparison.
+if [ "${SYNTH_SEARCH}" != "on" ] && [ "${SYNTH_SEARCH}" != "1" ] && [ "${SYNTH_SEARCH}" != "true" ]; then
+  OTHER_VIEW=""
+  if [ "${SYNTH_QOR_VIEW}" = "canonical_flat" ]; then
+    OTHER_VIEW="hierarchy_attribution"
+  else
+    OTHER_VIEW="canonical_flat"
+  fi
+  OTHER_RESULT_DIR="${OUTPUT_DIR}/${OTHER_VIEW}/${DESIGN}-${CLK_FREQ_MHZ}MHz"
+  if [ -d "${OTHER_RESULT_DIR}" ]; then
+    info "Both QoR views present — generating area flow comparison report..."
+    python3 "${SCRIPT_DIR}/synth_summary.py" \
+      --compare \
+      --design "${DESIGN}" \
+      --target-mhz "${CLK_FREQ_MHZ}" \
+      --canonical-dir "${OUTPUT_DIR}/canonical_flat/${DESIGN}-${CLK_FREQ_MHZ}MHz" \
+      --attribution-dir "${OUTPUT_DIR}/hierarchy_attribution/${DESIGN}-${CLK_FREQ_MHZ}MHz" \
+      --output-dir "${OUTPUT_DIR}" \
+      || warn "Failed to generate area flow comparison report"
+  fi
 fi
 
 # ── touch sentinel for Makefile incremental check ──────────────────

@@ -136,6 +136,40 @@ class TestBuildPerfBlock(unittest.TestCase):
                 _read_json("synth_summary_v1.json"),
             )
 
+    # ── v4 view-type guard tests ────────────────────────────
+
+    def test_v4_synth_summary_canonical_flat_accepted(self):
+        block = build_perf_block(
+            _read_json("perf_valid.json"),
+            _read_json("synth_summary_v4.json"),
+        )
+        self.assertIn("综合频率:", block)
+        self.assertIn("综合面积:", block)
+
+    def test_view_type_hierarchy_attribution_fails_closed(self):
+        v4_data = _read_json("synth_summary_v4.json")
+        v4_data["view_type"] = "hierarchy_attribution"
+        with self.assertRaises(SystemExit):
+            build_perf_block(_read_json("perf_valid.json"), v4_data)
+
+    def test_missing_view_type_pre_v4_warns_but_proceeds(self):
+        import io
+        import sys
+        v1_data = _read_json("synth_summary_v1.json")
+        self.assertNotIn("view_type", v1_data)
+        saved_stderr = sys.stderr
+        try:
+            sys.stderr = io.StringIO()
+            block = build_perf_block(
+                _read_json("perf_valid.json"),
+                v1_data,
+            )
+            self.assertIn("综合频率:", block)
+            stderr_output = sys.stderr.getvalue()
+            self.assertIn("no 'view_type' field", stderr_output)
+        finally:
+            sys.stderr = saved_stderr
+
 
 if __name__ == "__main__":
     unittest.main()

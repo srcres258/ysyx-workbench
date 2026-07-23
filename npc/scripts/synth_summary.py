@@ -130,11 +130,17 @@ def build_summary_json(
     fanout_source: str = "unknown",
     coverage_status: str = "unknown",
     coverage_note: str = "",
+    view_type: str = "canonical_flat",
+    hierarchy_attribution_area_um2: Optional[float] = None,
+    core_data_reg2reg_source: str = "none",
 ) -> Dict[str, Any]:
-    """Assemble the schema-v3 synth summary JSON dict.
+    """Assemble the schema-v4 synth summary JSON dict.
 
     Emits nested sections (area, timing, fanout, constraints, warnings,
     provenance) while preserving flat legacy aliases for backward compatibility.
+
+    Schema v4 adds split-view QoR fields, explicit budget_pass, view_type,
+    core_data_reg2reg source provenance, and coverage completeness flags.
     """
 
     cell_count = int(area_result.get("cell_count", 0))
@@ -147,6 +153,13 @@ def build_summary_json(
         global_fmax = derive_max_frequency(global_wns, target_mhz)
     except (ValueError, TypeError):
         global_fmax = 0
+
+    # ── budget_pass (driven by canonical-flat area, NOT hierarchy attribution) ──
+    area_rounded = round(area_um2, 2)
+    budget_pass: Optional[bool] = None
+    if area_budget_um2 > 0:
+        budget_pass = area_rounded <= area_budget_um2
+    # When budget is 0 (no budget set), budget_pass stays None.
 
     # ── reg2reg core Fmax ─────────────────────────────────────
     reg2reg_data = _per_category_wns_tns(timing_result, "reg2reg")
@@ -168,6 +181,29 @@ def build_summary_json(
             core_data_reg2reg_fmax = None
     else:
         core_data_reg2reg_fmax = None
+
+    # ── core_data_reg2reg_source provenance ───────────────────
+    # Surface the data_reg2reg_source from the timing bridge (task 3 evidence).
+    # Falls back to "none" when the field is absent (pre-task-3 builds).
+    qd_source = core_data_reg2reg_source
+    if qd_source == "none" and "data_reg2reg_source" in timing_result:
+        qd_source = timing_result["data_reg2reg_source"]
+
+    # ── split-view area fields ─────────────────────────────────
+    # canonical_flat_area_um2 is authoritative (same as area_um2).
+    # hierarchy_attribution_area_um2 is only populated when both views exist.
+    canonical_flat_area_um2 = area_rounded
+    has_attribution = hierarchy_attribution_area_um2 is not None
+    area_overhead_um2: Optional[float] = None
+    area_overhead_pct: Optional[float] = None
+    if has_attribution:
+        area_overhead_um2 = round(
+            hierarchy_attribution_area_um2 - canonical_flat_area_um2, 2
+        )
+        if canonical_flat_area_um2 > 0:
+            area_overhead_pct = round(
+                (area_overhead_um2 / canonical_flat_area_um2) * 100.0, 2
+            )
 
     # ── per-category timing sections ───────────────────────────
     timing_section: Dict[str, Any] = {
@@ -203,8 +239,7 @@ def build_summary_json(
 
     hierarchy_source = hierarchy_rows[0].get("hierarchy_source", "unknown") if hierarchy_rows else "unknown"
 
-    # ── v3 area section ────────────────────────────────────────
-    area_rounded = round(area_um2, 2)
+    # ── v4 area section (adds split-view area fields) ──────────
     utilisation = (area_rounded / area_budget_um2 * 100.0) if area_budget_um2 > 0 else None
     area_section: Dict[str, Any] = {
         "total_cells": cell_count,
@@ -214,6 +249,10 @@ def build_summary_json(
         "by_hierarchy": hierarchy_rows,
         "by_cell_class": area_by_class,
         "hierarchy_source": hierarchy_source,
+        "canonical_flat_area_um2": canonical_flat_area_um2,
+        "hierarchy_attribution_area_um2": hierarchy_attribution_area_um2,
+        "area_attribution_overhead_um2": area_overhead_um2,
+        "area_attribution_overhead_percent": area_overhead_pct,
     }
 
     # ── v3 fanout section ─────────────────────────────────────
@@ -223,20 +262,31 @@ def build_summary_json(
         "source": fanout_source,
     }
 
-    # ── v3 constraints section ─────────────────────────────────
+    # ── v4 constraints section (adds coverage completeness flags) ─
     constraints_section: Dict[str, Any] = {
         "constrained_endpoints": constrained_count,
         "total_endpoints_in_netlist": total_endpoints,
         "unconstrained_endpoints": unconstrained,
         "coverage_status": coverage_status,
+        "coverage_is_complete": coverage_status not in ("unknown", "unavailable", "LOWER_BOUND"),
+        "coverage_has_evidence": coverage_status not in ("unknown", "unavailable"),
+        "unconstrained_is_complete": False,
     }
     if coverage_note:
         constraints_section["coverage_note"] = coverage_note
 
-    # ── assemble v3 ────────────────────────────────────────────
+    # ── assemble v4 ────────────────────────────────────────────
+    # Enrich provenance with view type and synthesis mode so
+    # downstream consumers can validate canonical authority.
+    enriched_provenance = dict(provenance) if provenance else {}
+    enriched_provenance["view_type"] = view_type
+    enriched_provenance["schema_version"] = "4"
+    if core_data_reg2reg_source != "none":
+        enriched_provenance["core_data_reg2reg_source"] = core_data_reg2reg_source
+
     summary: Dict[str, Any] = {
-        "schema_version": 3,
-        # ── v1/v2 flat compatibility fields (unchanged) ───────
+        "schema_version": 4,
+        # ── v1/v2/v3 flat compatibility fields (unchanged) ───────
         "design": design,
         "target_mhz": target_mhz,
         "final_mhz": global_fmax,
@@ -256,11 +306,19 @@ def build_summary_json(
         "high_fanout": fanout_nets,
         "unconstrained": unconstrained,
         "warnings": timing_result.get("warnings", []),
-        # ── v3 nested sections ────────────────────────────────
+        # ── v4 root-level fields ────────────────────────────────
+        "budget_pass": budget_pass,
+        "view_type": view_type,
+        "canonical_flat_area_um2": canonical_flat_area_um2,
+        "hierarchy_attribution_area_um2": hierarchy_attribution_area_um2,
+        "area_attribution_overhead_um2": area_overhead_um2,
+        "area_attribution_overhead_percent": area_overhead_pct,
+        "core_data_reg2reg_source": qd_source,
+        # ── v3/v4 nested sections ───────────────────────────────
         "area": area_section,
         "fanout": fanout_section,
         "constraints": constraints_section,
-        "provenance": provenance if provenance else {},
+        "provenance": enriched_provenance,
     }
 
     if "timing_parse_error" in area_result:
@@ -296,10 +354,13 @@ def build_summary_text(
     warnings = summary.get("warnings", [])
     timing = summary.get("timing", {})
     provenance = summary.get("provenance", {})
+    view_type = summary.get("view_type", "unknown")
+    budget_pass = summary.get("budget_pass")
 
     _wr(buf, "=" * 60)
     _wr(buf, f" SYNTHESIS SUMMARY: {design} @ {target} MHz target")
     _wr(buf, f" Schema version: {schema_ver}")
+    _wr(buf, f" View type:      {view_type}")
     hierarchy_source = summary.get("area_hierarchy_source", "unknown")
     _wr(buf, f" Hierarchy source: {hierarchy_source}")
     _wr(buf, "=" * 60)
@@ -328,11 +389,33 @@ def build_summary_text(
     _wr(buf, f"  Budget:       {budget:>12d} µm²")
     if budget > 0:
         pct = area_um2 / budget * 100
-        status = "PASS" if pct <= 100 else "FAIL (over budget)"
+        if budget_pass is True:
+            status = "PASS"
+        elif budget_pass is False:
+            status = "FAIL (over budget)"
+        else:
+            status = "UNKNOWN"
         _wr(buf, f"  Utilisation:  {pct:>11.1f}%")
         _wr(buf, f"  Status:       {status}")
     else:
         _wr(buf, "  Utilisation:  N/A (budget not set)")
+        _wr(buf, "  Status:       N/A (budget not set)")
+    _wr(buf)
+
+    # ── Split-View Area (v4) ────────────────────────────────────
+    canonical_area = summary.get("canonical_flat_area_um2")
+    attr_area = summary.get("hierarchy_attribution_area_um2")
+    if canonical_area is not None:
+        _wr(buf, "--- Split-View Area (v4) ---")
+        _wr(buf, f"  Canonical flat area:       {canonical_area:>12.2f} µm²")
+        if attr_area is not None:
+            overhead = summary.get("area_attribution_overhead_um2")
+            overhead_pct = summary.get("area_attribution_overhead_percent")
+            _wr(buf, f"  Hierarchy attribution area:{attr_area:>12.2f} µm²")
+            if overhead is not None:
+                _wr(buf, f"  Overhead:                  {overhead:>+12.2f} µm²  ({overhead_pct:+.2f}%)" if overhead_pct is not None else f"  Overhead:                  {overhead:>+12.2f} µm²")
+        else:
+            _wr(buf, "  Hierarchy attribution:     not available (single-view synthesis)")
     _wr(buf)
 
     # ── Top Area Contributors ──────────────────────────────────
@@ -380,6 +463,7 @@ def build_summary_text(
     # ── Core reg2reg Timing ────────────────────────────────────
     reg2reg_info = timing.get("reg2reg", {})
     data_reg2reg_info = timing.get("data_reg2reg", {})
+    qd_source = summary.get("core_data_reg2reg_source", "none")
     _wr(buf, "--- Core reg2reg Timing ---")
     if data_reg2reg_info.get("wns_ns") is not None:
         _wr(buf, f"  data_reg2reg WNS:       {data_reg2reg_info['wns_ns']} ns")
@@ -387,6 +471,7 @@ def build_summary_text(
         _wr(buf, f"  data_reg2reg paths:     {data_reg2reg_info['path_count']}")
     else:
         _wr(buf, "  data_reg2reg WNS:       N/A (no Q→D paths in report)")
+    _wr(buf, f"  data_reg2reg source:    {qd_source}")
     data_fmax = summary.get("core_data_reg2reg_fmax_mhz")
     if data_fmax is not None:
         _wr(buf, f"  Core Fmax (data):       {data_fmax} MHz")
@@ -548,11 +633,14 @@ def build_hotspots_text(
     data_fmax = summary.get("core_data_reg2reg_fmax_mhz")
     warnings_list = summary.get("warnings", [])
     timing = summary.get("timing", {})
+    view_type = summary.get("view_type", "unknown")
+    budget_pass = summary.get("budget_pass")
+    qd_source = summary.get("core_data_reg2reg_source", "none")
 
     _wr(buf, "=" * 70)
     _wr(buf, " OPTIMIZATION HOTSPOTS")
     _wr(buf, f" Design: {design}  |  Target: {target} MHz  |  Schema v{schema_ver}")
-    _wr(buf, f" Generated: {datetime.now().isoformat()}")
+    _wr(buf, f" View: {view_type}  |  Generated: {datetime.now().isoformat()}")
     _wr(buf, "=" * 70)
     _wr(buf)
     _wr(buf, "DISCLAIMER: This report is evidence-backed only.  Items marked")
@@ -567,17 +655,20 @@ def build_hotspots_text(
         _wr(buf, f"  Total area:       {area_um2:>12.2f} µm²")
         _wr(buf, f"  Budget:           {budget:>12d} µm²")
         _wr(buf, f"  Utilisation:      {util:>11.1f}%")
-        if util > 100:
+        if budget_pass is False:
             _wr(buf, "  STATUS: OVER BUDGET")
             _wr(buf, f"  Slack:            {area_um2 - budget:>12.2f} µm² over")
             _wr(buf)
             _wr(buf, "  EVIDENCE: top-level cell area from Yosys stat -liberty; real mapped")
             _wr(buf, "  netlist area.  Any optimisation must reduce gate count or switch to")
             _wr(buf, "  smaller cell variants.")
-        elif util > 90:
-            _wr(buf, "  STATUS: NEAR BUDGET — limited headroom for additions")
+        elif budget_pass is True:
+            if util > 90:
+                _wr(buf, "  STATUS: NEAR BUDGET — limited headroom for additions")
+            else:
+                _wr(buf, "  STATUS: WITHIN BUDGET")
         else:
-            _wr(buf, "  STATUS: WITHIN BUDGET")
+            _wr(buf, "  STATUS: UNKNOWN — budget_pass not determined")
     else:
         _wr(buf, "  (no budget set — area utilisation cannot be assessed)")
     _wr(buf)
@@ -644,8 +735,11 @@ def build_hotspots_text(
     data_info = timing.get("data_reg2reg", {})
     if data_fmax is not None:
         _wr(buf, f"  Core data reg2reg Fmax: {data_fmax} MHz")
+        _wr(buf, f"  Data reg2reg source:    {qd_source}")
         if data_fmax >= target * 2:
             _wr(buf, "  EVIDENCE: Core data paths are fast — the critical path is elsewhere.")
+    else:
+        _wr(buf, f"  Core data reg2reg Fmax: N/A  (source: {qd_source})")
     reg2reg_info = timing.get("reg2reg", {})
     if reg2reg_info.get("path_count", 0) == 0:
         _wr(buf, "  NOTE: No reg2reg paths in top-N STA report.  Core data paths may be")
@@ -741,6 +835,177 @@ def build_hotspots_text(
     return buf.getvalue()
 
 
+# ── area flow comparison report ─────────────────────────────────────
+
+def write_area_flow_comparison(
+    canonical_dir: str,
+    attribution_dir: str,
+    design: str,
+    target_mhz: int,
+    output_dir: str,
+) -> None:
+    """Compare canonical-flat and hierarchy-attribution synthesis results.
+
+    Reads synth_stat.txt from both view directories and produces
+    ``area_flow_comparison.rpt`` in the output directory.  The report
+    explicitly states the identical inputs and the single differing
+    aspect: flatten vs keep_hierarchy.
+    """
+    import hashlib
+    from datetime import datetime
+
+    output_path = Path(output_dir) / "area_flow_comparison.rpt"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    canonical_stat = Path(canonical_dir) / "synth_stat.txt"
+    attribution_stat = Path(attribution_dir) / "synth_stat.txt"
+
+    lines: list[str] = []
+
+    def _w(text: str = "") -> None:
+        lines.append(text)
+
+    _w("=" * 70)
+    _w(" AREA FLOW COMPARISON REPORT")
+    _w(f" Design: {design}  |  Target: {target_mhz} MHz")
+    _w(f" Generated: {datetime.now().isoformat()}")
+    _w("=" * 70)
+    _w()
+    _w("This report compares the authoritative canonical-flat QoR view")
+    _w("(flattened, single-module STA netlist) with the analysis-only")
+    _w("hierarchy-attribution view (hierarchy-preserved).  The two views")
+    _w("share identical RTL sources, Liberty library, SDC constraints,")
+    _w("ABC strategy, and clock-gating settings.  The ONLY difference is")
+    _w("whether the netlist is flattened before STA.")
+    _w()
+    _w("Canonical-flat is the authoritative QoR source.  Hierarchy")
+    _w("attribution is provided solely for per-module area breakdown and")
+    _w("must NOT be used as a substitute for canonical-flat metrics.")
+    _w()
+    _w("--- Input Identity ---")
+    _w("  RTL sources, Liberty, SDC, clock target, ABC strategy: IDENTICAL")
+    _w("  Hierarchy/flatten setting:             DIFFERS (see below)")
+
+    # Read and hash both netlists for identity evidence
+    canonical_netlist = Path(canonical_dir) / f"{design}.netlist.v"
+    attribution_netlist = Path(attribution_dir) / f"{design}.netlist.v"
+
+    canonical_exists = canonical_netlist.is_file()
+    attribution_exists = attribution_netlist.is_file()
+
+    if canonical_exists:
+        canonical_hash = hashlib.sha256(canonical_netlist.read_bytes()).hexdigest()[:16]
+        _w(f"  Canonical-flat netlist hash (sha256): {canonical_hash}")
+    else:
+        _w("  Canonical-flat netlist:               MISSING")
+
+    if attribution_exists:
+        attribution_hash = hashlib.sha256(attribution_netlist.read_bytes()).hexdigest()[:16]
+        _w(f"  Hierarchy-attribution netlist hash:    {attribution_hash}")
+    else:
+        _w("  Hierarchy-attribution netlist:         MISSING")
+    _w()
+
+    _w("--- Synthesis Setting Diff ---")
+    _w("  canonical_flat:      flatten (single-module STA netlist)")
+    _w("  hierarchy_attribution: keep_hierarchy (hierarchical STA netlist)")
+    _w()
+
+    # Parse area from synth_stat.txt
+    def _parse_stat(path: Path) -> dict[str, float]:
+        result: dict[str, float] = {"cell_count": 0, "area_um2": 0.0}
+        if not path.is_file():
+            return result
+        text = path.read_text(encoding="utf-8", errors="replace")
+        import re
+
+        # Yosys stat -liberty format: "  <count>  <area>  cells"
+        # The last matching line (after submodules) is the total.
+        cell_matches = re.findall(r"^\s+(\d+)\s+[\d.E+-]+\s+cells", text, re.MULTILINE)
+        if cell_matches:
+            result["cell_count"] = int(cell_matches[-1])
+
+        # Prefer "Chip area for top module" (hierarchical stat);
+        # fall back to first "Chip area for module" (flat stat).
+        area_match = re.search(r"Chip area for top module.*?:\s+([\d.]+)", text)
+        if not area_match:
+            area_match = re.search(r"Chip area for module.*?:\s+([\d.]+)", text)
+        if area_match:
+            result["area_um2"] = float(area_match.group(1))
+        return result
+
+    canonical_stat_data = _parse_stat(canonical_stat)
+    attribution_stat_data = _parse_stat(attribution_stat)
+
+    canonical_cells = int(canonical_stat_data["cell_count"])
+    canonical_area = canonical_stat_data["area_um2"]
+    attribution_cells = int(attribution_stat_data["cell_count"])
+    attribution_area = attribution_stat_data["area_um2"]
+
+    cell_delta = attribution_cells - canonical_cells
+    area_delta = 0.0
+    area_delta_pct = 0.0
+    if canonical_area > 0 and attribution_area > 0:
+        area_delta = attribution_area - canonical_area
+        area_delta_pct = (area_delta / canonical_area) * 100.0
+
+    _w("--- Area Comparison ---")
+    _w(f"  {'':<30s} {'Canonical Flat':>16s}  {'Hierarchy Attr':>16s}")
+    _w(f"  {'-'*30} {'-'*16}  {'-'*16}")
+    _w(f"  {'Cell count:':<30s} {canonical_cells:>16d}  {attribution_cells:>16d}")
+    _w(f"  {'Total area (µm²):':<30s} {canonical_area:>16.2f}  {attribution_area:>16.2f}")
+
+    if canonical_area > 0 and attribution_area > 0:
+        _w(f"  {'Area delta (attr - flat):':<30s} {area_delta:>+16.2f}  ({area_delta_pct:+.2f}%)")
+    _w()
+
+    # Cell count comparison
+    if canonical_cells > 0 and attribution_cells > 0:
+        _w("--- Cell Count Comparison ---")
+        _w(f"  Canonical-flat cells:                {canonical_cells}")
+        _w(f"  Hierarchy-attribution cells:         {attribution_cells}")
+        _w(f"  Cell count delta (attr - flat):      {cell_delta:+d}")
+        _w()
+
+    # Explanation of area delta
+    _w("--- Delta Explanation ---")
+    if canonical_area <= 0 or attribution_area <= 0:
+        _w("  Cannot compute delta: one or both stat files are missing or empty.")
+    elif abs(area_delta) < 1.0 and cell_delta == 0:
+        _w("  Area and cell count are effectively identical between the two views.")
+        _w("  This is expected: flatten/keep_hierarchy does not change cell count")
+        _w("  or total mapped cell area when the synthesis strategy is identical.")
+        _w("  The only difference is whether module boundaries are preserved in")
+        _w("  the netlist for STA consumption.")
+    elif cell_delta == 0:
+        _w(f"  Cell count is identical ({canonical_cells}), but total area differs")
+        _w(f"  by {area_delta:+.2f} µm² ({area_delta_pct:+.2f}%).")
+        _w("  This is unexpected. Possible causes:")
+        _w("    - stat -liberty area rounding differs between hierarchical/flat")
+        _w("    - opt_clean -purge removed different wires/buffers post-flatten")
+        _w("  Recommendation: inspect synth_stat.txt from both views for detail.")
+    else:
+        _w(f"  Cell count differs by {cell_delta:+d} cells ({area_delta_pct:+.2f}% area).")
+        _w("  This indicates that flatten enabled optimizations (cross-boundary")
+        _w("  merging, constant propagation) not available in the hierarchical")
+        _w("  pass.  The canonical-flat value is the authoritative one.")
+        _w("  Hierarchy attribution should be used for area breakdown only,")
+        _w("  not for total area QoR assessment.")
+    _w()
+
+    _w("--- Verdict ---")
+    _w("  Authoritative area QoR:  canonical_flat")
+    _w("  Attribution tool:        hierarchy_attribution (analysis-only)")
+    _w("  Budget comparison must use canonical_flat area, not hierarchy_attribution.")
+    _w()
+    _w("=" * 70)
+    _w(" End of area flow comparison.")
+    _w("=" * 70)
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"[synth_summary] Wrote {output_path}")
+
+
 # ── main entrypoint ──────────────────────────────────────────────────
 
 def render_summary(
@@ -760,8 +1025,13 @@ def render_summary(
     max_path: int = 50,
     provenance: Optional[Dict[str, str]] = None,
     fanout_source: str = "unknown",
+    sdc_file: Optional[str] = None,
+    ieda_bin: Optional[str] = None,
+    yosys_sta_home: Optional[str] = None,
+    view_type: str = "canonical_flat",
+    hierarchy_attribution_area_um2: Optional[float] = None,
 ) -> int:
-    """Render schema-v3 JSON, text synth summaries, and optimization hotspots.
+    """Render schema-v4 JSON, text synth summaries, and optimization hotspots.
 
     Returns 0 on success, non-zero on failure.
     """
@@ -818,6 +1088,23 @@ def render_summary(
     else:
         warnings.append(f"No hierarchy JSON available (tried synth_hierarchy.json and synth_stat.json)")
 
+    # ── Fallback: derive totals from hierarchy_rows when flat-stat parser failed ──
+    # For hierarchical synthesis (hierarchy_attribution view), the flat
+    # synth_stat.txt parser fails because the stat has per-module entries
+    # and the parser expects exactly one cell-count field.  In that case
+    # we extract recursive totals from the top-level hierarchy row so the
+    # summary JSON/txt still reflects real area and cell count.
+    if area_result.get("cell_count", 0) == 0 and hierarchy_rows:
+        top = hierarchy_rows[0]
+        area_result["cell_count"] = int(top.get("recursive_cells", 0))
+        area_result["area_um2"] = float(top.get("recursive_area", 0.0))
+        if area_result.get("cell_count", 0) > 0:
+            warnings.append(
+                f"Flat stat parser did not return totals; "
+                f"derived from hierarchy: cells={area_result['cell_count']}, "
+                f"area={area_result['area_um2']} µm²"
+            )
+
     # ── Parse timing ───────────────────────────────────────────
     if sta_rpt and Path(sta_rpt).is_file():
         try:
@@ -841,6 +1128,9 @@ def render_summary(
                 top_others=top_others,
                 result_dir=result_dir,
                 max_path=max_path,
+                sdc_file=sdc_file if (sdc_file and Path(sdc_file).is_file()) else None,
+                ieda_bin=ieda_bin,
+                yosys_sta_home=yosys_sta_home,
             )
             timing_result.update(classified)
             # classified warnings are already in timing_result["warnings"]
@@ -999,6 +1289,7 @@ def render_summary(
     coverage_status = timing_result.get("coverage_status", "unknown")
     coverage_note = timing_result.get("coverage_note", "")
     fanout_src = timing_result.get("fanout_source", fanout_source)
+    qd_source = timing_result.get("data_reg2reg_source", "none")
 
     summary = build_summary_json(
         design=design,
@@ -1012,6 +1303,9 @@ def render_summary(
         fanout_source=fanout_src,
         coverage_status=coverage_status,
         coverage_note=coverage_note,
+        view_type=view_type,
+        hierarchy_attribution_area_um2=hierarchy_attribution_area_um2,
+        core_data_reg2reg_source=qd_source,
     )
 
     # ── Write JSON ─────────────────────────────────────────────
@@ -1060,7 +1354,7 @@ def main() -> None:
     ap.add_argument("--design", required=True, help="Top-level design name (e.g. ysyx_25070190)")
     ap.add_argument("--target-mhz", type=int, required=True, help="Target clock frequency in MHz")
     ap.add_argument("--output-dir", required=True, help="Output directory for summary files (e.g. build/synth)")
-    ap.add_argument("--result-dir", required=True, help="Result directory with synthesis artifacts (e.g. build/synth/<design>-<freq>MHz)")
+    ap.add_argument("--result-dir", default=None, help="Result directory with synthesis artifacts (e.g. build/synth/<design>-<freq>MHz)")
     ap.add_argument("--area-budget", type=int, default=23000, help="Area budget in µm² (default: 23000)")
     ap.add_argument("--sta-rpt", default=None, help="Path to STA timing .rpt file")
     ap.add_argument("--synth-stat", default=None, help="Path to synth_stat.txt")
@@ -1080,7 +1374,36 @@ def main() -> None:
     ap.add_argument("--cpu-commit", default=None, help="CPU RTL git commit (short)")
     ap.add_argument("--fanout-source", default="unknown", help="Source of fanout data (full_netlist, timing_sampled, etc.)")
     ap.add_argument("--generated-at", default=None, help="ISO 8601 timestamp of synthesis run")
+    ap.add_argument("--qor-view", default=None, help="QoR view type (canonical_flat or hierarchy_attribution)")
+    ap.add_argument("--hierarchy-attribution-area", type=float, default=None,
+                    help="Area from hierarchy-attribution view for split-view overhead calculation")
+    ap.add_argument("--sdc-file", default=None, help="Path to SDC constraint file (for dedicated Q→D STA query)")
+    ap.add_argument("--ieda-bin", default=None, help="Path to iEDA binary (for dedicated Q→D STA query)")
+    ap.add_argument("--yosys-sta-home", default=None, help="Path to yosys-sta project root (for dedicated Q→D STA query)")
+    # Comparison mode (generates area_flow_comparison.rpt from two view directories)
+    ap.add_argument("--compare", action="store_true", help="Generate area flow comparison report from two view dirs")
+    ap.add_argument("--canonical-dir", default=None, help="Path to canonical_flat result directory")
+    ap.add_argument("--attribution-dir", default=None, help="Path to hierarchy_attribution result directory")
     args = ap.parse_args()
+
+    # Comparison mode: generate area_flow_comparison.rpt and exit
+    if args.compare:
+        if not args.canonical_dir or not args.attribution_dir:
+            print("[synth_summary] ERROR: --compare requires --canonical-dir and --attribution-dir", file=sys.stderr)
+            sys.exit(1)
+        write_area_flow_comparison(
+            canonical_dir=args.canonical_dir,
+            attribution_dir=args.attribution_dir,
+            design=args.design,
+            target_mhz=args.target_mhz,
+            output_dir=args.output_dir,
+        )
+        sys.exit(0)
+
+    # Normal rendering mode: --result-dir is required
+    if not args.result_dir:
+        print("[synth_summary] ERROR: --result-dir is required for normal rendering mode", file=sys.stderr)
+        sys.exit(1)
 
     # Build provenance dict from CLI args
     provenance: Dict[str, str] = {
@@ -1093,6 +1416,7 @@ def main() -> None:
         "target_mhz": str(args.target_mhz),
         "generated_at": args.generated_at or "N/A",
         "sta_tool": "iEDA",
+        "qor_view": args.qor_view or "canonical_flat",
     }
 
     # Derive individual artifact paths from result_dir if not explicitly given
@@ -1123,6 +1447,11 @@ def main() -> None:
         max_path=args.max_path,
         provenance=provenance,
         fanout_source=args.fanout_source,
+        sdc_file=args.sdc_file,
+        ieda_bin=args.ieda_bin,
+        yosys_sta_home=args.yosys_sta_home,
+        view_type=args.qor_view or "canonical_flat",
+        hierarchy_attribution_area_um2=args.hierarchy_attribution_area,
     )
     sys.exit(rc)
 

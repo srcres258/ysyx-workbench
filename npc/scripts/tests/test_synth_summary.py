@@ -87,7 +87,7 @@ class TestBuildSummaryJson(unittest.TestCase):
             "other": {"cell_count": 10, "area_um2": 69.5},
         }
 
-    def test_schema_version_is_3(self):
+    def test_schema_version_is_4(self):
         summary = build_summary_json(
             design="ysyx_25070190",
             target_mhz=100,
@@ -97,7 +97,7 @@ class TestBuildSummaryJson(unittest.TestCase):
             area_by_class=self._mock_area_by_class(),
             area_budget_um2=23000,
         )
-        self.assertEqual(summary["schema_version"], 3)
+        self.assertEqual(summary["schema_version"], 4)
 
     def test_v1_fields_preserved(self):
         summary = build_summary_json(
@@ -200,7 +200,7 @@ class TestBuildSummaryJson(unittest.TestCase):
         self.assertEqual(prov["workbench_commit"], "abc1234")
         self.assertEqual(prov["sta_tool"], "iEDA")
 
-    def test_v3_provenance_defaults_empty(self):
+    def test_v3_provenance_defaults_includes_essential_v4_fields(self):
         summary = build_summary_json(
             design="ysyx_25070190",
             target_mhz=100,
@@ -210,7 +210,8 @@ class TestBuildSummaryJson(unittest.TestCase):
             area_by_class=self._mock_area_by_class(),
             area_budget_um2=23000,
         )
-        self.assertEqual(summary["provenance"], {})
+        self.assertIn("view_type", summary["provenance"])
+        self.assertIn("schema_version", summary["provenance"])
 
     def test_v3_legacy_fmax_null_deprecated_stays_null(self):
         """core_reg2reg_fmax_mhz stays null when untrustworthy — never fabricated."""
@@ -345,7 +346,7 @@ class TestBuildSummaryText(unittest.TestCase):
 
     def _sample_v3_summary(self):
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "design": "ysyx_25070190",
             "target_mhz": 100,
             "final_mhz": 125,
@@ -357,6 +358,13 @@ class TestBuildSummaryText(unittest.TestCase):
             "core_reg2reg_fmax_mhz": 125,
             "core_data_reg2reg_fmax_mhz": 130,
             "area_budget_um2": 23000,
+            "view_type": "canonical_flat",
+            "budget_pass": True,
+            "canonical_flat_area_um2": 9999.50,
+            "hierarchy_attribution_area_um2": None,
+            "area_attribution_overhead_um2": None,
+            "area_attribution_overhead_percent": None,
+            "core_data_reg2reg_source": "none",
             "area_by_hierarchy": [
                 {
                     "instance_path": "top",
@@ -474,7 +482,7 @@ class TestBuildSummaryText(unittest.TestCase):
             self._sample_v3_summary()["area_by_cell_class"],
         )
         self.assertIn("SYNTHESIS SUMMARY", text)
-        self.assertIn("Schema version: 3", text)
+        self.assertIn("Schema version: 4", text)
         self.assertIn("ysyx_25070190", text)
 
     def test_renders_area_budget_section(self):
@@ -529,7 +537,7 @@ class TestBuildHotspotsText(unittest.TestCase):
 
     def _sample_v3_summary(self):
         return {
-            "schema_version": 3,
+            "schema_version": 4,
             "design": "ysyx_25070190",
             "target_mhz": 100,
             "final_mhz": 125,
@@ -541,6 +549,13 @@ class TestBuildHotspotsText(unittest.TestCase):
             "core_reg2reg_fmax_mhz": 125,
             "core_data_reg2reg_fmax_mhz": 130,
             "area_budget_um2": 23000,
+            "view_type": "canonical_flat",
+            "budget_pass": True,
+            "canonical_flat_area_um2": 12345.68,
+            "hierarchy_attribution_area_um2": None,
+            "area_attribution_overhead_um2": None,
+            "area_attribution_overhead_percent": None,
+            "core_data_reg2reg_source": "none",
             "area_by_hierarchy": [
                 {
                     "instance_path": "top",
@@ -612,6 +627,7 @@ class TestBuildHotspotsText(unittest.TestCase):
         text = build_hotspots_text(self._sample_v3_summary())
         self.assertIn("OPTIMIZATION HOTSPOTS", text)
         self.assertIn("ysyx_25070190", text)
+        self.assertIn("Schema v4", text)
 
     def test_hotspots_has_disclaimer(self):
         text = build_hotspots_text(self._sample_v3_summary())
@@ -706,6 +722,496 @@ class TestSynthSummaryJsonRoundTrip(unittest.TestCase):
         self.assertIsNone(data["core_reg2reg_fmax_mhz"])
         self.assertIsNone(data["core_data_reg2reg_fmax_mhz"])
         self.assertEqual(data["constraints"]["coverage_status"], "LOWER_BOUND")
+
+
+class TestV4Schema(unittest.TestCase):
+
+    def test_v4_schema_version_is_4(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertEqual(summary["schema_version"], 4)
+
+    def test_v4_budget_pass_true(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertTrue(summary["budget_pass"])
+
+    def test_v4_budget_pass_false(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 25000.00},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 25000.00, "recursive_cells": 5432,
+                 "recursive_area": 25000.00, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertFalse(summary["budget_pass"])
+
+    def test_v4_budget_pass_none_when_no_budget(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=0,
+        )
+        self.assertIsNone(summary["budget_pass"])
+
+    def test_v4_view_type_field_default(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertEqual(summary["view_type"], "canonical_flat")
+
+    def test_v4_view_type_explicit_hierarchy_attribution(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+            view_type="hierarchy_attribution",
+        )
+        self.assertEqual(summary["view_type"], "hierarchy_attribution")
+
+    def test_v4_split_view_fields_with_attribution(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+            hierarchy_attribution_area_um2=10050.00,
+        )
+        self.assertEqual(summary["canonical_flat_area_um2"], 9999.50)
+        self.assertEqual(summary["hierarchy_attribution_area_um2"], 10050.00)
+        self.assertIsNotNone(summary["area_attribution_overhead_um2"])
+        self.assertIsNotNone(summary["area_attribution_overhead_percent"])
+        self.assertEqual(summary["area_attribution_overhead_um2"], 50.50)
+        self.assertEqual(summary["area_attribution_overhead_percent"], 0.51)
+
+    def test_v4_split_view_fields_null_without_attribution(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertEqual(summary["canonical_flat_area_um2"], 9999.50)
+        self.assertIsNone(summary["hierarchy_attribution_area_um2"])
+        self.assertIsNone(summary["area_attribution_overhead_um2"])
+        self.assertIsNone(summary["area_attribution_overhead_percent"])
+
+    def test_v4_core_data_reg2reg_source_dedicated(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+            core_data_reg2reg_source="dedicated-ista-query",
+        )
+        self.assertEqual(summary["core_data_reg2reg_source"], "dedicated-ista-query")
+
+    def test_v4_core_data_reg2reg_source_from_timing_bridge(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+                "data_reg2reg_source": "canonical-classification",
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertEqual(summary["core_data_reg2reg_source"], "canonical-classification")
+
+    def test_v4_legacy_fmax_null_when_no_paths(self):
+        timing = {
+            "wns": 1.5, "tns": 0.0,
+            "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+            "reg2out": [], "in2out": [], "clock_enable": [],
+            "clock_gating_setup": [], "hold": [], "path_groups": [],
+            "high_fanout": [], "unconstrained": [], "warnings": [],
+        }
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result=timing,
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertIsNone(summary["core_reg2reg_fmax_mhz"])
+        self.assertIsNone(summary["core_data_reg2reg_fmax_mhz"])
+        self.assertEqual(summary["core_data_reg2reg_source"], "none")
+
+    def test_v4_legacy_fmax_preserved_when_paths_present(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [
+                    {"startpoint": "cpu/reg1/CK", "endpoint": "cpu/reg1/D",
+                     "startpoint_type": "sequential", "endpoint_type": "sequential",
+                     "delay_type": "max", "clock_group": "core_clock",
+                     "slack": 1.5, "path_delay": 8.0, "path_required": 9.5,
+                     "category": "reg2reg", "startpoint_pin": "CK", "endpoint_pin": "D"}
+                ],
+                "data_reg2reg": [
+                    {"startpoint": "cpu/reg2/Q", "endpoint": "cpu/reg3/D",
+                     "startpoint_type": "sequential", "endpoint_type": "sequential",
+                     "delay_type": "max", "clock_group": "core_clock",
+                     "slack": 2.0, "path_delay": 7.5, "path_required": 9.5,
+                     "category": "data_reg2reg", "startpoint_pin": "Q", "endpoint_pin": "D"}
+                ],
+                "in2reg": [], "reg2out": [], "in2out": [],
+                "clock_enable": [], "clock_gating_setup": [],
+                "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertIsNotNone(summary["core_reg2reg_fmax_mhz"])
+        self.assertIsNotNone(summary["core_data_reg2reg_fmax_mhz"])
+        self.assertIn("core_data_reg2reg_fmax_mhz", summary)
+
+    def test_v4_constraints_coverage_flags_lower_bound(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+            coverage_status="LOWER_BOUND",
+        )
+        self.assertEqual(summary["constraints"]["coverage_status"], "LOWER_BOUND")
+        self.assertFalse(summary["constraints"]["coverage_is_complete"])
+        self.assertTrue(summary["constraints"]["coverage_has_evidence"])
+        self.assertFalse(summary["constraints"]["unconstrained_is_complete"])
+
+    def test_v4_constraints_coverage_flags_unavailable(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+            coverage_status="unavailable",
+        )
+        self.assertEqual(summary["constraints"]["coverage_status"], "unavailable")
+        self.assertFalse(summary["constraints"]["coverage_is_complete"])
+        self.assertFalse(summary["constraints"]["coverage_has_evidence"])
+
+    def test_v4_provenance_includes_view_type(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+            core_data_reg2reg_source="dedicated-ista-query",
+        )
+        self.assertEqual(summary["provenance"]["view_type"], "canonical_flat")
+        self.assertEqual(summary["provenance"]["schema_version"], "4")
+        self.assertEqual(
+            summary["provenance"]["core_data_reg2reg_source"],
+            "dedicated-ista-query",
+        )
+
+    def test_v4_provenance_no_qd_source_when_none(self):
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result={"cell_count": 5432, "area_um2": 9999.50},
+            hierarchy_rows=[
+                {"instance_path": "top", "module_name": "top", "parent_path": "",
+                 "depth": 0, "instance_count": 1, "local_cells": 5432,
+                 "local_area": 9999.50, "recursive_cells": 5432,
+                 "recursive_area": 9999.50, "pct_of_top_area": 100.0,
+                 "categories": {}}
+            ],
+            timing_result={
+                "wns": 1.5, "tns": 0.0,
+                "reg2reg": [], "data_reg2reg": [], "in2reg": [],
+                "reg2out": [], "in2out": [], "clock_enable": [],
+                "clock_gating_setup": [], "hold": [], "path_groups": [],
+                "high_fanout": [], "unconstrained": [], "warnings": [],
+            },
+            area_by_class={},
+            area_budget_um2=23000,
+        )
+        self.assertNotIn("core_data_reg2reg_source", summary["provenance"])
+
+    # ── v4 fixture round-trip tests ────────────────────────────
+
+    def test_v4_fixture_has_schema_version_4(self):
+        data = json.loads(Path(fixture("synth_summary_v4.json")).read_text())
+        self.assertEqual(data["schema_version"], 4)
+
+    def test_v4_fixture_has_v4_root_fields(self):
+        data = json.loads(Path(fixture("synth_summary_v4.json")).read_text())
+        for field in ["budget_pass", "view_type", "canonical_flat_area_um2",
+                       "core_data_reg2reg_source"]:
+            self.assertIn(field, data, f"v4 fixture missing field: {field}")
+        self.assertTrue(data["budget_pass"])
+        self.assertEqual(data["view_type"], "canonical_flat")
+        self.assertEqual(data["core_data_reg2reg_source"], "dedicated-ista-query")
+
+    def test_v4_fixture_has_split_view_fields(self):
+        data = json.loads(Path(fixture("synth_summary_v4.json")).read_text())
+        self.assertIsNotNone(data["hierarchy_attribution_area_um2"])
+        self.assertIsNotNone(data["area_attribution_overhead_um2"])
+        self.assertIsNotNone(data["area_attribution_overhead_percent"])
+
+    def test_v4_fixture_has_legacy_aliases(self):
+        data = json.loads(Path(fixture("synth_summary_v4.json")).read_text())
+        for field in ["design", "target_mhz", "final_mhz", "wns_ns", "tns_ns",
+                       "cell_count", "area_um2", "global_derived_fmax_mhz",
+                       "core_reg2reg_fmax_mhz", "core_data_reg2reg_fmax_mhz",
+                       "area_budget_um2", "area_by_hierarchy", "timing"]:
+            self.assertIn(field, data, f"v4 fixture missing legacy field: {field}")
+
+    def test_v4_null_fixture_null_data_reg2reg(self):
+        data = json.loads(Path(fixture("synth_summary_v4_null.json")).read_text())
+        self.assertIsNone(data["core_reg2reg_fmax_mhz"])
+        self.assertIsNone(data["core_data_reg2reg_fmax_mhz"])
+        self.assertEqual(data["core_data_reg2reg_source"], "none")
+
+    def test_v4_null_fixture_null_split_view(self):
+        data = json.loads(Path(fixture("synth_summary_v4_null.json")).read_text())
+        self.assertIsNone(data["hierarchy_attribution_area_um2"])
+        self.assertIsNone(data["area_attribution_overhead_um2"])
+        self.assertIsNone(data["area_attribution_overhead_percent"])
+
+    def test_v4_null_fixture_no_qd_source_in_provenance(self):
+        data = json.loads(Path(fixture("synth_summary_v4_null.json")).read_text())
+        self.assertNotIn("core_data_reg2reg_source", data["provenance"])
+
+    def test_v4_area_section_has_split_view_fields(self):
+        data = json.loads(Path(fixture("synth_summary_v4.json")).read_text())
+        area = data["area"]
+        for field in ["canonical_flat_area_um2", "hierarchy_attribution_area_um2",
+                       "area_attribution_overhead_um2", "area_attribution_overhead_percent"]:
+            self.assertIn(field, area, f"v4 area section missing field: {field}")
+
+    def test_v4_constraints_has_coverage_flags(self):
+        data = json.loads(Path(fixture("synth_summary_v4.json")).read_text())
+        constraints = data["constraints"]
+        for field in ["coverage_is_complete", "coverage_has_evidence",
+                       "unconstrained_is_complete"]:
+            self.assertIn(field, constraints, f"v4 constraints missing field: {field}")
 
 
 if __name__ == "__main__":

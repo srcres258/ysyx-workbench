@@ -660,6 +660,12 @@ def parse_classified_timing(
     top_others: int = 20,
     result_dir=None,
     max_path: int = 50,
+    sdc_file=None,
+    ieda_bin=None,
+    yosys_sta_home=None,
+    design: str = "ysyx_25070190",
+    pdk: str = "nangate45",
+    dedicated_qd_query: bool = True,
 ) -> Dict:
     """Parse the iSTA unified timing report plus companion files into
     classified setup/hold/DRV data.
@@ -671,18 +677,21 @@ def parse_classified_timing(
         top_reg2reg: Max reg2reg/data_reg2reg paths to retain (default 50).
         top_others: Max paths for in2reg/reg2out/in2out/hold/fanout
                     plus clock_enable/clock_gating_setup (default 20).
-        result_dir: If provided, writes ``constraint_coverage.rpt``,
-            ``unconstrained_endpoints.rpt``, ``high_fanout_nets.rpt``,
-            and ``analysis_warnings.rpt`` to this directory.
-        max_path: The ``-max_path`` value used by ``report_timing``
-            (default 50, matching sta.tcl).
+        result_dir: If provided, writes classification report files.
+        max_path: The ``-max_path`` value used by ``report_timing``.
+        sdc_file: Path to SDC constraint file (for dedicated Q→D query).
+        ieda_bin: Path to iEDA binary (for dedicated Q→D query).
+        yosys_sta_home: Path to yosys-sta root (for dedicated Q→D query).
+        design: Top module name.
+        pdk: PDK name.
+        dedicated_qd_query: When True, run dedicated Q/QN→D STA query.
 
     Returns:
         Dict with keys ``reg2reg``, ``data_reg2reg``, ``in2reg``,
         ``reg2out``, ``in2out``, ``clock_enable``, ``clock_gating_setup``,
         ``hold``, ``hold_classified``, ``hold_sub_categories``,
         ``path_groups``, ``high_fanout``, ``unconstrained``,
-        ``wns``, ``tns``, ``warnings``.
+        ``wns``, ``tns``, ``warnings``, ``data_reg2reg_source``.
     """
     from synth_timing import build_timing_report
 
@@ -694,6 +703,12 @@ def parse_classified_timing(
         top_other_count=top_others,
         result_dir=str(result_dir) if result_dir else None,
         max_path=max_path,
+        sdc_file=str(sdc_file) if sdc_file else None,
+        ieda_bin=str(ieda_bin) if ieda_bin else None,
+        yosys_sta_home=str(yosys_sta_home) if yosys_sta_home else None,
+        design=design,
+        pdk=pdk,
+        dedicated_qd_query=dedicated_qd_query,
     )
 
 

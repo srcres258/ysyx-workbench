@@ -98,6 +98,27 @@ def build_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> s
     final_mhz = require_field(synth_data, "final_mhz", "synth_summary.json")
     area_um2 = require_field(synth_data, "area_um2", "synth_summary.json")
 
+    # ── v4 view-type guard ───────────────────────────────────────────
+    # perf_aggregator MUST always consume canonical-flat authoritative
+    # metrics.  Reject hierarchy-attribution summaries to prevent
+    # accidental use of non-authoritative QoR data.
+    view_type = synth_data.get("view_type")
+    if view_type == "hierarchy_attribution":
+        fail(
+            "synth_summary.json: view_type is 'hierarchy_attribution'. "
+            "Perf aggregator requires canonical_flat authoritative metrics. "
+            "Point --synth-json at the canonical-flat summary instead."
+        )
+    # Pre-v4 summaries lack view_type entirely — proceed with a warning
+    # to stderr but do not fail-closed (backward compat for v1/v2/v3).
+    if view_type is None:
+        print(
+            "[Perf] WARNING: synth_summary.json has no 'view_type' field "
+            "(pre-v4 schema). Proceeding, but recommend re-synthesising with "
+            "v4 canonical_flat view for authoritative metrics.",
+            file=sys.stderr,
+        )
+
     # core_reg2reg_fmax_mhz is a v2-only field.  When present and usable
     # (non-null integer), prefer it for the per-category core Fmax line.
     # When absent (v1 schema), silently omit — no warning, no fake number.

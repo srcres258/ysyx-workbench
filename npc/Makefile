@@ -78,6 +78,11 @@ SYNTH_SDC      = $(abspath ./constr/synth.sdc)
 SYNTH_STUB_DIR = $(abspath ./vsrc/synth)
 SYNTH_DONE     = $(SYNTH_OUT_DIR)/.synth_done
 
+# QoR view selection: canonical_flat (authoritative, flattened) or
+# hierarchy_attribution (analysis-only, hierarchy-preserved).
+# canonical_flat is the default and the root-compatible authoritative view.
+SYNTH_QOR_VIEW ?= canonical_flat
+
 # Frequency search knobs (set SYNTH_SEARCH=on to enable binary search)
 SYNTH_SEARCH   ?= off
 SYNTH_LOW_MHZ  ?= 1
@@ -122,6 +127,7 @@ $(SYNTH_DONE): $(SYNTH_SDC) $(SYNTH_RTL_DEPS) $(SYNTH_STUB_DEPS)
 	 SYNTH_LOW_MHZ=$(SYNTH_LOW_MHZ) \
 	 SYNTH_HIGH_MHZ=$(SYNTH_HIGH_MHZ) \
 	 YOSYS_STA_AUTO_INIT=$(YOSYS_STA_AUTO_INIT) \
+	 SYNTH_QOR_VIEW=$(SYNTH_QOR_VIEW) \
 	 $(abspath ./scripts/synth.sh)
 
 # Convenience target for frequency search mode
