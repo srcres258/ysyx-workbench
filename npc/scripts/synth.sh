@@ -65,6 +65,9 @@ YOSYS_STA_AUTO_INIT="${YOSYS_STA_AUTO_INIT:-on}"
 # hierarchy_attribution (analysis-only, hierarchy-preserved).
 SYNTH_QOR_VIEW="${SYNTH_QOR_VIEW:-canonical_flat}"
 
+# Experiment selector: empty=canonical single-shot, exp_a_upstream_default=historical flow
+SYNTH_EXPERIMENT="${SYNTH_EXPERIMENT:-}"
+
 abspath_path() {
   python3 - "$1" <<'PY'
 from pathlib import Path
@@ -104,6 +107,360 @@ bootstrap_yosys_sta() {
   [ -d "${YOSYS_STA_HOME}/pdk/nangate45" ] || die "yosys-sta bootstrap did not produce ${YOSYS_STA_HOME}/pdk/nangate45"
 }
 
+# ── identity helpers ────────────────────────────────────────────────
+# Compute SHA256 of a file, returns "N/A" if file missing or sha256sum unavailable
+compute_file_sha256() {
+  local f="$1"
+  if [ ! -f "${f}" ]; then
+    echo "N/A"
+    return
+  fi
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "${f}" | awk '{print $1}'
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "${f}" | awk '{print $1}'
+  else
+    python3 -c "import hashlib; print(hashlib.sha256(open('${f}','rb').read()).hexdigest())" 2>/dev/null || echo "N/A"
+  fi
+}
+
+# Collect the input identity manifest and write it to input_identity.json.
+# This runs AFTER RTL collection but BEFORE yosys-sta so the RTL hash
+# captures the generator output used for this specific run.
+collect_input_identity() {
+  local identity_json="${OUTPUT_DIR}/input_identity.json"
+  mkdir -p "${OUTPUT_DIR}"
+
+  info "Collecting input identity manifest..."
+
+  # ── git commits ──
+  local workbench_commit="N/A"
+  local cpu_commit="N/A"
+  if command -v git >/dev/null 2>&1; then
+    local workbench_git_dir="${NPC_HOME}/.."
+    workbench_commit=$(git -C "${workbench_git_dir}" rev-parse HEAD 2>/dev/null || echo "N/A")
+    cpu_commit=$(git -C "${NPC_HOME}" rev-parse HEAD 2>/dev/null || echo "N/A")
+  fi
+
+  # ── generated Verilog SHA256: combined hash of all RTL source files (sorted) ──
+  # Hash each file individually, then hash the concatenation for a single identity digest.
+  local rtl_hashes_json="{}"
+  local combined_parts=""
+  local sorted_rtl_files=()
+  while IFS= read -r -d '' f; do
+    sorted_rtl_files+=("${f}")
+  done < <(for f in "${RTL_FILES[@]}"; do echo "${f}"; done | sort -z | tr '\n' '\0')
+  # Re-read sorted
+  unset sorted_rtl_files
+  local sorted_rtl_files=()
+  local rtl_files_sorted
+  rtl_files_sorted=$(printf '%s\n' "${RTL_FILES[@]}" | sort)
+  while IFS= read -r f; do
+    [ -z "${f}" ] && continue
+    sorted_rtl_files+=("${f}")
+  done <<< "${rtl_files_sorted}"
+
+  local rtl_hash_parts=""
+  if [ ${#sorted_rtl_files[@]} -gt 0 ]; then
+    # Build per-file hash dict and combined digest
+    local py_script
+    py_script=$(cat <<'PYEOF'
+import hashlib, json, sys
+files = sys.argv[1:]
+hashes = {}
+combined = hashlib.sha256()
+for f in sorted(files):
+    h = hashlib.sha256(open(f, 'rb').read()).hexdigest()
+    hashes[f] = h
+    combined.update(f.encode())
+    combined.update(h.encode())
+rtl_hashes = json.dumps(hashes, indent=2)
+combined_hex = combined.hexdigest()
+# Write a JSON fragment for later assembly
+out = {
+    "rtl_source_hashes": hashes,
+    "generated_verilog_sha256": combined_hex
+}
+print(json.dumps(out))
+PYEOF
+)
+    local rtl_hash_result
+    rtl_hash_result=$(python3 -c "${py_script}" "${sorted_rtl_files[@]}" 2>/dev/null || echo '{"rtl_source_hashes":{},"generated_verilog_sha256":"N/A"}')
+    local generated_verilog_sha256
+    generated_verilog_sha256=$(echo "${rtl_hash_result}" | python3 -c "import sys,json; print(json.load(sys.stdin)['generated_verilog_sha256'])" 2>/dev/null || echo "N/A")
+    rtl_hashes_json=$(echo "${rtl_hash_result}" | python3 -c "import sys,json; print(json.dumps(json.load(sys.stdin)['rtl_source_hashes']))" 2>/dev/null || echo "{}")
+  else
+    generated_verilog_sha256="N/A"
+  fi
+
+  # ── Liberty SHA256 ──
+  local liberty_sha256="N/A"
+  if [ -d "${YOSYS_STA_HOME}/pdk/nangate45/lib" ]; then
+    local liberty_file
+    liberty_file=$(find "${YOSYS_STA_HOME}/pdk/nangate45/lib" -name "*.lib" -type f 2>/dev/null | head -1)
+    if [ -n "${liberty_file}" ] && [ -f "${liberty_file}" ]; then
+      liberty_sha256=$(compute_file_sha256 "${liberty_file}")
+    fi
+  fi
+
+  # ── SDC SHA256 ──
+  local sdc_sha256
+  sdc_sha256=$(compute_file_sha256 "${SDC_FILE}")
+
+  # ── Liberty file path (for human reference) ──
+  local liberty_path="N/A"
+  if [ -d "${YOSYS_STA_HOME}/pdk/nangate45/lib" ]; then
+    liberty_path=$(find "${YOSYS_STA_HOME}/pdk/nangate45/lib" -name "*.lib" -type f 2>/dev/null | head -1 || echo "N/A")
+  fi
+
+  # ── tool versions ──
+  local yosys_version
+  yosys_version=$(yosys -V 2>&1 | grep -oP 'Yosys\s+\K[\d.]+' | head -1 || echo "N/A")
+  if [ -z "${yosys_version}" ]; then
+    yosys_version="N/A"
+  fi
+
+  local abc_version="PENDING"
+  local ista_version="N/A"
+  local ieda_bin="${YOSYS_STA_HOME}/bin/iEDA"
+  if [ -x "${ieda_bin}" ]; then
+    ista_version=$(date -r "${ieda_bin}" '+%Y-%m-%d' 2>/dev/null || echo "N/A")
+  fi
+
+  # ── config flags snapshot ──
+  local config_flags
+  config_flags=$(python3 -c "
+import json
+flags = {
+    'SYNTH_STRATEGY': '${SYNTH_STRATEGY:-DELAY 4}',
+    'SYNTH_QOR_VIEW': '${SYNTH_QOR_VIEW}',
+    'SYNTH_FLATTEN': '${SYNTH_FLATTEN:-1}',
+    'SYNTH_EXPERIMENT': '${SYNTH_EXPERIMENT:-}',
+    'SYNTH_SEARCH': '${SYNTH_SEARCH:-off}',
+    'CLK_FREQ_MHZ': '${CLK_FREQ_MHZ}',
+    'CLK_PORT_NAME': '${CLK_PORT_NAME}',
+    'SYNTH_AREA_BUDGET_UM2': '${SYNTH_AREA_BUDGET_UM2:-23000}',
+    'SYNTH_LOW_MHZ': '${SYNTH_LOW_MHZ:-1}',
+    'SYNTH_HIGH_MHZ': '${SYNTH_HIGH_MHZ:-500}',
+    'YOSYS_STA_AUTO_INIT': '${YOSYS_STA_AUTO_INIT:-on}',
+}
+print(json.dumps(flags, indent=2))
+" 2>/dev/null || echo "{}")
+
+  # ── synthesis defines ──
+  local synthesis_defines
+  synthesis_defines=$(python3 -c "
+import json
+defines = {}
+print(json.dumps(defines, indent=2))
+" 2>/dev/null || echo "{}")
+
+  # ── write identity JSON ──
+  python3 -c "
+import json, sys
+
+# Build the identity manifest
+identity = {
+    'workbench_commit': '${workbench_commit}',
+    'cpu_commit': '${cpu_commit}',
+    'generated_verilog_sha256': '${generated_verilog_sha256}',
+    'liberty_sha256': '${liberty_sha256}',
+    'sdc_sha256': '${sdc_sha256}',
+    'top_module': '${DESIGN}',
+    'target_clock_mhz': ${CLK_FREQ_MHZ},
+    'synthesis_defines': json.loads('''${synthesis_defines}'''),
+    'config_flags': json.loads('''${config_flags}'''),
+    'yosys_version': '${yosys_version}',
+    'abc_version': '${abc_version}',
+    'ista_version': '${ista_version}',
+    'experiment': '${SYNTH_EXPERIMENT:-}',
+    'liberty_path': '${liberty_path}',
+    'sdc_path': '${SDC_FILE}',
+}
+
+# Merge RTL source hashes
+rtl_hashes = json.loads('''${rtl_hashes_json}''')
+identity['rtl_source_hashes'] = rtl_hashes
+
+with open('${identity_json}', 'w') as f:
+    json.dump(identity, f, indent=2, sort_keys=True)
+print('[Synth] Input identity manifest written: ${identity_json}')
+" 2>/dev/null || warn "Failed to write input identity manifest"
+
+  # Store key fields for later use (hash gate)
+  echo "${generated_verilog_sha256}" > "${OUTPUT_DIR}/.input_identity_generated_verilog_sha256"
+  echo "${liberty_sha256}" > "${OUTPUT_DIR}/.input_identity_liberty_sha256"
+  echo "${sdc_sha256}" > "${OUTPUT_DIR}/.input_identity_sdc_sha256"
+
+  info "Input identity manifest collected ✓"
+  info "  generated_verilog_sha256: ${generated_verilog_sha256}"
+  info "  liberty_sha256: ${liberty_sha256}"
+  info "  sdc_sha256: ${sdc_sha256}"
+}
+
+# Update input_identity.json with post-synthesis fields (ABC version, etc.)
+enrich_input_identity() {
+  local identity_json="${OUTPUT_DIR}/input_identity.json"
+  if [ ! -f "${identity_json}" ]; then
+    return 0
+  fi
+
+  local yosys_log="${RESULT_DIR}/yosys.log"
+
+  # Extract ABC version from yosys log
+  local abc_version="N/A"
+  if [ -f "${yosys_log}" ]; then
+    abc_version=$(grep -oP 'ABC \(version [^)]+\)' "${yosys_log}" 2>/dev/null | head -1 || echo "N/A")
+    if [ -z "${abc_version}" ]; then
+      abc_version=$(grep -oP 'UC Berkeley, ABC [\d.]+' "${yosys_log}" 2>/dev/null | head -1 || echo "N/A")
+    fi
+  fi
+
+  if [ "${abc_version}" != "N/A" ] && [ "${abc_version}" != "PENDING" ]; then
+    python3 -c "
+import json
+with open('${identity_json}', 'r') as f:
+    data = json.load(f)
+data['abc_version'] = '${abc_version}'
+with open('${identity_json}', 'w') as f:
+    json.dump(data, f, indent=2, sort_keys=True)
+" 2>/dev/null || true
+    info "Enriched input_identity.json with ABC version: ${abc_version}"
+  fi
+}
+
+# Recover the historical/default yosys-sta flow from git evidence (commit 79952c4).
+# Saves the recovered pass sequence to exp_a_upstream_default/yosys_pass_sequence.txt.
+recover_exp_a_flow() {
+  local exp_dir="${OUTPUT_DIR}/exp_a_upstream_default"
+  mkdir -p "${exp_dir}"
+
+  local yosys_sta_git="${YOSYS_STA_HOME}"
+  local historical_commit="79952c4"
+
+  info "Recovering historical flow (exp_a_upstream_default) from commit ${historical_commit}..."
+
+  if ! git -C "${yosys_sta_git}" rev-parse --verify "${historical_commit}^{commit}" >/dev/null 2>&1; then
+    warn "Historical commit ${historical_commit} not found in yosys-sta git history"
+    warn "exp_a_upstream_default recovery requires a full yosys-sta git clone with history"
+    return 0
+  fi
+
+  local historical_tcl
+  historical_tcl=$(git -C "${yosys_sta_git}" show "${historical_commit}:scripts/yosys.tcl" 2>/dev/null || echo "")
+  if [ -z "${historical_tcl}" ]; then
+    warn "Could not retrieve scripts/yosys.tcl from commit ${historical_commit}"
+    return 0
+  fi
+
+  # Extract the canonical pass sequence from the historical yosys.tcl.
+  # The pass sequence is everything from "yosys -import" to the final "write_verilog".
+  # We capture Yosys commands and their arguments, resolving key variables.
+  local pass_sequence_txt="${exp_dir}/yosys_pass_sequence.txt"
+  local exp_yosys_tcl="${exp_dir}/yosys_historical_79952c4.tcl"
+
+  # Save the full historical Tcl for archival reference
+  echo "${historical_tcl}" > "${exp_yosys_tcl}"
+  info "Saved historical yosys.tcl (79952c4) → ${exp_yosys_tcl}"
+
+  # Extract the pass sequence: commands after "yosys -import" until EOF,
+  # filtering to substantive Yosys operations and resolving variable references.
+  python3 -c "
+import re, sys
+
+tcl_content = open('${exp_yosys_tcl}', 'r').read()
+
+# Find the main running section (after 'yosys -import')
+match = re.search(r'yosys -import.*?\n(.*)', tcl_content, re.DOTALL)
+if not match:
+    print('ERROR: Could not find yosys -import in historical Tcl')
+    sys.exit(0)
+
+main_section = match.group(1)
+
+# Resolve known variable values from the historical Tcl and current env
+var_map = {
+    'DESIGN': '${DESIGN}',
+    'CLK_PERIOD_PS': '10000',  # 100 MHz
+    'NETLIST_SYN_V': '${DESIGN}.netlist.v',
+    'sdc_file': 'abc.sdc',
+    'strategy_script': '\$strategy_script (ABC mapping)',
+    'INO_INSERT_BUF': 'BUF_X8 (historical; current PDK uses BUF_CELL=BUF_X8)',
+    'BUF_CELL': 'BUF_X8',
+}
+
+# Extract command lines: non-comment, non-blank lines that are actual Tcl commands
+lines = []
+in_comment_block = False
+for raw in main_section.split('\n'):
+    stripped = raw.strip()
+    if not stripped or stripped.startswith('#'):
+        continue
+    # Skip variable assignments and control-flow statements
+    if re.match(r'^\s*(set|foreach|if|proc|log|tee|read_verilog|read_liberty)\s', stripped):
+        continue
+    # Skip closing braces
+    if stripped in ('}', ']'):
+        continue
+    # Resolve variables
+    for var, val in var_map.items():
+        stripped = stripped.replace('\$' + var, val)
+        stripped = stripped.replace('\${' + var + '}', val)
+        # Also handle Tcl variable substitution in braced contexts
+        stripped = re.sub(r'\\\$' + re.escape(var), val, stripped)
+    # Skip lines that are still pure variable expansions
+    if stripped.startswith('{*}'):
+        continue
+    lines.append(stripped)
+
+# Write the pass sequence
+with open('${pass_sequence_txt}', 'w') as f:
+    f.write('# =============================================================================\n')
+    f.write('# yosys_pass_sequence.txt — exp_a_upstream_default (historical flow)\n')
+    f.write('# =============================================================================\n')
+    f.write('# Source: yosys-sta commit 79952c4 (refactor: remove unsed read_constr in abc)\n')
+    f.write('# Recovered: $(date -u '+%Y-%m-%dT%H:%M:%SZ')\n')
+    f.write('#\n')
+    f.write('# Driver cell note: historical used \$INO_INSERT_BUF (BUF_X8);\n')
+    f.write('# current PDK (nangate45.tcl) uses \$BUF_CELL (BUF_X8). Both resolve to\n')
+    f.write('# the same BUF_X8 cell — this is an alias change, not a real cell change.\n')
+    f.write('#\n')
+    f.write('# Key difference from current flow:\n')
+    f.write('#   synth -top \$DESIGN -flatten -run :fine  ← FLATTEN during coarse (pre-ABC)\n')
+    f.write('#   vs current: synth -top \$DESIGN -run :fine  ← no flatten (post-ABC flatten)\n')
+    f.write('# =============================================================================\n')
+    f.write('\n')
+    for i, line in enumerate(lines, 1):
+        f.write(f'{line}\n')
+
+print(f'Pass sequence written: ${pass_sequence_txt} ({len(lines)} command(s))')
+" 2>/dev/null || warn "Failed to extract pass sequence from historical yosys.tcl"
+
+  # Record the recovery metadata
+  local recovery_meta="${exp_dir}/recovery_metadata.json"
+  python3 -c "
+import json, subprocess, os
+meta = {
+    'source_commit': '${historical_commit}',
+    'source_repo': '${yosys_sta_git}',
+    'source_file': 'scripts/yosys.tcl',
+    'recovered_at': '$(date -u '+%Y-%m-%dT%H:%M:%SZ')',
+    'driver_cell_note': 'historical INO_INSERT_BUF (BUF_X8) → current BUF_CELL (BUF_X8)',
+    'key_difference': 'synth -flatten -run :fine (pre-ABC flatten) vs synth -run :fine (post-ABC flatten)',
+    'design': '${DESIGN}',
+    'target_clock_mhz': ${CLK_FREQ_MHZ},
+}
+with open('${recovery_meta}', 'w') as f:
+    json.dump(meta, f, indent=2, sort_keys=True)
+print(f'Recovery metadata written: ${recovery_meta}')
+" 2>/dev/null || true
+
+  info "Historical flow recovery complete for exp_a_upstream_default"
+  info "  pass sequence: ${pass_sequence_txt}"
+  info "  historical Tcl: ${exp_yosys_tcl}"
+  info "  recovery metadata: ${recovery_meta}"
+}
+
 # ── pre-flight validation ──────────────────────────────────────────
 info "=== NPC Synthesis: ${DESIGN} @ ${CLK_FREQ_MHZ}MHz (clock port: ${CLK_PORT_NAME}) ==="
 
@@ -139,6 +496,44 @@ case "${SYNTH_QOR_VIEW}" in
     ;;
 esac
 export SYNTH_FLATTEN
+
+# ── experiment routing ──────────────────────────────────────────
+# When SYNTH_EXPERIMENT is set, redirect output to a per-experiment
+# directory.  The experiment name determines the pass-order axes;
+# SYNTH_QOR_VIEW is ignored (the experiment bakes in its own flatten
+# strategy).  Reject unrecognised experiment names so non-experiment
+# drift cannot slip through.
+if [ -n "${SYNTH_EXPERIMENT}" ]; then
+  case "${SYNTH_EXPERIMENT}" in
+    exp_a_upstream_default|exp_b_flatten_pre_abc|exp_c_hier_abc|exp_d_postmap_flat)
+      OUTPUT_DIR="${OUTPUT_DIR}/${SYNTH_EXPERIMENT}"
+      info "Experiment mode: ${SYNTH_EXPERIMENT}"
+      info "  Output directory: ${OUTPUT_DIR}"
+      info "  (SYNTH_QOR_VIEW is ignored — experiment bakes in flatten strategy)"
+      # Reset SYNTH_FLATTEN to a neutral value; yosys.tcl uses SYNTH_EXPERIMENT
+      # directly to determine flatten timing.
+      ;;
+    *)
+      cat >&2 <<'EXPERR'
+============================================================
+ SYNTH_EXPERIMENT REJECTED
+============================================================
+The requested SYNTH_EXPERIMENT is not one of the four plan-
+defined profiles.  Valid values:
+
+  exp_a_upstream_default   – historical flow (pre-ABC flatten)
+  exp_b_flatten_pre_abc    – early flatten, modern PDK
+  exp_c_hier_abc           – hierarchical ABC, NO flatten
+  exp_d_postmap_flat       – hierarchical ABC, flatten after map
+
+Other values are rejected to prevent accidental non-experiment
+drift from polluting the controlled comparison matrix.
+============================================================
+EXPERR
+      die "Unknown SYNTH_EXPERIMENT='${SYNTH_EXPERIMENT}' — must be one of: exp_a_upstream_default, exp_b_flatten_pre_abc, exp_c_hier_abc, exp_d_postmap_flat"
+      ;;
+  esac
+fi
 
 # Validate toolchain
 require_cmd yosys
@@ -199,12 +594,21 @@ info "Top module '${DESIGN}' found ✓"
 # Build space-separated file list for yosys-sta
 RTL_FILE_LIST="${RTL_FILES[*]}"
 
+# ── collect input identity (pre-synthesis) ──
+collect_input_identity
+
 # ── invoke yosys-sta ───────────────────────────────────────────────
 mkdir -p "${OUTPUT_DIR}"
 
 SYNTH_MAKE_LOG="${OUTPUT_DIR}/synth_make.log"
-VIEW_OUT_DIR="${OUTPUT_DIR}/${SYNTH_QOR_VIEW}"
-RESULT_DIR="${VIEW_OUT_DIR}/${DESIGN}-${CLK_FREQ_MHZ}MHz"
+# For experiments, the experiment name IS the view; bypass SYNTH_QOR_VIEW.
+if [ -n "${SYNTH_EXPERIMENT}" ]; then
+  RESULT_DIR="${OUTPUT_DIR}/${DESIGN}-${CLK_FREQ_MHZ}MHz"
+  VIEW_OUT_DIR="${OUTPUT_DIR}"
+else
+  VIEW_OUT_DIR="${OUTPUT_DIR}/${SYNTH_QOR_VIEW}"
+  RESULT_DIR="${VIEW_OUT_DIR}/${DESIGN}-${CLK_FREQ_MHZ}MHz"
+fi
 
 if [ "${SYNTH_SEARCH}" = "on" ] || [ "${SYNTH_SEARCH}" = "1" ] || [ "${SYNTH_SEARCH}" = "true" ]; then
   # ── frequency search mode ────────────────────────────────────────
@@ -253,9 +657,14 @@ if [ "${SYNTH_SEARCH}" = "on" ] || [ "${SYNTH_SEARCH}" = "1" ] || [ "${SYNTH_SEA
 
 else
   # ── single-shot mode ─────────────────────────────────────────────
-  info "Launching yosys-sta (PDK: nangate45, view: ${SYNTH_QOR_VIEW})..."
+  if [ -n "${SYNTH_EXPERIMENT}" ]; then
+    info "Launching yosys-sta (PDK: nangate45, experiment: ${SYNTH_EXPERIMENT})..."
+  else
+    info "Launching yosys-sta (PDK: nangate45, view: ${SYNTH_QOR_VIEW})..."
+  fi
 
   set +e
+  SYNTH_EXPERIMENT="${SYNTH_EXPERIMENT:-}" \
   make -C "${YOSYS_STA_HOME}" syn sta \
     DESIGN="${DESIGN}" \
     SDC_FILE="${SDC_FILE}" \
@@ -314,6 +723,66 @@ fi
 
 # ── post-synthesis: verify reports ─────────────────────────────────
 info "Synthesis completed. Verifying output reports..."
+
+# ── enrich input identity with post-synthesis fields ──
+enrich_input_identity
+
+# ── historical flow recovery (exp_a_upstream_default) ──
+# This writes archival yosys_historical_79952c4.tcl and recovery_metadata.json
+# to the root-level exp_a directory for documentation purposes.
+if [ "${SYNTH_EXPERIMENT}" = "exp_a_upstream_default" ]; then
+  recover_exp_a_flow
+fi
+
+# ── experiment pass sequence verification ──────────────────
+# Every experiment run must produce yosys_pass_sequence.txt in its
+# result directory (written by yosys.tcl during synthesis).  Missing
+# pass sequences are treated as hard failures — the experiment did
+# not record its pass-order axes, making downstream diff impossible.
+if [ -n "${SYNTH_EXPERIMENT}" ]; then
+  PASS_SEQ="${RESULT_DIR}/yosys_pass_sequence.txt"
+  if [ -f "${PASS_SEQ}" ] && [ -s "${PASS_SEQ}" ]; then
+    info "Experiment pass sequence recorded: ${PASS_SEQ} ✓"
+  else
+    die "Experiment ${SYNTH_EXPERIMENT} completed but yosys_pass_sequence.txt is missing or empty at ${PASS_SEQ}. The pass sequence is required for experiment diffs."
+  fi
+fi
+
+# ── stage stat checkpoint verification ──────────────────────
+# Stage checkpoints are written by yosys.tcl during synthesis.
+# Missing stage files are non-fatal at this level (some stages may be
+# skipped depending on the experiment profile), but missing "final"
+# or "post_abc" is suspicious and generates loud warnings.
+STAGE_NAMES="post_proc post_flatten post_share post_clock_gating post_dff_mapping pre_abc post_abc final"
+MISSING_STAGES=""
+CRITICAL_STAGES_MISSING=""
+for stage in ${STAGE_NAMES}; do
+  if [ -f "${RESULT_DIR}/stage_${stage}.json" ] && [ -s "${RESULT_DIR}/stage_${stage}.json" ]; then
+    info "  stage checkpoint: ${stage} ✓"
+  else
+    MISSING_STAGES="${MISSING_STAGES} ${stage}"
+    case "${stage}" in
+      final|post_abc)
+        CRITICAL_STAGES_MISSING="${CRITICAL_STAGES_MISSING} ${stage}"
+        ;;
+    esac
+  fi
+done
+
+if [ -n "${MISSING_STAGES}" ]; then
+  warn "Stage checkpoints missing:${MISSING_STAGES}"
+  if [ -n "${CRITICAL_STAGES_MISSING}" ]; then
+    warn "CRITICAL stages missing:${CRITICAL_STAGES_MISSING} — the CSV comparison will be incomplete"
+  fi
+  # Check if stage_order.txt was emitted (tells us which stages were expected)
+  if [ -f "${RESULT_DIR}/stage_order.txt" ]; then
+    info "  stage_order.txt exists — missing stages may be expected for this experiment profile"
+  else
+    warn "  stage_order.txt is also missing — stage emission may have failed entirely"
+  fi
+else
+  info "All stage checkpoints present ✓"
+fi
 
 REQUIRED_REPORTS=(
   "${DESIGN}.netlist.v"
@@ -517,10 +986,16 @@ PROV_FANOUT_SOURCE="full_netlist"
 
 # For canonical_flat, write summary to the root output directory (backward compat).
 # For hierarchy_attribution, write summary inside the view directory.
-if [ "${SYNTH_QOR_VIEW}" = "canonical_flat" ]; then
+# For experiments, write summary inside the experiment directory.
+if [ -n "${SYNTH_EXPERIMENT}" ]; then
   SUMMARY_OUT_DIR="${OUTPUT_DIR}"
+  QOR_VIEW_ARG="${SYNTH_QOR_VIEW}"
+elif [ "${SYNTH_QOR_VIEW}" = "canonical_flat" ]; then
+  SUMMARY_OUT_DIR="${OUTPUT_DIR}"
+  QOR_VIEW_ARG="${SYNTH_QOR_VIEW}"
 else
   SUMMARY_OUT_DIR="${VIEW_OUT_DIR}"
+  QOR_VIEW_ARG="${SYNTH_QOR_VIEW}"
 fi
 
 python3 "${SCRIPT_DIR}/synth_summary.py" \
@@ -537,11 +1012,73 @@ python3 "${SCRIPT_DIR}/synth_summary.py" \
   --cpu-commit "${PROV_CPU_COMMIT}" \
   --generated-at "${PROV_GENERATED_AT}" \
   --fanout-source "${PROV_FANOUT_SOURCE}" \
-  --qor-view "${SYNTH_QOR_VIEW}" \
+  --qor-view "${QOR_VIEW_ARG}" \
   --sdc-file "${SDC_FILE}" \
   --ieda-bin "${YOSYS_STA_HOME}/bin/iEDA" \
   --yosys-sta-home "${YOSYS_STA_HOME}" \
   || warn "Failed to write synth summary JSON/text/hotspots"
+
+# ── generate stage comparison CSV (experiment mode) ─────────────
+# The stage comparison CSV collects metrics across all experiments that
+# have been run so far.  In experiment mode, this rebuilds the full CSV.
+if [ -n "${SYNTH_EXPERIMENT}" ]; then
+  STAGE_CSV_ROOT="${OUTPUT_DIR}/.."
+  info "Generating stage comparison CSV from experiments under ${STAGE_CSV_ROOT}..."
+  python3 "${SCRIPT_DIR}/synth_summary.py" \
+    --stage-csv \
+    --synth-root "${STAGE_CSV_ROOT}" \
+    --output-dir "${OUTPUT_DIR}" \
+    --design "${DESIGN}" \
+    --target-mhz "${CLK_FREQ_MHZ}" \
+    || warn "Failed to generate stage comparison CSV"
+fi
+
+# ── equivalence check (experiment mode, after all experiments run) ──
+# Compares each experiment's pre-ABC netlist against the shared RTL
+# gold model using Yosys equiv_make / equiv_simple / equiv_induct.
+# The identity gate (generated_verilog_sha256 match) controls comparability.
+# Blocked experiments (missing netlists, hash mismatches, unsupported cells)
+# are documented as explicit limitations and backstopped by functional tests.
+# This is a documentation step only — it does NOT fail the synthesis.
+if [ -n "${SYNTH_EXPERIMENT}" ]; then
+  SYNTH_ROOT="${OUTPUT_DIR}/.."
+  EQUIV_CHECK_PY="${SCRIPT_DIR}/equiv_check.py"
+
+  if [ -f "${EQUIV_CHECK_PY}" ]; then
+    YOSYS_BIN=""
+    if command -v yosys >/dev/null 2>&1; then
+      YOSYS_BIN="yosys"
+    else
+      YOSYS_BIN_NIX="/nix/store/mq1s3n96svwlp9h8h8d4r9rbn4wd7hkb-yosys-0.62/bin/yosys"
+      if [ -x "${YOSYS_BIN_NIX}" ]; then
+        YOSYS_BIN="${YOSYS_BIN_NIX}"
+      fi
+    fi
+
+    if [ -n "${YOSYS_BIN}" ]; then
+      info "Running equivalence check (experiment mode)..."
+      set +e
+      python3 "${EQUIV_CHECK_PY}" \
+        --synth-root "${SYNTH_ROOT}" \
+        --gold-exp "exp_d_postmap_flat" \
+        --top-module "${DESIGN}" \
+        --yosys-bin "${YOSYS_BIN}" \
+        --output-dir "${OUTPUT_DIR}" \
+        --max-seq 10 \
+        --timeout 600 \
+        2>&1
+      EQUIV_EXIT=$?
+      set -e
+      if [ ${EQUIV_EXIT} -ne 0 ]; then
+        warn "Equivalence check completed with non-zero exit (${EQUIV_EXIT}) — see equivalence_report.rpt for details"
+      fi
+    else
+      warn "Yosys not found — equivalence check skipped (install yosys or set YOSYS_BIN)"
+    fi
+  else
+    warn "Equivalence check script not found: ${EQUIV_CHECK_PY}"
+  fi
+fi
 
 # ── verify timing classification report files (post rendering) ─────
 # These are generated by synth_timing.py during summary rendering.
@@ -609,7 +1146,9 @@ fi
 # ── area flow comparison report (when both views exist) ──────────────────
 # Only meaningful in single-shot mode; search mode has its own multi-probe
 # output and doesn't need a cross-view comparison.
-if [ "${SYNTH_SEARCH}" != "on" ] && [ "${SYNTH_SEARCH}" != "1" ] && [ "${SYNTH_SEARCH}" != "true" ]; then
+# Experiments have their own dedicated comparison via synthesis_flow_diff.rpt.
+if [ "${SYNTH_SEARCH}" != "on" ] && [ "${SYNTH_SEARCH}" != "1" ] && [ "${SYNTH_SEARCH}" != "true" ] \
+   && [ -z "${SYNTH_EXPERIMENT}" ]; then
   OTHER_VIEW=""
   if [ "${SYNTH_QOR_VIEW}" = "canonical_flat" ]; then
     OTHER_VIEW="hierarchy_attribution"
@@ -619,6 +1158,12 @@ if [ "${SYNTH_SEARCH}" != "on" ] && [ "${SYNTH_SEARCH}" != "1" ] && [ "${SYNTH_S
   OTHER_RESULT_DIR="${OUTPUT_DIR}/${OTHER_VIEW}/${DESIGN}-${CLK_FREQ_MHZ}MHz"
   if [ -d "${OTHER_RESULT_DIR}" ]; then
     info "Both QoR views present — generating area flow comparison report..."
+    # Pass the input identity for hash-gate validation (fail-closed on mismatch)
+    IDENTITY_JSON="${OUTPUT_DIR}/input_identity.json"
+    IDENTITY_ARG=""
+    if [ -f "${IDENTITY_JSON}" ]; then
+      IDENTITY_ARG="--identity ${IDENTITY_JSON}"
+    fi
     python3 "${SCRIPT_DIR}/synth_summary.py" \
       --compare \
       --design "${DESIGN}" \
@@ -626,6 +1171,7 @@ if [ "${SYNTH_SEARCH}" != "on" ] && [ "${SYNTH_SEARCH}" != "1" ] && [ "${SYNTH_S
       --canonical-dir "${OUTPUT_DIR}/canonical_flat/${DESIGN}-${CLK_FREQ_MHZ}MHz" \
       --attribution-dir "${OUTPUT_DIR}/hierarchy_attribution/${DESIGN}-${CLK_FREQ_MHZ}MHz" \
       --output-dir "${OUTPUT_DIR}" \
+      ${IDENTITY_ARG} \
       || warn "Failed to generate area flow comparison report"
   fi
 fi

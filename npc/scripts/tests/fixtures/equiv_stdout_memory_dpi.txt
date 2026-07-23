@@ -1,0 +1,12 @@
+1. Executing EQUIV_MAKE pass.
+WARNING: Cell type '$mem' is not supported by equivalence checking.
+WARNING: DPI module 'StandaloneMemDPI' is a black-box -- equivalence cannot be proven.
+   Found 50 $equiv cells in equiv.
+
+2. Executing EQUIV_SIMPLE pass.
+   Proved 50 previously unproven $equiv cells.
+
+3. Executing EQUIV_STATUS pass.
+   Found 50 $equiv cells in equiv:
+     Of those cells 50 are proven and 0 are unproven.
+     Equivalence successfully proven!

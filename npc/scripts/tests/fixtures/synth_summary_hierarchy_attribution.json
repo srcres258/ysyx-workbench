@@ -1,0 +1,119 @@
+{
+  "schema_version": 4,
+  "design": "ysyx_25070190",
+  "target_mhz": 100,
+  "final_mhz": 154,
+  "wns_ns": 3.523,
+  "tns_ns": 0.0,
+  "cell_count": 11588,
+  "area_um2": 23598.456,
+  "global_derived_fmax_mhz": 154,
+  "core_reg2reg_fmax_mhz": null,
+  "core_data_reg2reg_fmax_mhz": null,
+  "area_budget_um2": 23000,
+  "view_type": "hierarchy_attribution",
+  "canonical_flat_area_um2": null,
+  "hierarchy_attribution_area_um2": 23598.456,
+  "area_attribution_overhead_um2": null,
+  "area_attribution_overhead_percent": null,
+  "core_data_reg2reg_source": "none",
+  "budget_pass": false,
+  "area_by_hierarchy": [],
+  "area_by_cell_class": {},
+  "area_hierarchy_source": "hierarchy-preserved",
+  "timing": {
+    "global": {"wns_ns": 3.523, "tns_ns": 0.0},
+    "reg2reg": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "data_reg2reg": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "in2reg": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "reg2out": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "in2out": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "clock_enable": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "clock_gating_setup": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "hold": {"wns_ns": null, "tns_ns": null, "endpoint_count": 0, "top_paths": []}
+  },
+  "path_groups": [],
+  "high_fanout": [],
+  "unconstrained": [],
+  "warnings": [],
+  "area": {
+    "total_cells": 11588,
+    "total_area_um2": 23598.456,
+    "budget_um2": 23000,
+    "utilisation_pct": 102.6,
+    "by_hierarchy": [],
+    "by_cell_class": {},
+    "hierarchy_source": "hierarchy-preserved",
+    "canonical_flat_area_um2": null,
+    "hierarchy_attribution_area_um2": 23598.456,
+    "area_attribution_overhead_um2": null,
+    "area_attribution_overhead_percent": null
+  },
+  "fanout": {
+    "high_fanout_nets": [],
+    "source": "full_netlist"
+  },
+  "constraints": {
+    "constrained_endpoints": 0,
+    "total_endpoints_in_netlist": 2067,
+    "unconstrained_endpoints": [],
+    "coverage_status": "unavailable",
+    "coverage_is_complete": false,
+    "coverage_has_evidence": false,
+    "unconstrained_is_complete": false
+  },
+  "provenance": {
+    "yosys_version": "0.62",
+    "ieda_version": "2025-07-01",
+    "pdk": "nangate45",
+    "liberty": "NangateOpenCellLibrary_ss_typical.lib",
+    "workbench_commit": "deadbeef",
+    "cpu_commit": "N/A",
+    "target_mhz": "100",
+    "generated_at": "2026-07-23T00:00:00Z",
+    "sta_tool": "iEDA",
+    "view_type": "hierarchy_attribution",
+    "schema_version": "4",
+    "qor_view": "hierarchy_attribution"
+  },
+  "canonical_baseline": {
+    "flow_id": "hierarchy_attribution_v4_no_flatten",
+    "flow_description": "synth -top $DESIGN -run :fine (no -flatten), share -aggressive (hierarchical), clockgate, dfflibmap, abc (hierarchical), no flatten -- hierarchy preserved for STA",
+    "decision_reason": "The hierarchy-attribution view is analysis-only. It is NOT authoritative for QoR.",
+    "canonical_sha256": "N/A",
+    "canonical_cell_count": 11588,
+    "canonical_area_um2": 23598.456,
+    "hierarchy_attribution_area_um2": 23598.456,
+    "area_difference_reason": "Same mapped cells as canonical_flat; hierarchy is preserved for per-module area attribution.",
+    "baseline_comparable": false,
+    "historical_reference_only": true,
+    "historical_flow_commit": "79952c4",
+    "historical_cell_count_approx": null,
+    "historical_area_um2_approx": null,
+    "flow_comparison": [
+      {
+        "flow": "canonical_flat (current, v4 late-flatten)",
+        "cells": 11588,
+        "area_um2": 23598.46,
+        "status": "canonical",
+        "comparable_to_baseline": true
+      },
+      {
+        "flow": "hierarchy_attribution (current, v4 no-flatten)",
+        "cells": 11588,
+        "area_um2": 23598.456,
+        "status": "analysis-only",
+        "comparable_to_baseline": true
+      },
+      {
+        "flow": "historical (yosys-sta 79952c4, pre-ABC flatten)",
+        "cells": 8881,
+        "area_um2": 19650.75,
+        "status": "non-comparable (RTL changed, identity gate fail-closed)",
+        "comparable_to_baseline": false,
+        "note": "RTL has changed since the historical run. These numbers are preserved for historical reference ONLY."
+      }
+    ],
+    "decision_timestamp": "2026-07-23T00:00:00+00:00"
+  }
+}

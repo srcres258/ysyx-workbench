@@ -1,0 +1,13 @@
+1. Executing EQUIV_MAKE pass.
+   Found 127 $equiv cells in equiv.
+
+2. Executing EQUIV_SIMPLE pass.
+   Proved 127 previously unproven $equiv cells.
+
+3. Executing EQUIV_INDUCT pass.
+   Proved 0 previously unproven $equiv cells.
+
+4. Executing EQUIV_STATUS pass.
+   Found 127 $equiv cells in equiv:
+     Of those cells 127 are proven and 0 are unproven.
+     Equivalence successfully proven!

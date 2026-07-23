@@ -1214,5 +1214,158 @@ class TestV4Schema(unittest.TestCase):
             self.assertIn(field, constraints, f"v4 constraints missing field: {field}")
 
 
+class TestCellTypeDelta(unittest.TestCase):
+
+    def setUp(self):
+        import tempfile
+        self._tmpdir = tempfile.mkdtemp(prefix="test_ct_delta_")
+        self._tmp = Path(self._tmpdir)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_extract_deltas_basic(self):
+        from synth_summary import extract_cell_type_deltas
+        old_json = str(Path(fixture("synth_hierarchy_delta_old.json")))
+        new_json = str(Path(fixture("synth_hierarchy_delta_new.json")))
+        records, old_total, new_total, warnings = extract_cell_type_deltas(
+            old_json_path=old_json,
+            new_json_path=new_json,
+            old_label="canonical_flat",
+            new_label="hierarchy_attribution",
+        )
+        self.assertEqual(old_total, 2000.0)
+        self.assertEqual(new_total, 2200.0)
+        self.assertGreater(len(records), 5)
+
+    def test_extract_deltas_dff_x1(self):
+        from synth_summary import extract_cell_type_deltas
+        old_json = str(Path(fixture("synth_hierarchy_delta_old.json")))
+        new_json = str(Path(fixture("synth_hierarchy_delta_new.json")))
+        records, _, _, _ = extract_cell_type_deltas(
+            old_json_path=old_json, new_json_path=new_json,
+        )
+        dff_x1 = [r for r in records if r.cell_type == "DFF_X1"]
+        self.assertEqual(len(dff_x1), 1)
+        r = dff_x1[0]
+        self.assertEqual(r.old_count, 200)
+        self.assertEqual(r.new_count, 180)
+        self.assertEqual(r.delta_count, -20)
+        self.assertEqual(r.old_area, 900.0)
+        self.assertEqual(r.new_area, 810.0)
+        self.assertEqual(r.delta_area, -90.0)
+        self.assertEqual(r.sub_class, "DFF")
+        self.assertEqual(r.category, "sequential")
+
+    def test_extract_deltas_new_cell_type(self):
+        from synth_summary import extract_cell_type_deltas
+        old_json = str(Path(fixture("synth_hierarchy_delta_old.json")))
+        new_json = str(Path(fixture("synth_hierarchy_delta_new.json")))
+        records, _, _, _ = extract_cell_type_deltas(
+            old_json_path=old_json, new_json_path=new_json,
+        )
+        inv_x4 = [r for r in records if r.cell_type == "INV_X4"]
+        self.assertEqual(len(inv_x4), 1)
+        r = inv_x4[0]
+        self.assertEqual(r.old_count, 0)
+        self.assertEqual(r.new_count, 37)
+        self.assertEqual(r.delta_count, 37)
+        self.assertEqual(r.sub_class, "buffer/inverter")
+        self.assertTrue(r.is_large_drive)
+
+    def test_extract_deltas_large_drive_flag(self):
+        from synth_summary import extract_cell_type_deltas
+        old_json = str(Path(fixture("synth_hierarchy_delta_old.json")))
+        new_json = str(Path(fixture("synth_hierarchy_delta_new.json")))
+        records, _, _, _ = extract_cell_type_deltas(
+            old_json_path=old_json, new_json_path=new_json,
+        )
+        large = [r for r in records if r.is_large_drive]
+        self.assertGreaterEqual(len(large), 3)
+
+    def test_extract_deltas_signed_descending_order(self):
+        """Largest area increases must appear first; negatives last."""
+        from synth_summary import extract_cell_type_deltas
+        old_json = str(Path(fixture("synth_hierarchy_delta_old.json")))
+        new_json = str(Path(fixture("synth_hierarchy_delta_new.json")))
+        records, _, _, _ = extract_cell_type_deltas(
+            old_json_path=old_json, new_json_path=new_json,
+        )
+        deltas = [r.delta_area for r in records]
+        self.assertEqual(deltas, sorted(deltas, reverse=True))
+        # INV_X4 (+49.0) must be before DFF_X1 (-90.0)
+        inv_idx = next(i for i, r in enumerate(records) if r.cell_type == "INV_X4")
+        dff_idx = next(i for i, r in enumerate(records) if r.cell_type == "DFF_X1")
+        self.assertLess(inv_idx, dff_idx, "INV_X4 (+49) must appear before DFF_X1 (-90)")
+        # DFF_X1 (-90) must be last since it's the only negative
+        self.assertEqual(records[-1].cell_type, "DFF_X1")
+
+    def test_extract_deltas_zero_delta_counts(self):
+        from synth_summary import extract_cell_type_deltas
+        old_json = str(Path(fixture("synth_hierarchy_delta_old.json")))
+        new_json = str(Path(fixture("synth_hierarchy_delta_new.json")))
+        records, _, _, _ = extract_cell_type_deltas(
+            old_json_path=old_json, new_json_path=new_json,
+        )
+        zero_delta = [r for r in records if r.delta_area == 0.0 and r.delta_count == 0
+                      and r.old_count == 0]
+        self.assertEqual(len(zero_delta), 0)
+
+    def test_extract_deltas_missing_file_raises(self):
+        from synth_summary import extract_cell_type_deltas
+        with self.assertRaises((FileNotFoundError, ValueError)):
+            extract_cell_type_deltas(
+                old_json_path="/nonexistent/path.json",
+                new_json_path="/nonexistent/path2.json",
+            )
+
+    def test_write_cell_type_delta_report(self):
+        from synth_summary import extract_cell_type_deltas, write_cell_type_delta_report
+        old_json = str(Path(fixture("synth_hierarchy_delta_old.json")))
+        new_json = str(Path(fixture("synth_hierarchy_delta_new.json")))
+        records, old_total, new_total, warnings = extract_cell_type_deltas(
+            old_json_path=old_json, new_json_path=new_json,
+            old_label="canonical_flat", new_label="hierarchy_attribution",
+        )
+        out = self._tmp / "cell_type_delta.rpt"
+        write_cell_type_delta_report(
+            delta_records=records,
+            old_total_area=old_total,
+            new_total_area=new_total,
+            output_path=out,
+            old_label="canonical_flat",
+            new_label="hierarchy_attribution",
+            extra_warnings=warnings,
+        )
+        self.assertTrue(out.exists())
+        text = out.read_text()
+        self.assertIn("CELL TYPE DELTA REPORT", text)
+        self.assertIn("canonical_flat", text)
+        self.assertIn("hierarchy_attribution", text)
+        self.assertIn("DFF_X1", text)
+        self.assertIn("DFF_X8", text)
+        self.assertIn("INV_X4", text)
+        self.assertIn("SUB-CLASS AGGREGATES", text)
+        self.assertIn("large-drive-cell", text)
+        self.assertIn("VIEW AUTHORITY", text)
+
+    def test_write_cell_type_delta_report_empty(self):
+        from synth_summary import write_cell_type_delta_report
+        out = self._tmp / "cell_type_delta.rpt"
+        write_cell_type_delta_report(
+            delta_records=[],
+            old_total_area=0.0,
+            new_total_area=0.0,
+            output_path=out,
+            old_label="old",
+            new_label="new",
+        )
+        self.assertTrue(out.exists())
+        text = out.read_text()
+        self.assertIn("CELL TYPE DELTA REPORT", text)
+        self.assertIn("Distinct cell types compared: 0", text)
+
+
 if __name__ == "__main__":
     unittest.main()

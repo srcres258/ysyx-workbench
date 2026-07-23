@@ -1,0 +1,218 @@
+{
+  "schema_version": 4,
+  "design": "ysyx_25070190",
+  "target_mhz": 100,
+  "final_mhz": 154,
+  "wns_ns": 3.523,
+  "tns_ns": 0.0,
+  "cell_count": 11588,
+  "area_um2": 23598.46,
+  "global_derived_fmax_mhz": 154,
+  "core_reg2reg_fmax_mhz": null,
+  "core_data_reg2reg_fmax_mhz": 753,
+  "area_budget_um2": 23000,
+  "area_by_hierarchy": [
+    {
+      "instance_path": "ysyx_25070190",
+      "module_name": "ysyx_25070190",
+      "parent_path": "",
+      "depth": 0,
+      "instance_count": 1,
+      "local_cells": 1530,
+      "local_area": 5535.992,
+      "recursive_cells": 11588,
+      "recursive_area": 23598.456,
+      "pct_of_top_area": 100.0,
+      "categories": {
+        "sequential": {"count": 2896, "area": 13095.712},
+        "combinational": {"count": 6942, "area": 8277.92},
+        "clock-gating": {"count": 51, "area": 176.358},
+        "buffer/inverter": {"count": 1110, "area": 957.334},
+        "mux": {"count": 582, "area": 1087.408},
+        "arithmetic": {"count": 0, "area": 0.0},
+        "other": {"count": 7, "area": 3.724}
+      }
+    }
+  ],
+  "area_by_cell_class": {
+    "sequential": {"cell_count": 2896, "area_um2": 13095.712},
+    "combinational": {"cell_count": 6942, "area_um2": 8277.92},
+    "clock-gating": {"cell_count": 51, "area_um2": 176.358},
+    "buffer/inverter": {"cell_count": 1110, "area_um2": 957.334},
+    "mux": {"cell_count": 582, "area_um2": 1087.408},
+    "arithmetic": {"cell_count": 0, "area_um2": 0.0},
+    "other": {"cell_count": 7, "area_um2": 3.724}
+  },
+  "area_hierarchy_source": "json-derived",
+  "timing": {
+    "global": {"wns_ns": 3.523, "tns_ns": 0.0},
+    "reg2reg": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "data_reg2reg": {
+      "wns_ns": 8.672,
+      "tns_ns": 0,
+      "path_count": 50,
+      "top_paths": [
+        {
+          "startpoint": "reg_1_aluPortBSel_reg_p:Q",
+          "endpoint": "reg_2_pcTarget_21__reg_p:D",
+          "startpoint_type": "sequential",
+          "endpoint_type": "sequential",
+          "startpoint_pin": "Q",
+          "endpoint_pin": "D",
+          "delay_type": "max",
+          "clock_group": "",
+          "slack": 8.672,
+          "path_delay": 1.091,
+          "path_required": 9.763,
+          "category": "data_reg2reg"
+        },
+        {
+          "startpoint": "reg_1_aluPortBSel_reg_p:Q",
+          "endpoint": "reg_2_pcTarget_30__reg_p:D",
+          "startpoint_type": "sequential",
+          "endpoint_type": "sequential",
+          "startpoint_pin": "Q",
+          "endpoint_pin": "D",
+          "delay_type": "max",
+          "clock_group": "",
+          "slack": 8.708,
+          "path_delay": 1.058,
+          "path_required": 9.767,
+          "category": "data_reg2reg"
+        }
+      ]
+    },
+    "in2reg": {"wns_ns": 6.751, "tns_ns": 0, "path_count": 6, "top_paths": []},
+    "reg2out": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "in2out": {"wns_ns": 3.523, "tns_ns": 0, "path_count": 20, "top_paths": []},
+    "clock_enable": {"wns_ns": null, "tns_ns": null, "path_count": 0, "top_paths": []},
+    "clock_gating_setup": {"wns_ns": 9.392, "tns_ns": 0, "path_count": 20, "top_paths": []},
+    "hold": {"wns_ns": -0.135, "tns_ns": -6.75, "endpoint_count": 100, "top_paths": []}
+  },
+  "path_groups": [
+    {"clock_group": "core_clock", "delay_type": "max", "endpoint_count": 22, "wns": 3.523, "tns": 0.0}
+  ],
+  "high_fanout": [],
+  "unconstrained": [],
+  "warnings": [],
+  "budget_pass": false,
+  "view_type": "canonical_flat",
+  "canonical_flat_area_um2": 23598.46,
+  "hierarchy_attribution_area_um2": 23598.456,
+  "area_attribution_overhead_um2": null,
+  "area_attribution_overhead_percent": null,
+  "core_data_reg2reg_source": "dedicated-ista-query",
+  "area": {
+    "total_cells": 11588,
+    "total_area_um2": 23598.46,
+    "budget_um2": 23000,
+    "utilisation_pct": 102.6,
+    "by_hierarchy": [
+      {
+        "instance_path": "ysyx_25070190",
+        "module_name": "ysyx_25070190",
+        "parent_path": "",
+        "depth": 0,
+        "instance_count": 1,
+        "local_cells": 1530,
+        "local_area": 5535.992,
+        "recursive_cells": 11588,
+        "recursive_area": 23598.456,
+        "pct_of_top_area": 100.0,
+        "categories": {
+          "sequential": {"count": 2896, "area": 13095.712},
+          "combinational": {"count": 6942, "area": 8277.92},
+          "clock-gating": {"count": 51, "area": 176.358},
+          "buffer/inverter": {"count": 1110, "area": 957.334},
+          "mux": {"count": 582, "area": 1087.408},
+          "arithmetic": {"count": 0, "area": 0.0},
+          "other": {"count": 7, "area": 3.724}
+        }
+      }
+    ],
+    "by_cell_class": {
+      "sequential": {"cell_count": 2896, "area_um2": 13095.712},
+      "combinational": {"cell_count": 6942, "area_um2": 8277.92},
+      "clock-gating": {"cell_count": 51, "area_um2": 176.358},
+      "buffer/inverter": {"cell_count": 1110, "area_um2": 957.334},
+      "mux": {"cell_count": 582, "area_um2": 1087.408},
+      "arithmetic": {"cell_count": 0, "area_um2": 0.0},
+      "other": {"cell_count": 7, "area_um2": 3.724}
+    },
+    "hierarchy_source": "json-derived",
+    "canonical_flat_area_um2": 23598.46,
+    "hierarchy_attribution_area_um2": 23598.456,
+    "area_attribution_overhead_um2": null,
+    "area_attribution_overhead_percent": null
+  },
+  "fanout": {
+    "high_fanout_nets": [],
+    "source": "full_netlist"
+  },
+  "constraints": {
+    "constrained_endpoints": 22,
+    "total_endpoints_in_netlist": 2067,
+    "unconstrained_endpoints": [],
+    "coverage_status": "LOWER_BOUND",
+    "coverage_is_complete": false,
+    "coverage_has_evidence": true,
+    "unconstrained_is_complete": false,
+    "coverage_note": "iSTA truncation: -max_path 50 captures only 22 of 2067 endpoints"
+  },
+  "provenance": {
+    "yosys_version": "0.62",
+    "ieda_version": "2025-07-01",
+    "pdk": "nangate45",
+    "liberty": "NangateOpenCellLibrary_ss_typical.lib",
+    "workbench_commit": "deadbeef",
+    "cpu_commit": "N/A",
+    "target_mhz": "100",
+    "generated_at": "2026-07-23T00:00:00Z",
+    "sta_tool": "iEDA",
+    "view_type": "canonical_flat",
+    "schema_version": "4",
+    "core_data_reg2reg_source": "dedicated-ista-query",
+    "qor_view": "canonical_flat"
+  },
+  "canonical_baseline": {
+    "flow_id": "canonical_flat_v4_late_flatten",
+    "flow_description": "synth -top $DESIGN -run :fine (no -flatten), share -aggressive (hierarchical), clockgate, dfflibmap, abc (hierarchical), flatten (post-map), opt_clean -purge",
+    "decision_reason": "The current canonical-flat flow produces reproducible, self-consistent results verified across multiple synthesis runs.",
+    "canonical_sha256": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+    "canonical_cell_count": 11588,
+    "canonical_area_um2": 23598.46,
+    "hierarchy_attribution_area_um2": 23598.456,
+    "area_difference_reason": "Historical flow (~8881 cells, ~19650.75 um2) used pre-ABC flatten which is not reproducible with current RTL. Identity gate fails closed on RTL hash mismatch.",
+    "baseline_comparable": false,
+    "historical_reference_only": true,
+    "historical_flow_commit": "79952c4",
+    "historical_cell_count_approx": 8881,
+    "historical_area_um2_approx": 19650.75,
+    "flow_comparison": [
+      {
+        "flow": "canonical_flat (current, v4 late-flatten)",
+        "cells": 11588,
+        "area_um2": 23598.46,
+        "status": "canonical",
+        "netlist_sha256": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+        "comparable_to_baseline": true
+      },
+      {
+        "flow": "hierarchy_attribution (current, v4 no-flatten)",
+        "cells": 11588,
+        "area_um2": 23598.456,
+        "status": "analysis-only",
+        "comparable_to_baseline": true
+      },
+      {
+        "flow": "historical (yosys-sta 79952c4, pre-ABC flatten)",
+        "cells": 8881,
+        "area_um2": 19650.75,
+        "status": "non-comparable (RTL changed, identity gate fail-closed)",
+        "comparable_to_baseline": false,
+        "note": "RTL has changed since the historical run. The identity gate fails closed because the generated-Verilog SHA256 differs. These numbers are preserved for historical reference ONLY."
+      }
+    ],
+    "decision_timestamp": "2026-07-23T00:00:00+00:00"
+  }
+}

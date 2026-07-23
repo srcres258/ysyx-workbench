@@ -165,6 +165,95 @@ def classify_cell(cell_type: str) -> str:
     return CATEGORY_OTHER
 
 
+# ── sub-class classification (finer granularity for delta reports) ──
+
+# Sub-classes for the cell-type delta report (Task 4).
+# These are finer partitions within the larger category hierarchy.
+# They are NOT mutually exclusive with the main categories — a cell
+# always has both a category (sequential/combinational/...) and may
+# also have a sub-class (DFF/MUX/AOI_OAI/NAND_NOR/BUF_INV/CLOCK_GATING).
+# "large-drive-cell" is a separate boolean flag, not a sub-class, because
+# it is cross-cutting (a DFF_X4 is both DFF and large-drive).
+
+SUB_CLASS_DFF = "DFF"
+SUB_CLASS_MUX = "MUX"
+SUB_CLASS_AOI_OAI = "AOI/OAI"
+SUB_CLASS_NAND_NOR = "NAND/NOR"
+SUB_CLASS_BUF_INV = "buffer/inverter"
+SUB_CLASS_CLOCK_GATING = "clock-gating"
+SUB_CLASS_OTHER = "other"
+
+_ALL_SUB_CLASSES = [
+    SUB_CLASS_DFF,
+    SUB_CLASS_MUX,
+    SUB_CLASS_AOI_OAI,
+    SUB_CLASS_NAND_NOR,
+    SUB_CLASS_BUF_INV,
+    SUB_CLASS_CLOCK_GATING,
+    SUB_CLASS_OTHER,
+]
+
+# Drive-strength suffixes that qualify as "large drive".
+# Matched case-insensitively against the suffix of a cell-type name.
+# Covers patterns like _X4, _X8, _X12, _X16, _X24, _X32,
+# _D4, _D8, _B4, _B8, etc.
+_LARGE_DRIVE_PATTERN = r"_(?:X|D|B)(?:[4-9]|[1-9]\d+)$"
+
+
+def classify_cell_sub_class(cell_type: str) -> str:
+    """Classify a cell type into a finer sub-class for delta analysis.
+
+    Sub-classes are DFF, MUX, AOI/OAI, NAND/NOR, buffer/inverter,
+    clock-gating, and "other".
+
+    Unlike ``classify_cell``, which assigns exactly one of seven broad
+    categories, this function assigns exactly one of seven **sub-classes**
+    that partition cells by their dominant functional grouping within
+    the broader categories.
+    """
+    # ── DFF ──
+    for pat in (r"^SDFF", r"^DFF", r"^DLH", r"^DLL", r"^LATCH", r"^REG", r"^FF_", r"^TLAT"):
+        if re.match(pat, cell_type):
+            return SUB_CLASS_DFF
+
+    # ── clock-gating ──
+    for pat in (r"^CLKGATE", r"^CLKGATETST", r"^CGL", r"^ICG"):
+        if re.match(pat, cell_type):
+            return SUB_CLASS_CLOCK_GATING
+
+    # ── MUX ──
+    for pat in (r"^MUX", r"^MX"):
+        if re.match(pat, cell_type):
+            return SUB_CLASS_MUX
+
+    # ── AOI / OAI (combinational) ──
+    for pat in (r"^AOI", r"^OAI"):
+        if re.match(pat, cell_type):
+            return SUB_CLASS_AOI_OAI
+
+    # ── NAND / NOR (combinational) ──
+    for pat in (r"^NAND", r"^NOR"):
+        if re.match(pat, cell_type):
+            return SUB_CLASS_NAND_NOR
+
+    # ── buffer / inverter ──
+    for pat in (r"^CLKBUF", r"^BUF", r"^INV", r"^TBUF", r"^TINV", r"^DEL"):
+        if re.match(pat, cell_type):
+            return SUB_CLASS_BUF_INV
+
+    return SUB_CLASS_OTHER
+
+
+def is_large_drive_cell(cell_type: str) -> bool:
+    """Return True if the cell type ends with a large-drive suffix.
+
+    Large-drive suffixes are _X4+, _D4+, _B4+ (drive strength >= 4).
+    This is a cross-cutting attribute — a DFF_X8 is both "DFF" (sub-class)
+    and "large-drive".
+    """
+    return bool(re.search(_LARGE_DRIVE_PATTERN, cell_type, re.IGNORECASE))
+
+
 def classify_cell_counts(
     cells_by_type: Dict[str, Dict[str, float]],
 ) -> Dict[str, Dict[str, float]]:

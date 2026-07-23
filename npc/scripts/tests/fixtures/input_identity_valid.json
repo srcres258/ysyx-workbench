@@ -1,0 +1,16 @@
+{
+  "workbench_commit": "abc1234",
+  "cpu_commit": "def5678",
+  "generated_verilog_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "liberty_sha256": "a7ffc6f8bf1ed76651c14756a061d662f580ff4de43b49fa82d80a4b80f8434a",
+  "sdc_sha256": "b5bb9d8014a0f9b1d61e21e796d78dccdf1352f23cd32812f4850b878ae4944c",
+  "top_module": "ysyx_25070190",
+  "target_clock_mhz": 100,
+  "yosys_version": "0.62",
+  "abc_version": "ABC (version 1.02)",
+  "experiment": "exp_d_postmap_flat",
+  "config_flags": {
+    "SYNTH_STRATEGY": "DELAY 4",
+    "CLK_FREQ_MHZ": "100"
+  }
+}

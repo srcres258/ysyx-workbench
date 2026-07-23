@@ -95,6 +95,12 @@ SYNTH_AREA_BUDGET_UM2 ?= 23000
 # disable the behavior explicitly when needed.
 YOSYS_STA_AUTO_INIT ?= on
 
+# Experiment selector for controlled synthesis comparisons.
+# Empty (default): canonical single-shot or search mode.
+# exp_a_upstream_default: reconstructed historical/default flow (79952c4).
+# exp_b_flatten_pre_abc, exp_c_hier_abc, exp_d_postmap_flat: controlled profiles.
+SYNTH_EXPERIMENT ?=
+
 # RTL file list for incremental dependency tracking.
 # Evaluated at parse time; if generated/ does not yet exist these are empty,
 # but `make synth` will regenerate the DPI-free RTL snapshot before running STA.
@@ -128,6 +134,7 @@ $(SYNTH_DONE): $(SYNTH_SDC) $(SYNTH_RTL_DEPS) $(SYNTH_STUB_DEPS)
 	 SYNTH_HIGH_MHZ=$(SYNTH_HIGH_MHZ) \
 	 YOSYS_STA_AUTO_INIT=$(YOSYS_STA_AUTO_INIT) \
 	 SYNTH_QOR_VIEW=$(SYNTH_QOR_VIEW) \
+	 SYNTH_EXPERIMENT=$(SYNTH_EXPERIMENT) \
 	 $(abspath ./scripts/synth.sh)
 
 # Convenience target for frequency search mode
@@ -418,4 +425,42 @@ perf:
 perf-clean:
 	rm -rf $(PERF_DIR)
 
-.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean
+# ── Controlled synthesis experiments ─────────────────────────────────
+# Four deterministic profiles for isolating pass-order effects.
+# Each runs from the same input identity but varies flatten timing,
+# ABC scope, and post-map flatten.
+
+synth-exp-a:
+	@$(MAKE) synth SYNTH_EXPERIMENT=exp_a_upstream_default
+
+synth-exp-b:
+	@$(MAKE) synth SYNTH_EXPERIMENT=exp_b_flatten_pre_abc
+
+synth-exp-c:
+	@$(MAKE) synth SYNTH_EXPERIMENT=exp_c_hier_abc
+
+synth-exp-d:
+	@$(MAKE) synth SYNTH_EXPERIMENT=exp_d_postmap_flat
+
+# Run all four experiments sequentially
+synth-exp-all:
+	@echo "[Experiment] Running all four controlled synthesis experiments..."
+	@$(MAKE) synth-exp-a
+	@$(MAKE) synth-exp-b
+	@$(MAKE) synth-exp-c
+	@$(MAKE) synth-exp-d
+	@echo "[Experiment] All four experiments complete. Generating flow diff..."
+	@$(MAKE) synth-flow-diff
+
+# Generate synthesis_flow_diff.rpt from experiment directories
+synth-flow-diff:
+	@echo "[Synth] Generating synthesis flow diff report..."
+	@python3 $(abspath ./scripts/synth_summary.py) \
+		--diff-experiments \
+		--output-dir $(SYNTH_OUT_DIR) \
+		--synth-root $(SYNTH_OUT_DIR) \
+		--design $(SYNTH_TOP) \
+		--target-mhz $(SYNTH_CLK_MHZ) \
+		|| echo "[Synth] WARNING: Flow diff generation failed (some experiments may not have run yet)"
+
+.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff

@@ -1,0 +1,10 @@
+1. Executing EQUIV_MAKE pass.
+WARNING: unknown cell type 'NAND2_X1' in module 'ysyx_25070190' -- treating as black-box.
+WARNING: unsupported cell type 'DFF_X1' in module 'ysyx_25070190' -- treating as black-box.
+   Found 0 $equiv cells in equiv.
+
+2. Executing EQUIV_SIMPLE pass.
+   Equiv simple failed: no $equiv cells in selection.
+
+3. Executing EQUIV_STATUS pass.
+Warning: no $equiv cells found.

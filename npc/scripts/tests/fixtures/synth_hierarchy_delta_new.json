@@ -1,0 +1,22 @@
+{
+  "creator": "Yosys 0.48+82",
+  "modules": {
+    "top_new": {
+      "num_cells": {"count": "520", "area": "2200.0", "local_count": "520", "local_area": "2200.0"},
+      "num_cells_by_type": {
+        "DFF_X1": {"count": "180", "area": "810.0", "local_count": "180", "local_area": "810.0"},
+        "DFF_X8": {"count": "15", "area": "120.0", "local_count": "15", "local_area": "120.0"},
+        "NAND2_X1": {"count": "120", "area": "96.0", "local_count": "120", "local_area": "96.0"},
+        "NOR2_X1": {"count": "55", "area": "44.0", "local_count": "55", "local_area": "44.0"},
+        "AOI21_X1": {"count": "35", "area": "37.5", "local_count": "35", "local_area": "37.5"},
+        "MUX2_X1": {"count": "45", "area": "84.0", "local_count": "45", "local_area": "84.0"},
+        "BUF_X1": {"count": "20", "area": "16.0", "local_count": "20", "local_area": "16.0"},
+        "CLKGATE_X1": {"count": "8", "area": "28.0", "local_count": "8", "local_area": "28.0"},
+        "BUF_X8": {"count": "5", "area": "17.5", "local_count": "5", "local_area": "17.5"},
+        "INV_X4": {"count": "37", "area": "49.0", "local_count": "37", "local_area": "49.0"}
+      },
+      "area": 2200.0,
+      "num_submodules_by_type": {"sub_a": 1, "sub_b": 1, "sub_c": 1}
+    }
+  }
+}

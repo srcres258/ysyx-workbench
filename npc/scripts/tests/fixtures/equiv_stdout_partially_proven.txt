@@ -1,0 +1,14 @@
+1. Executing EQUIV_MAKE pass.
+   Found 200 $equiv cells in equiv.
+
+2. Executing EQUIV_SIMPLE pass.
+   Proved 180 previously unproven $equiv cells.
+
+3. Executing EQUIV_INDUCT pass.
+   Proved 10 previously unproven $equiv cells.
+
+4. Executing EQUIV_STATUS pass.
+   Found 200 $equiv cells in equiv:
+     Of those cells 190 are proven and 10 are unproven.
+   Found 10 unproven $equiv cells.
+ERROR: Found 10 unproven $equiv cells.

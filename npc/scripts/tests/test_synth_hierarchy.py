@@ -7,8 +7,17 @@ from pathlib import Path
 from tests import fixture
 from synth_hierarchy import (
     classify_cell,
+    classify_cell_sub_class,
+    is_large_drive_cell,
     CATEGORY_SEQUENTIAL,
     CATEGORY_CLOCK_GATING,
+    SUB_CLASS_DFF,
+    SUB_CLASS_MUX,
+    SUB_CLASS_AOI_OAI,
+    SUB_CLASS_NAND_NOR,
+    SUB_CLASS_BUF_INV,
+    SUB_CLASS_CLOCK_GATING,
+    SUB_CLASS_OTHER,
     trace_clock_gating_connectivity,
     extract_register_inventory,
     extract_clock_gating_inventory,
@@ -340,6 +349,82 @@ class TestConnectivityWithFixtureNetlist(unittest.TestCase):
         sub_a = result["sub_a"]
         self.assertEqual(len(sub_a["clock_gates"]), 0)
         self.assertEqual(len(sub_a["registers"]), 2)
+
+
+class TestClassifySubClass(unittest.TestCase):
+
+    def test_dff_sub_class(self):
+        self.assertEqual(classify_cell_sub_class("DFF_X1"), SUB_CLASS_DFF)
+        self.assertEqual(classify_cell_sub_class("SDFF_X2"), SUB_CLASS_DFF)
+        self.assertEqual(classify_cell_sub_class("DLH_X1"), SUB_CLASS_DFF)
+        self.assertEqual(classify_cell_sub_class("DLL_X1"), SUB_CLASS_DFF)
+        self.assertEqual(classify_cell_sub_class("LATCH_X1"), SUB_CLASS_DFF)
+
+    def test_mux_sub_class(self):
+        self.assertEqual(classify_cell_sub_class("MUX2_X1"), SUB_CLASS_MUX)
+        self.assertEqual(classify_cell_sub_class("MUX4_X2"), SUB_CLASS_MUX)
+
+    def test_aoi_oai_sub_class(self):
+        self.assertEqual(classify_cell_sub_class("AOI21_X1"), SUB_CLASS_AOI_OAI)
+        self.assertEqual(classify_cell_sub_class("OAI21_X1"), SUB_CLASS_AOI_OAI)
+        self.assertEqual(classify_cell_sub_class("AOI221_X2"), SUB_CLASS_AOI_OAI)
+
+    def test_nand_nor_sub_class(self):
+        self.assertEqual(classify_cell_sub_class("NAND2_X1"), SUB_CLASS_NAND_NOR)
+        self.assertEqual(classify_cell_sub_class("NOR2_X1"), SUB_CLASS_NAND_NOR)
+        self.assertEqual(classify_cell_sub_class("NOR4_X4"), SUB_CLASS_NAND_NOR)
+
+    def test_buffer_inverter_sub_class(self):
+        self.assertEqual(classify_cell_sub_class("BUF_X1"), SUB_CLASS_BUF_INV)
+        self.assertEqual(classify_cell_sub_class("INV_X1"), SUB_CLASS_BUF_INV)
+        self.assertEqual(classify_cell_sub_class("CLKBUF_X1"), SUB_CLASS_BUF_INV)
+        self.assertEqual(classify_cell_sub_class("TBUF_X1"), SUB_CLASS_BUF_INV)
+
+    def test_clock_gating_sub_class(self):
+        self.assertEqual(classify_cell_sub_class("CLKGATE_X1"), SUB_CLASS_CLOCK_GATING)
+        self.assertEqual(classify_cell_sub_class("CLKGATETST_X1"), SUB_CLASS_CLOCK_GATING)
+        self.assertEqual(classify_cell_sub_class("ICG_X1"), SUB_CLASS_CLOCK_GATING)
+        self.assertEqual(classify_cell_sub_class("CGL_X1"), SUB_CLASS_CLOCK_GATING)
+
+    def test_other_sub_class(self):
+        self.assertEqual(classify_cell_sub_class("XNOR2_X1"), SUB_CLASS_OTHER)
+        self.assertEqual(classify_cell_sub_class("XOR2_X1"), SUB_CLASS_OTHER)
+        self.assertEqual(classify_cell_sub_class("FA_X1"), SUB_CLASS_OTHER)
+        self.assertEqual(classify_cell_sub_class("FILL_X1"), SUB_CLASS_OTHER)
+
+    def test_dff_takes_precedence_over_clock_gating(self):
+        # TLAT is sequential (DFF sub-class), not clock-gating
+        self.assertEqual(classify_cell_sub_class("TLAT_X1"), SUB_CLASS_DFF)
+
+
+class TestIsLargeDriveCell(unittest.TestCase):
+
+    def test_large_drive_x4(self):
+        self.assertTrue(is_large_drive_cell("BUF_X4"))
+        self.assertTrue(is_large_drive_cell("DFF_X8"))
+        self.assertTrue(is_large_drive_cell("NAND2_X16"))
+        self.assertTrue(is_large_drive_cell("INV_X32"))
+
+    def test_small_drive_not_large(self):
+        self.assertFalse(is_large_drive_cell("BUF_X1"))
+        self.assertFalse(is_large_drive_cell("DFF_X2"))
+        self.assertFalse(is_large_drive_cell("NAND2_X1"))
+
+    def test_no_drive_suffix(self):
+        self.assertFalse(is_large_drive_cell("NAND2"))
+        self.assertFalse(is_large_drive_cell("DFF_X"))
+
+    def test_large_drive_d_suffix(self):
+        # Some PDKs use D suffix for drive strength
+        self.assertTrue(is_large_drive_cell("BUF_D4"))
+        self.assertTrue(is_large_drive_cell("BUF_D8"))
+
+    def test_large_drive_b_suffix(self):
+        self.assertTrue(is_large_drive_cell("BUF_B4"))
+        self.assertTrue(is_large_drive_cell("BUF_B8"))
+
+    def test_large_drive_case_insensitive(self):
+        self.assertTrue(is_large_drive_cell("buf_x8"))
 
 
 if __name__ == "__main__":
