@@ -753,7 +753,7 @@ fi
 # Missing stage files are non-fatal at this level (some stages may be
 # skipped depending on the experiment profile), but missing "final"
 # or "post_abc" is suspicious and generates loud warnings.
-STAGE_NAMES="post_proc post_flatten post_share post_clock_gating post_dff_mapping pre_abc post_abc final"
+STAGE_NAMES="post_synth_coarse post_flatten post_share post_clockgate post_dfflibmap pre_abc post_abc final"
 MISSING_STAGES=""
 CRITICAL_STAGES_MISSING=""
 for stage in ${STAGE_NAMES}; do
@@ -1060,7 +1060,7 @@ if [ -n "${SYNTH_EXPERIMENT}" ]; then
       set +e
       python3 "${EQUIV_CHECK_PY}" \
         --synth-root "${SYNTH_ROOT}" \
-        --gold-exp "exp_d_postmap_flat" \
+        --gold-exp "exp_b_flatten_pre_abc" \
         --top-module "${DESIGN}" \
         --yosys-bin "${YOSYS_BIN}" \
         --output-dir "${OUTPUT_DIR}" \

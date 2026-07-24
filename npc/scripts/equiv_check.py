@@ -15,7 +15,7 @@
 #   - Yosys crash/timeout → EquivResult(status="error")
 #
 # The identity gate (generated_verilog_sha256 match) is the source of truth
-# for comparability.  Non-comparable experiments are BLOCKED, not silently
+# for comparability.  Non-comparable experiments are UNSUPPORTED, not silently
 # compared.
 # ============================================================================
 
@@ -505,7 +505,7 @@ def check_experiment_equiv(
 
 def check_all_experiments(
     synth_root: str,
-    gold_exp: str = "exp_d_postmap_flat",
+    gold_exp: str = "exp_b_flatten_pre_abc",
     top_module: str = "ysyx_25070190",
     yosys_bin: str = "yosys",
     output_dir: Optional[str] = None,
@@ -518,9 +518,9 @@ def check_all_experiments(
     experiment's input_identity.json and stage_pre_abc.v, and compares
     each against the gold model (designated by ``gold_exp``).
 
-    The gold is ``exp_d_postmap_flat`` by default because its pre-ABC
-    netlist is the canonical hierarchical synthesis — identical to the
-    canonical_flat path at the pre-mapping gate.
+    The gold is ``exp_b_flatten_pre_abc`` by default because the task
+    compares the controlled B/C/D experiment set against the shared
+    pre-ABC flatten baseline.
 
     Returns a list of EquivResult, one per experiment (including the
     gold, which is trivially proven).
@@ -529,7 +529,6 @@ def check_all_experiments(
 
     root = _Path(synth_root)
     experiment_names = [
-        "exp_a_upstream_default",
         "exp_b_flatten_pre_abc",
         "exp_c_hier_abc",
         "exp_d_postmap_flat",
@@ -651,7 +650,7 @@ def check_all_experiments(
 def write_equiv_report(
     results: List[EquivResult],
     output_dir: str,
-    gold_exp: str = "exp_d_postmap_flat",
+    gold_exp: str = "exp_b_flatten_pre_abc",
     top_module: str = "ysyx_25070190",
 ) -> None:
     """Write a human-readable equivalence report.
@@ -682,7 +681,7 @@ def write_equiv_report(
     _w("and equiv_status -assert (fail-closed on unproven cells).")
     _w()
     _w("The identity gate (generated_verilog_sha256 match) controls")
-    _w("comparability.  Netlists from mismatched RTL sources are BLOCKED.")
+    _w("comparability.  Netlists from mismatched RTL sources are UNSUPPORTED.")
     _w()
     _w("Post-ABC (Liberty-mapped) netlists are NOT compared — Yosys 0.62")
     _w("lacks nangate45 simulation cells, making mapped cells SAT black-boxes.")
@@ -695,7 +694,7 @@ def write_equiv_report(
     for r in results:
         status_mark = {
             "proven": "✓ PROVEN",
-            "blocked": "✗ BLOCKED",
+            "blocked": "⚠ UNSUPPORTED",
             "failed": "✗ FAILED",
             "error": "! ERROR",
         }.get(r.status, r.status)
@@ -715,7 +714,7 @@ def write_equiv_report(
         if r.is_proven():
             _w(f"  ✓ Equivalence proven.  {r.proven_cells} $equiv cells all passed.")
         elif r.is_blocked():
-            _w(f"  ✗ Equivalence check BLOCKED: {r.limitation}")
+            _w(f"  ⚠ Equivalence check UNSUPPORTED: {r.limitation}")
             _w(f"  Reason: {r.detail}")
             _w()
             _w(f"  Backstop: Existing functional tests (cpu-tests, am-tests)")
@@ -738,11 +737,11 @@ def write_equiv_report(
     _w(" Backstop Functional Verification")
     _w("─" * 78)
     _w()
-    _w(f"Summary: {proven_count} proven, {blocked_count} blocked, {failed_count} failed, "
+    _w(f"Summary: {proven_count} proven, {blocked_count} unsupported, {failed_count} failed, "
         f"{sum(1 for r in results if r.status == 'error')} errors")
     _w()
     if blocked_count > 0:
-        _w("Blocked experiments are backstopped by the existing functional test")
+        _w("Unsupported experiments are backstopped by the existing functional test")
         _w("regression suite:")
         _w("  make -C am-kernels/tests/cpu-tests ARCH=riscv32e-ysyxsoc run")
         _w("  make -C am-kernels/tests/am-tests ARCH=riscv32e-ysyxsoc run")
@@ -768,8 +767,8 @@ def main() -> None:
     )
     ap.add_argument("--synth-root", required=True,
                     help="Root directory containing experiment subdirectories (e.g. build/synth)")
-    ap.add_argument("--gold-exp", default="exp_d_postmap_flat",
-                    help="Experiment to use as gold model (default: exp_d_postmap_flat)")
+    ap.add_argument("--gold-exp", default="exp_b_flatten_pre_abc",
+                    help="Experiment to use as gold model (default: exp_b_flatten_pre_abc)")
     ap.add_argument("--top-module", default="ysyx_25070190",
                     help="Top-level RTL module name (default: ysyx_25070190)")
     ap.add_argument("--yosys-bin", default="yosys",
@@ -809,7 +808,7 @@ def main() -> None:
 
     blocked = [r for r in results if r.is_blocked()]
     if blocked:
-        print(f"[equiv_check] {len(blocked)} experiment(s) blocked — see report for details.", file=sys.stderr)
+        print(f"[equiv_check] {len(blocked)} experiment(s) unsupported — see report for details.", file=sys.stderr)
         # Blocked is not an error — limitations are documented and backstopped
         sys.exit(0)
 

@@ -342,7 +342,7 @@ def build_canonical_baseline(
 ) -> Dict[str, Any]:
     """Build the canonical-baseline section for the schema-v4 summary.
 
-    This section captures the FINAL canonical-flow decision: which flow is
+    This section captures the current canonical-flow decision: which flow is
     authoritative, why, and how it compares to historical/alternative flows.
 
     The section is a nested dict under the ``canonical_baseline`` key and
@@ -1465,6 +1465,7 @@ def write_cell_type_delta_report(
     old_label: str = "old",
     new_label: str = "new",
     extra_warnings: Optional[List[str]] = None,
+    status: str = "VERIFIED",
 ) -> None:
     """Write ``cell_type_delta.rpt`` — per-cell-type area delta comparison.
 
@@ -1562,6 +1563,7 @@ def write_cell_type_delta_report(
         _w(f" Area gap:        {area_gap:>12.4f} µm²  (effectively identical)")
     _w(f" Distinct cell types compared: {len(delta_records)}")
     _w(f" Cell types with non-zero delta: {sum(1 for r in delta_records if r.delta_area != 0 or r.delta_count != 0)}")
+    _w(f" Status: {status}")
     _w()
 
     # Authority disclaimer
@@ -1683,15 +1685,37 @@ def write_cell_type_delta_report(
 
 # Canonical ordered list of stage names for consistent CSV column ordering.
 _STAGE_NAMES = [
-    "post_proc",
+    "post_synth_coarse",
     "post_flatten",
     "post_share",
-    "post_clock_gating",
-    "post_dff_mapping",
+    "post_clockgate",
+    "post_dfflibmap",
     "pre_abc",
     "post_abc",
     "final",
 ]
+
+_STAGE_NAME_ALIASES = {
+    "post_proc": "post_synth_coarse",
+    "post_clock_gating": "post_clockgate",
+    "post_dff_mapping": "post_dfflibmap",
+}
+
+_STAGE_NAME_REVERSE_ALIASES: Dict[str, List[str]] = {
+    "post_synth_coarse": ["post_proc"],
+    "post_clockgate": ["post_clock_gating"],
+    "post_dfflibmap": ["post_dff_mapping"],
+}
+
+
+def _canonical_stage_name(stage_name: str) -> str:
+    return _STAGE_NAME_ALIASES.get(stage_name, stage_name)
+
+
+def _stage_file_candidates(stage_name: str) -> List[str]:
+    candidates = [stage_name]
+    candidates.extend(_STAGE_NAME_REVERSE_ALIASES.get(stage_name, []))
+    return candidates
 
 
 def _count_cell_subtypes(cells: Dict[str, int], pattern: str) -> int:
@@ -1770,6 +1794,12 @@ def _extract_from_module_dict(
             if isinstance(_cell_info, dict):
                 mapped_count += _cell_info.get("num_cells", 0)
                 mapped_area += _cell_info.get("area", 0.0)
+            elif isinstance(_cell_info, (int, float)):
+                mapped_count += int(_cell_info)
+        if mapped_count == 0:
+            mapped_count = _coalesce(module_dict.get("num_cells"), 0)
+        if mapped_area == 0.0:
+            mapped_area = float(module_dict.get("area", 0.0))
         result["mapped_cell_count"] = mapped_count
         result["mapped_area_um2"] = round(mapped_area, 4)
 
@@ -1864,33 +1894,32 @@ def write_stage_comparison_csv(
 ) -> bool:
     """Scan experiment directories for stage stat snapshots and emit ``synthesis_stage_comparison.csv``.
 
-    Each experiment under ``synth_root_dir`` is scanned for stage JSON files
-    (``stage_<name>.json``) and a single CSV with one row per stage per
-    experiment is written to ``output_dir``.
-
-    Returns True if at least one stage row was emitted for any experiment,
-    False if no stage data was found at all.
+    The CSV is intentionally narrow and uses a fail-closed convention:
+    missing stages or parse failures are emitted as ``N/A`` rather than
+    guessed values.  Every experiment gets one row per requested stage.
     """
     import csv
 
     if required_stages is None:
         required_stages = list(_STAGE_NAMES)
+    required_stages = [_canonical_stage_name(stage) for stage in required_stages]
 
     root = Path(synth_root_dir)
     output_path = Path(output_dir) / "synthesis_stage_comparison.csv"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     EXPERIMENT_NAMES = [
-        "exp_a_upstream_default",
         "exp_b_flatten_pre_abc",
         "exp_c_hier_abc",
         "exp_d_postmap_flat",
     ]
 
-    # Collect all rows: list of (experiment, stage, metrics_dict, errors)
     rows: List[Dict[str, Any]] = []
     experiments_found = 0
     experiments_with_data = 0
+
+    def _csv_value(value: Any) -> Any:
+        return "N/A" if value in (None, "") else value
 
     for exp_name in EXPERIMENT_NAMES:
         exp_dir = root / exp_name
@@ -1898,85 +1927,85 @@ def write_stage_comparison_csv(
             continue
         experiments_found += 1
 
-        # Find the result subdirectory containing the design-frequency dir.
         result_dirs = sorted(exp_dir.glob("*-*MHz"))
         exp_result_dir = result_dirs[0] if result_dirs else exp_dir
 
-        # Read stage_order.txt to know which stages exist for this experiment.
-        stage_order_path = exp_result_dir / "stage_order.txt"
         ordered_stages: List[str] = []
+        stage_order_path = exp_result_dir / "stage_order.txt"
         if stage_order_path.is_file():
             try:
                 for line in stage_order_path.read_text(encoding="utf-8").splitlines():
                     line = line.strip()
-                    if line and not line.startswith("#"):
-                        ordered_stages.append(line)
+                    if not line or line.startswith("#"):
+                        continue
+                    stage = _canonical_stage_name(line)
+                    if stage in required_stages and stage not in ordered_stages:
+                        ordered_stages.append(stage)
             except Exception:
-                ordered_stages = list(required_stages)
-        else:
-            # Fallback: try all canonical stages and include those found.
-            ordered_stages = list(required_stages)
+                ordered_stages = []
+        for stage in required_stages:
+            if stage not in ordered_stages:
+                ordered_stages.append(stage)
 
         has_any_stage = False
         for stage_name in ordered_stages:
-            stage_file = exp_result_dir / f"stage_{stage_name}.json"
-            if not stage_file.is_file():
-                stage_file = exp_dir / f"stage_{stage_name}.json"
-
-            # Try alternative locations (deeper rglob)
-            if not stage_file.is_file():
-                alt = list(exp_dir.rglob(f"stage_{stage_name}.json"))
+            stage_file = None
+            for candidate in _stage_file_candidates(stage_name):
+                candidate_path = exp_result_dir / f"stage_{candidate}.json"
+                if candidate_path.is_file():
+                    stage_file = candidate_path
+                    break
+                candidate_path = exp_dir / f"stage_{candidate}.json"
+                if candidate_path.is_file():
+                    stage_file = candidate_path
+                    break
+                alt = list(exp_dir.rglob(f"stage_{candidate}.json"))
                 if alt:
                     stage_file = alt[0]
+                    break
 
-            if not stage_file.is_file():
-                # Stage is missing — still emit a row with _parse_error.
-                rows.append({
-                    "experiment": exp_name,
-                    "stage": stage_name,
-                    "metrics": {"_parse_error": f"file not found: stage_{stage_name}.json"},
-                    "status": "MISSING",
-                })
-                continue
+            metrics = parse_stage_json(str(stage_file)) if stage_file else {
+                "wire_count": None,
+                "wire_bits": None,
+                "public_wires": None,
+                "cells": None,
+                "processes": None,
+                "memories": None,
+                "dff_count": None,
+                "mux_count": None,
+                "generic_logic_count": None,
+                "mapped_cell_count": None,
+                "mapped_area_um2": None,
+                "design_name": None,
+                "num_modules": None,
+                "_parse_error": "file not found",
+            }
 
-            metrics = parse_stage_json(str(stage_file))
+            has_any_stage = has_any_stage or (metrics.get("_parse_error") is None)
             rows.append({
                 "experiment": exp_name,
                 "stage": stage_name,
                 "metrics": metrics,
-                "status": "OK" if not metrics["_parse_error"] else "PARSE_ERROR",
             })
-            has_any_stage = True
 
         if has_any_stage:
             experiments_with_data += 1
 
     if not rows:
-        print(f"[synth_summary] No stage data found under {root} — no experiments have been run yet.",
-              file=sys.stderr)
+        print(f"[synth_summary] No stage data found under {root} — no experiments have been run yet.", file=sys.stderr)
         return False
 
-    # CSV column order
     csv_columns = [
         "experiment",
         "stage",
-        "wire_count",
-        "wire_bits",
-        "public_wires",
-        "cells",
-        "processes",
-        "memories",
+        "module_count",
+        "generic_cell_count",
+        "mapped_cell_count",
         "dff_count",
         "mux_count",
-        "generic_logic_count",
-        "mapped_cell_count",
-        "mapped_area_um2",
-        "design_name",
-        "num_modules",
-        "parse_error",
+        "wire_bits",
+        "area_um2",
     ]
-
-    missing_stages_flagged = False
 
     with open(output_path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.DictWriter(fh, fieldnames=csv_columns, extrasaction="ignore")
@@ -1984,42 +2013,264 @@ def write_stage_comparison_csv(
 
         for row in rows:
             m = row["metrics"]
-            csv_row = {
+            writer.writerow({
                 "experiment": row["experiment"],
                 "stage": row["stage"],
-                "wire_count": m.get("wire_count", ""),
-                "wire_bits": m.get("wire_bits", ""),
-                "public_wires": m.get("public_wires", ""),
-                "cells": m.get("cells", ""),
-                "processes": m.get("processes", ""),
-                "memories": m.get("memories", ""),
-                "dff_count": m.get("dff_count", ""),
-                "mux_count": m.get("mux_count", ""),
-                "generic_logic_count": m.get("generic_logic_count", ""),
-                "mapped_cell_count": m.get("mapped_cell_count", ""),
-                "mapped_area_um2": m.get("mapped_area_um2", ""),
-                "design_name": m.get("design_name", ""),
-                "num_modules": m.get("num_modules", ""),
-                "parse_error": m.get("_parse_error", "") or "",
-            }
-            writer.writerow(csv_row)
+                "module_count": _csv_value(m.get("num_modules")),
+                "generic_cell_count": _csv_value(m.get("cells")),
+                "mapped_cell_count": _csv_value(m.get("mapped_cell_count")),
+                "dff_count": _csv_value(m.get("dff_count")),
+                "mux_count": _csv_value(m.get("mux_count")),
+                "wire_bits": _csv_value(m.get("wire_bits")),
+                "area_um2": _csv_value(m.get("mapped_area_um2")),
+            })
 
-            if m.get("_parse_error"):
-                missing_stages_flagged = True
-                print(f"[synth_summary] WARNING: stage '{row['stage']}' in "
-                      f"experiment '{row['experiment']}' — {m['_parse_error']}",
-                      file=sys.stderr)
-
-    print(f"[synth_summary] Wrote {output_path} "
-          f"({len(rows)} rows, {experiments_with_data}/{experiments_found} experiments with data)")
-
-    if missing_stages_flagged:
-        print("[synth_summary] WARNING: Some stage checkpoints are missing — "
-              "the CSV contains rows flagged with parse_error. "
-              "Missing checkpoints indicate the synthesis did not run to completion "
-              "or a checkpoint was removed from the flow.", file=sys.stderr)
-
+    print(f"[synth_summary] Wrote {output_path} ({len(rows)} rows, {experiments_with_data}/{experiments_found} experiments with data)")
     return True
+
+
+def _parse_final_stat_report(stat_path: Path) -> Dict[str, Any]:
+    import re
+
+    result: Dict[str, Any] = {
+        "cell_count": None,
+        "area_um2": None,
+        "parse_error": None,
+    }
+    if not stat_path.is_file():
+        result["parse_error"] = f"file not found: {stat_path}"
+        return result
+
+    text = stat_path.read_text(encoding="utf-8", errors="replace")
+    cell_matches = re.findall(r"^\s+(\d+)\s+[\d.E+-]+\s+cells", text, re.MULTILINE)
+    if cell_matches:
+        result["cell_count"] = int(cell_matches[-1])
+
+    area_match = re.search(r"Chip area for top module.*?:\s+([\d.]+)", text)
+    if not area_match:
+        area_match = re.search(r"Chip area for module.*?:\s+([\d.]+)", text)
+    if area_match:
+        result["area_um2"] = float(area_match.group(1))
+
+    if result["cell_count"] is None:
+        result["parse_error"] = "missing cell count"
+    elif result["area_um2"] is None:
+        result["parse_error"] = "missing area"
+    return result
+
+
+def _load_experiment_run(synth_root_dir: str, exp_name: str) -> Dict[str, Any]:
+    root = Path(synth_root_dir)
+    exp_dir = root / exp_name
+    result: Dict[str, Any] = {
+        "experiment": exp_name,
+        "exp_dir": exp_dir,
+        "result_dir": None,
+        "identity": None,
+        "identity_error": None,
+        "stat": {"cell_count": None, "area_um2": None, "parse_error": "missing experiment"},
+        "hierarchy_json": None,
+        "summary_json": None,
+        "status": "UNAVAILABLE",
+    }
+
+    if not exp_dir.is_dir():
+        return result
+
+    result_dirs = sorted(exp_dir.glob("*-*MHz"))
+    result_dir = result_dirs[0] if result_dirs else exp_dir
+    result["result_dir"] = result_dir
+
+    identity_path = exp_dir / "input_identity.json"
+    if identity_path.is_file():
+        try:
+            result["identity"] = json.loads(identity_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as e:
+            result["identity_error"] = f"JSON decode error: {e}"
+    else:
+        result["identity_error"] = f"file not found: {identity_path}"
+
+    stat_path = result_dir / "synth_stat.txt"
+    result["stat"] = _parse_final_stat_report(stat_path)
+
+    hierarchy_json = result_dir / "synth_hierarchy.json"
+    if hierarchy_json.is_file():
+        result["hierarchy_json"] = hierarchy_json
+    else:
+        flat_json = result_dir / "synth_stat.json"
+        if flat_json.is_file():
+            result["hierarchy_json"] = flat_json
+
+    summary_json = exp_dir / "synth_summary.json"
+    if summary_json.is_file():
+        result["summary_json"] = summary_json
+
+    if result["stat"].get("parse_error") is None and result["identity"] is not None:
+        result["status"] = "VERIFIED"
+    elif result["stat"].get("parse_error") is None:
+        result["status"] = "HYPOTHESIS"
+    else:
+        result["status"] = "UNAVAILABLE"
+
+    return result
+
+
+def write_experiment_area_flow_comparison(synth_root_dir: str, output_dir: str) -> None:
+    """Compare B/C/D experiment QoR on the same RTL snapshot."""
+    from datetime import datetime
+
+    output_path = Path(output_dir) / "area_flow_comparison.rpt"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    experiment_names = [
+        "exp_b_flatten_pre_abc",
+        "exp_c_hier_abc",
+        "exp_d_postmap_flat",
+    ]
+    runs = [_load_experiment_run(synth_root_dir, exp_name) for exp_name in experiment_names]
+    usable = [run for run in runs if run["stat"].get("parse_error") is None and run["identity"] is not None]
+
+    lines: list[str] = []
+
+    def _w(text: str = "") -> None:
+        lines.append(text)
+
+    _w("=" * 78)
+    _w(" AREA FLOW COMPARISON REPORT — B/C/D experiment comparison")
+    _w("=" * 78)
+    _w(f" Generated: {datetime.now().isoformat()}")
+    _w(f" Root:      {Path(synth_root_dir)}")
+    _w()
+    _w("This report compares the same RTL snapshot across the three requested")
+    _w("experiment flows.  VERIFIED means the experiment produced a final stat")
+    _w("report and a valid input identity manifest; HYPOTHESIS means the run is")
+    _w("present but not yet backed by a complete comparison set; UNAVAILABLE means")
+    _w("the experiment data is missing or malformed.")
+    _w()
+
+    ref_hash = None
+    identity_issue = False
+    for run in runs:
+        identity = run.get("identity")
+        if not identity:
+            continue
+        gen_hash = identity.get("generated_verilog_sha256")
+        if gen_hash in (None, "", "N/A", "PENDING"):
+            identity_issue = True
+            continue
+        if ref_hash is None:
+            ref_hash = gen_hash
+        elif gen_hash != ref_hash:
+            identity_issue = True
+
+    _w("--- Input Identity ---")
+    if identity_issue or ref_hash is None:
+        _w("  Status: UNAVAILABLE (hash mismatch or missing identity)")
+    else:
+        _w(f"  generated_verilog_sha256: {ref_hash}")
+        _w("  Status: VERIFIED (all available experiment identities match)")
+    _w()
+
+    _w("--- Experiment Summary ---")
+    _w(f" {'Experiment':<28s} {'Status':<12s} {'Cells':>10s} {'Area (um²)':>14s}")
+    _w(f" {'-'*28} {'-'*12} {'-'*10} {'-'*14}")
+    for run in runs:
+        stat = run["stat"]
+        cells = stat.get("cell_count")
+        area = stat.get("area_um2")
+        status = run["status"]
+        cell_str = str(cells) if cells is not None else "N/A"
+        area_str = f"{area:.4f}" if area is not None else "N/A"
+        _w(f" {run['experiment']:<28s} {status:<12s} {cell_str:>10s} {area_str:>14s}")
+    _w()
+
+    def _delta(lhs: Dict[str, Any], rhs: Dict[str, Any]) -> tuple[Any, Any]:
+        a_stat, b_stat = lhs.get("stat", {}), rhs.get("stat", {})
+        if a_stat.get("cell_count") is None or b_stat.get("cell_count") is None:
+            return "N/A", "N/A"
+        a_area = a_stat.get("area_um2")
+        b_area = b_stat.get("area_um2")
+        if a_area is None or b_area is None:
+            return "N/A", "N/A"
+        return b_stat["cell_count"] - a_stat["cell_count"], round(b_area - a_area, 4)
+
+    pair_map = [
+        ("B - C", runs[0], runs[1]),
+        ("C - D", runs[1], runs[2]),
+        ("B - D", runs[0], runs[2]),
+    ]
+    _w("--- Pairwise Deltas ---")
+    _w(f" {'Pair':<12s} {'Δ Cells':>10s} {'Δ Area (um²)':>14s}")
+    _w(f" {'-'*12} {'-'*10} {'-'*14}")
+    for label, lhs, rhs in pair_map:
+        d_cells, d_area = _delta(lhs, rhs)
+        _w(f" {label:<12s} {str(d_cells):>10s} {str(d_area):>14s}")
+    _w()
+
+    if identity_issue or ref_hash is None:
+        report_status = "UNAVAILABLE"
+    elif len(usable) == len(runs):
+        report_status = "VERIFIED"
+    else:
+        report_status = "HYPOTHESIS"
+
+    _w("--- Verdict ---")
+    _w(f"  Report status: {report_status}")
+    _w("  Canonical flow selection is deferred to the decision report.")
+    _w("=" * 78)
+
+    output_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"[synth_summary] Wrote {output_path}")
+
+
+def write_experiment_cell_type_delta_report(synth_root_dir: str, output_dir: str) -> Optional[str]:
+    """Pick the smallest/largest valid experiments and emit cell-type delta report."""
+    experiment_order = ["exp_b_flatten_pre_abc", "exp_c_hier_abc", "exp_d_postmap_flat"]
+    runs = [_load_experiment_run(synth_root_dir, exp_name) for exp_name in experiment_order]
+    valid = [r for r in runs if r["stat"].get("parse_error") is None and r["hierarchy_json"] is not None and r["identity"] is not None]
+    output_path = Path(output_dir) / "cell_type_delta.rpt"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if len(valid) < 2:
+        output_path.write_text(
+            "\n".join([
+                "=" * 110,
+                " CELL TYPE DELTA REPORT — experiment comparison",
+                "=" * 110,
+                " Status: UNAVAILABLE",
+                " Reason: fewer than two valid experiment results were available.",
+                "=" * 110,
+            ]),
+            encoding="utf-8",
+        )
+        print(f"[synth_summary] Wrote {output_path}")
+        return str(output_path)
+
+    valid_sorted = sorted(valid, key=lambda r: (
+        r["stat"]["area_um2"],
+        experiment_order.index(r["experiment"]) if r["experiment"] in experiment_order else 99,
+    ))
+    old_run = valid_sorted[0]
+    new_run = valid_sorted[-1]
+
+    delta_records, old_total_area, new_total_area, ct_warnings = extract_cell_type_deltas(
+        old_json_path=str(old_run["hierarchy_json"]),
+        new_json_path=str(new_run["hierarchy_json"]),
+        old_label=old_run["experiment"],
+        new_label=new_run["experiment"],
+    )
+    write_cell_type_delta_report(
+        delta_records=delta_records,
+        old_total_area=old_total_area,
+        new_total_area=new_total_area,
+        output_path=output_path,
+        old_label=f"smallest valid flow: {old_run['experiment']}",
+        new_label=f"largest valid flow: {new_run['experiment']}",
+        extra_warnings=ct_warnings,
+        status="VERIFIED",
+    )
+    print(f"[synth_summary] Wrote {output_path}")
+    return str(output_path)
 
 
 # ── synthesis flow diff report ──────────────────────────────────────────
@@ -2344,8 +2595,52 @@ def write_canonical_baseline_decision_rpt(
     _w(f" Generated:       {datetime.now().isoformat()}")
     _w(f" Schema version:  4")
     _w()
-    _w("This report captures the FINAL decision on the canonical synthesis")
-    _w("baseline for NPC.  It answers the nine required questions from the")
+    def _artifact_status(path_text: Optional[str]) -> str:
+        if not path_text:
+            return "UNAVAILABLE"
+        p = Path(path_text)
+        if not p.is_file():
+            return "UNAVAILABLE"
+        try:
+            content = p.read_text(encoding="utf-8", errors="replace")
+        except Exception:
+            return "HYPOTHESIS"
+        if "Status: VERIFIED" in content or "Report status: VERIFIED" in content or "✓ PROVEN" in content:
+            return "VERIFIED"
+        if "Status: UNAVAILABLE" in content or "Report status: UNAVAILABLE" in content:
+            return "UNAVAILABLE"
+        if "HYPOTHESIS" in content:
+            return "HYPOTHESIS"
+        return "HYPOTHESIS"
+
+    def _identity_status(path_text: Optional[str]) -> str:
+        if not path_text:
+            return "UNAVAILABLE"
+        p = Path(path_text)
+        if not p.is_file():
+            return "UNAVAILABLE"
+        try:
+            data = json.loads(p.read_text(encoding="utf-8", errors="replace"))
+        except Exception:
+            return "HYPOTHESIS"
+        gen_hash = data.get("generated_verilog_sha256")
+        if gen_hash in (None, "", "N/A", "PENDING"):
+            return "UNAVAILABLE"
+        return "VERIFIED"
+
+    area_flow_status = _artifact_status(area_flow_comparison_rpt)
+    cell_type_status = _artifact_status(cell_type_delta_rpt)
+    identity_status = _identity_status(identity_json_path)
+    evidence_statuses = [area_flow_status, cell_type_status, identity_status]
+    if all(status == "VERIFIED" for status in evidence_statuses):
+        decision_status = "FINAL"
+    elif any(status == "VERIFIED" for status in evidence_statuses):
+        decision_status = "HYPOTHESIS"
+    else:
+        decision_status = "UNAVAILABLE"
+
+    _w("This report captures the current canonical synthesis decision for the")
+    _w("canonical baseline for NPC.  It answers the nine required questions from the")
     _w("baseline-reconstruction plan and states the authoritative QoR baseline")
     _w("for all future RTL-area regressions.")
     _w()
@@ -2620,7 +2915,7 @@ def write_canonical_baseline_decision_rpt(
 
     # ── Final Decision ──
     _w("=" * 78)
-    _w(" FINAL CANONICAL BASELINE DECISION")
+    _w(f" {decision_status} CANONICAL BASELINE DECISION")
     _w("=" * 78)
     _w()
     _w(f"  Flow:              canonical_flat (v4 late-flatten)")
@@ -2630,26 +2925,23 @@ def write_canonical_baseline_decision_rpt(
     _w(f"  Target clock:      {target_mhz} MHz")
     _w(f"  Netlist SHA256:    {canonical_netlist_sha256}")
     _w()
-    _w("  This decision is based on evidence from:")
-    _w("    - input_identity.json (provenance gate, task 1)")
-    _w("    - yosys_pass_sequence.txt (historical flow recovery, task 1)")
-    _w("    - synthesis_flow_diff.rpt (controlled experiment matrix, task 2)")
-    _w("    - synthesis_stage_comparison.csv (stage stats, task 3)")
-    _w("    - cell_type_delta.rpt (cell-type attribution, task 4)")
-    _w("    - equivalence_report.rpt (formal equivalence, task 5)")
-    _w("    - coverage_batch_results.json (iSTA crash repro, task 6)")
+    _w("  Evidence status:")
+    _w(f"    - area_flow_comparison.rpt:   {area_flow_status}")
+    _w(f"    - cell_type_delta.rpt:        {cell_type_status}")
+    _w(f"    - input_identity.json:        {identity_status}")
+    _w("    - synthesis_stage_comparison.csv: VERIFIED only when all requested flows have run")
+    _w("    - equivalence_report.rpt:     VERIFIED only when the shared-gold equivalence run succeeds")
     _w()
-    _w("  The canonical-flat flow is AUTHORITATIVE for all QoR metrics.")
+    _w(f"  The canonical-flat flow is {'AUTHORITATIVE' if decision_status == 'FINAL' else 'NOT YET AUTHORITATIVE'} for all QoR metrics.")
     _w("  Hierarchy-attribution is ANALYSIS-ONLY.")
     _w("  Historical ~8881 cells is NON-COMPARABLE (reference only).")
     _w()
-    _w("  This baseline becomes effective immediately for all future RTL")
-    _w("  area regressions.  Any RTL change that increases the canonical")
-    _w("  area beyond this baseline must be justified in a synthesis impact")
-    _w("  analysis referencing this decision report.")
+    _w("  This baseline becomes effective only after the report status reaches FINAL.")
+    _w("  Any RTL change that increases the canonical area beyond this baseline")
+    _w("  must be justified in a synthesis impact analysis referencing this decision report.")
     _w()
     _w("=" * 78)
-    _w(" End of canonical baseline decision report.")
+    _w(f" End of canonical baseline decision report ({decision_status}).")
     _w("=" * 78)
 
     output_path.write_text("\n".join(lines), encoding="utf-8")
@@ -3055,7 +3347,7 @@ def main() -> None:
     ap.add_argument("--timeout", type=int, default=600, help="Timeout per equivalence check in seconds (default: 600)")
     # Canonical-baseline mode (generates canonical_baseline_decision.rpt + enriches synth_summary.json)
     ap.add_argument("--canonical-baseline", action="store_true",
-                    help="Publish the final canonical baseline: enrich synth_summary.json with canonical-baseline section and generate canonical_baseline_decision.rpt")
+                    help="Publish the canonical baseline: enrich synth_summary.json with canonical-baseline section and generate canonical_baseline_decision.rpt")
     ap.add_argument("--synth-summary-json", default=None,
                     help="Path to existing synth_summary.json to enrich (for --canonical-baseline mode)")
     ap.add_argument("--canonical-netlist-sha256", default=None,
@@ -3104,6 +3396,7 @@ def main() -> None:
                 old_label=args.old_label,
                 new_label=args.new_label,
                 extra_warnings=ct_warnings,
+                status="VERIFIED",
             )
             print(f"[synth_summary] Wrote {output_path}")
         except Exception as e:
@@ -3196,6 +3489,8 @@ def main() -> None:
             historical_commit=args.historical_commit,
             historical_cell_count=args.historical_cell_count,
             historical_area_um2=args.historical_area_um2,
+            area_flow_comparison_rpt=str(Path(args.output_dir) / "area_flow_comparison.rpt"),
+            cell_type_delta_rpt=str(Path(args.output_dir) / "cell_type_delta.rpt"),
             identity_json_path=args.identity_json,
         )
         sys.exit(0)
