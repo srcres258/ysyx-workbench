@@ -263,6 +263,7 @@ RUN_CONFIG_WAVE ?= off
 RUN_CONFIG_NVBOARD ?= on
 RUN_CONFIG_DEBUG_OUTPUT ?= off
 RUN_CONFIG_PERF ?= on
+PERF_CHECK_STRICT ?= off
 RUN_CONFIG_DIFFTEST_PORT ?= 12345
 RUN_CONFIG_ITRACE_OUT_FILE_PATH ?= build/itrace.log
 RUN_CONFIG_MTRACE_OUT_FILE_PATH ?= build/mtrace.log
@@ -413,14 +414,23 @@ perf:
 		 NPC_CONFIG_DEBUG_OUTPUT=off \
 		 NPC_CONFIG_MROM=off \
 		 NPC_CONFIG_PERF=on \
+		 NPC_CONFIG_PERF_CHECK_STRICT=$(PERF_CHECK_STRICT) \
 		 NPC_CONFIG_FLASH_BIN_FILE_PATH=$(MICROBENCH_BIN) \
 		 NPC_CONFIG_FLASH_ELF_FILE_PATH=$(MICROBENCH_ELF) \
 		 $(BIN)
 	@echo ""
+ifeq ($(PERF_CHECK_STRICT),on)
+	@python3 $(PERF_AGGREGATOR) \
+	 --perf-json $(PERF_DIR)/perf.json \
+	 --synth-json $(SYNTH_OUT_DIR)/synth_summary.json \
+	 --output-file $(PERF_DIR)/perf.txt \
+	 --strict
+else
 	@python3 $(PERF_AGGREGATOR) \
 	 --perf-json $(PERF_DIR)/perf.json \
 	 --synth-json $(SYNTH_OUT_DIR)/synth_summary.json \
 	 --output-file $(PERF_DIR)/perf.txt
+endif
 
 perf-clean:
 	rm -rf $(PERF_DIR)

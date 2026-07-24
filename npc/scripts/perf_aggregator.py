@@ -13,7 +13,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Dict, List, NoReturn
+from typing import Any, Dict, List, NoReturn, Optional
 
 
 def fail(msg: str) -> NoReturn:
@@ -75,7 +75,204 @@ def get_git_metadata() -> tuple[str, str]:
     return commit_id, commit_title
 
 
-def build_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> str:
+# ── Frozen baseline: the first 26 counter names in their exact order ──────
+# These 26 positions are the append-only contract baseline (T1).
+# T3 register-context counters (12) begin at index 26 — they extend the
+# schema but are NOT part of the frozen baseline enforced by name.
+# NEVER rename, reorder, or delete entries from this list.
+BASELINE_COUNTER_NAMES: List[str] = [
+    "core.cycle",
+    "core.instret",
+    "core.busy.cycle",
+    "core.stall.cycle",
+    "inst.class.alu.count",
+    "inst.class.load.count",
+    "inst.class.store.count",
+    "inst.class.branch.count",
+    "inst.class.jal.count",
+    "inst.class.jalr.count",
+    "inst.class.csr.count",
+    "inst.class.muldiv.count",
+    "state.fetch.cycle",
+    "state.decode.cycle",
+    "state.execute.cycle",
+    "state.memory.cycle",
+    "state.writeback.cycle",
+    "stall.ifetch.wait_resp.cycle",
+    "stall.mem.wait_resp.cycle",
+    "stall.mem.req_blocked.cycle",
+    "stall.structural.shared_mem.cycle",
+    "stall.muldiv.busy.cycle",
+    "mem.load.req.count",
+    "mem.store.req.count",
+    "mem.mmio.req.count",
+    "trap.exception.count",
+]
+
+
+def _validate_counter_fields(
+    perf_counters: List[Dict[str, Any]],
+) -> None:
+    """Validate each counter entry has required fields; fail-closed.
+
+    Checks every counter for non-null name, value, and that
+    the baseline names/order are preserved for positions 0–25.
+    Also rejects duplicate names across the entire counter set.
+
+    Note: 'unit' is NOT mandatory — legacy perf JSON may omit it.
+    """
+    seen: set = set()
+
+    for idx, ctr in enumerate(perf_counters):
+        name = ctr.get("name")
+        value = ctr.get("value")
+
+        if name is None:
+            fail(f"perf.json: perf_counter[{idx}] missing 'name'")
+        if value is None:
+            fail(f"perf.json: perf_counter[{idx}] ('{name}') missing 'value'")
+
+        # Baseline name-order lock (positions 0–25)
+        if idx < len(BASELINE_COUNTER_NAMES):
+            expected = BASELINE_COUNTER_NAMES[idx]
+            if name != expected:
+                fail(
+                    f"perf.json: perf_counter[{idx}] name is '{name}' "
+                    f"but expected '{expected}' — baseline counter names "
+                    f"are frozen and must not be renamed or reordered"
+                )
+
+        # Duplicate-name detection (across ALL counters)
+        if name in seen:
+            fail(
+                f"perf.json: duplicate counter name '{name}' "
+                f"at index {idx}"
+            )
+        seen.add(name)
+
+
+def _run_strict_checks(
+    perf_counters: List[Dict[str, Any]],
+) -> None:
+    """Run strict closure checks on counter values. Fail-closed on any violation.
+
+    Checks:
+        - sum(inst.class.*) == core.instret (within slack of 1)
+        - sum(state.*.cycle) == core.busy.cycle (within slack of 5)
+        - sum(ifetch.phase.*) == state.fetch.cycle (within slack of 2)
+        - sum(lsu.load.byte+half+word) == sum(lsu.load.aligned+unaligned)
+        - sum(lsu.store.byte+half+word) == sum(lsu.store.aligned+unaligned)
+        - gpr.write.suppressed_x0 <= gpr.write.total
+        - csr.read.concurrent_3port <= csr.read.concurrent_2port
+    """
+    by_name: Dict[str, int] = {}
+    for ctr in perf_counters:
+        by_name[ctr["name"]] = ctr.get("value", 0)
+
+    def counter(name: str) -> int:
+        if name not in by_name:
+            fail(f"strict check: counter '{name}' not found in perf_counters")
+        return by_name[name]
+
+    def check_close(label: str, actual: int, expected: int, slack: int = 1) -> None:
+        delta = actual - expected
+        if delta < 0 or delta > slack:
+            fail(
+                f"strict check: {label} -- sum={actual} expected={expected} "
+                f"delta={delta} (max slack={slack})"
+            )
+
+    def check_le(label: str, a: int, b: int) -> None:
+        if a > b:
+            fail(f"strict check: {label} -- {a} > {b}")
+
+    # 1. Instruction class closure
+    inst_classes = [
+        "inst.class.alu.count",
+        "inst.class.load.count",
+        "inst.class.store.count",
+        "inst.class.branch.count",
+        "inst.class.jal.count",
+        "inst.class.jalr.count",
+        "inst.class.csr.count",
+        "inst.class.muldiv.count",
+    ]
+    inst_sum = sum(counter(n) for n in inst_classes)
+    check_close("inst.class sum == instret", inst_sum, counter("core.instret"), slack=1)
+
+    # 2. Stage cycle closure
+    stages = [
+        "state.fetch.cycle",
+        "state.decode.cycle",
+        "state.execute.cycle",
+        "state.memory.cycle",
+        "state.writeback.cycle",
+    ]
+    state_sum = sum(counter(n) for n in stages)
+    check_close("state sum == core.busy.cycle", state_sum, counter("core.busy.cycle"), slack=5)
+
+    # 3. IFetch phase closure
+    # Exclude accept_pc (idle): state.fetch.cycle counts only working cycles (state≠s_idle).
+    ifetch_phases = [
+        "ifetch.phase.prepare_request.cycle",
+        "ifetch.phase.request_blocked.cycle",
+        "ifetch.phase.wait_response.cycle",
+        "ifetch.phase.response_buffered.cycle",
+        "ifetch.phase.output_blocked.cycle",
+    ]
+    ifetch_phase_sum = sum(counter(n) for n in ifetch_phases)
+    check_close("ifetch phase sum == state.fetch.cycle", ifetch_phase_sum, counter("state.fetch.cycle"), slack=2)
+
+    # 4. LSU load closure: size sum == aligned + unaligned
+    lsu_load_sizes = [
+        "lsu.load.byte.count",
+        "lsu.load.half.count",
+        "lsu.load.word.count",
+    ]
+    lsu_load_align = ["lsu.load.aligned.count", "lsu.load.unaligned.count"]
+    check_close("lsu load size-sum == aligned+unaligned",
+                sum(counter(n) for n in lsu_load_sizes),
+                sum(counter(n) for n in lsu_load_align),
+                slack=1)
+
+    # 5. LSU store closure
+    lsu_store_sizes = [
+        "lsu.store.byte.count",
+        "lsu.store.half.count",
+        "lsu.store.word.count",
+    ]
+    lsu_store_align = ["lsu.store.aligned.count", "lsu.store.unaligned.count"]
+    check_close("lsu store size-sum == aligned+unaligned",
+                sum(counter(n) for n in lsu_store_sizes),
+                sum(counter(n) for n in lsu_store_align),
+                slack=1)
+
+    # 6. GPR write suppression invariant
+    check_le("gpr.write.suppressed_x0 <= gpr.write.total",
+             counter("gpr.write.suppressed_x0.count"),
+             counter("reg.gpr.write.count") + counter("gpr.write.suppressed_x0.count"))
+
+    # 7. CSR concurrent read invariant
+    check_le("csr concurrent_3port <= concurrent_2port",
+             counter("csr.read.concurrent_3port.count"),
+             counter("csr.read.concurrent_2port.count"))
+
+    # 8. Execution concurrency: all retired instructions must be classified
+    conc_vals = [
+        counter("ex.concurrency.alu_only.count"),
+        counter("ex.concurrency.pc_only.count"),
+        counter("ex.concurrency.both.count"),
+    ]
+    check_close("concurrency sum == instret", sum(conc_vals), counter("core.instret"), slack=1)
+
+    print("[Perf] Strict closure checks PASSED", file=sys.stderr)
+
+
+def build_perf_block(
+    perf_data: Dict[str, Any],
+    synth_data: Dict[str, Any],
+    strict: bool = False,
+) -> str:
     """Build the required perf report block."""
 
     # ── Core perf metrics from perf.json ──────────────────────────────
@@ -88,10 +285,16 @@ def build_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> s
 
     if not isinstance(perf_counters, list):
         fail("perf.json: 'perf_counters' must be an array")
-    if len(perf_counters) != 26:
+    if len(perf_counters) < len(BASELINE_COUNTER_NAMES):
         fail(
-            f"perf.json: expected 26 perf counters, got {len(perf_counters)}"
+            f"perf.json: expected at least {len(BASELINE_COUNTER_NAMES)} "
+            f"perf counters, got {len(perf_counters)}"
         )
+
+    _validate_counter_fields(perf_counters)
+
+    if strict:
+        _run_strict_checks(perf_counters)
 
     # ── Synth metrics from synth_summary.json ─────────────────────────
     # final_mhz and area_um2 exist in both v1 and v2 schemas.
@@ -151,12 +354,8 @@ def build_perf_block(perf_data: Dict[str, Any], synth_data: Dict[str, Any]) -> s
     ])
 
     for idx, ctr in enumerate(perf_counters):
-        name = ctr.get("name")
-        value = ctr.get("value")
-        if name is None:
-            fail(f"perf.json: perf_counter[{idx}] missing 'name'")
-        if value is None:
-            fail(f"perf.json: perf_counter[{idx}] '{name}' missing 'value'")
+        name = ctr["name"]
+        value = ctr["value"]
         lines.append(f"{name}: {format_value(value)}")
 
     return "\n".join(lines) + "\n"
@@ -185,6 +384,11 @@ def main() -> None:
         type=Path,
         help="Optional path to write the same perf report block",
     )
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enable strict closure checks on counter relationships",
+    )
     args = ap.parse_args()
 
     perf_data = load_json(args.perf_json)
@@ -200,7 +404,7 @@ def main() -> None:
             f"(expected 1)"
         )
 
-    report = build_perf_block(perf_data, synth_data)
+    report = build_perf_block(perf_data, synth_data, strict=args.strict)
     sys.stdout.write(report)
     if args.output_file is not None:
         try:

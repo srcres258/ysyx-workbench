@@ -9,6 +9,7 @@
 #include <fstream>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <iomanip>
 #include <cmath>
 #include <csignal>
@@ -356,6 +357,10 @@ void simExec(uint64_t n) {
                 std::cout << "IPC = " << std::fixed << std::setprecision(4) << ipc << std::endl;
             }
             if (sim_config.config_perf) {
+                const char *perfStrictEnv = std::getenv("NPC_CONFIG_PERF_CHECK_STRICT");
+                if (perfStrictEnv && std::strcmp(perfStrictEnv, "on") == 0) {
+                    perf::g_perfMonitor.setStrict(true);
+                }
                 perf::g_perfMonitor.dumpSummary(std::cout);
                 perf::g_perfMonitor.dumpJson("build/perf/perf.json");
             }

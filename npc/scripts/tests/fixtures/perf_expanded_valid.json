@@ -17,7 +17,7 @@
     {
       "name": "core.busy.cycle",
       "unit": "cycle",
-      "value": 10000000
+      "value": 40000000
     },
     {
       "name": "core.stall.cycle",
@@ -27,7 +27,7 @@
     {
       "name": "inst.class.alu.count",
       "unit": "count",
-      "value": 10500000
+      "value": 10000000
     },
     {
       "name": "inst.class.load.count",
@@ -67,27 +67,27 @@
     {
       "name": "state.fetch.cycle",
       "unit": "cycle",
-      "value": 7800000
+      "value": 50000000
     },
     {
       "name": "state.decode.cycle",
       "unit": "cycle",
-      "value": 1500000
+      "value": 50000000
     },
     {
       "name": "state.execute.cycle",
       "unit": "cycle",
-      "value": 500000
+      "value": 50000000
     },
     {
       "name": "state.memory.cycle",
       "unit": "cycle",
-      "value": 150000
+      "value": 40000000
     },
     {
       "name": "state.writeback.cycle",
       "unit": "cycle",
-      "value": 50000
+      "value": 30000000
     },
     {
       "name": "stall.ifetch.wait_resp.cycle",
@@ -193,6 +193,16 @@
       "name": "reg.csr.mode.imm.count",
       "unit": "count",
       "value": 100000
+    },
+    {
+      "name": "stage.if.input_fire.count",
+      "unit": "count",
+      "value": 10000000
+    },
+    {
+      "name": "stage.if.output_fire.count",
+      "unit": "count",
+      "value": 10000000
     },
     {
       "name": "gpr.read.rs1.count",
@@ -473,81 +483,6 @@
       "name": "lsu.store.w_done_wait_aw.cycle",
       "unit": "cycle",
       "value": 100000
-    },
-    {
-      "name": "alu.op.add.count",
-      "unit": "count",
-      "value": 8000000
-    },
-    {
-      "name": "alu.op.sub.count",
-      "unit": "count",
-      "value": 500000
-    },
-    {
-      "name": "alu.op.sll.count",
-      "unit": "count",
-      "value": 300000
-    },
-    {
-      "name": "alu.op.srl.count",
-      "unit": "count",
-      "value": 200000
-    },
-    {
-      "name": "alu.op.sra.count",
-      "unit": "count",
-      "value": 100000
-    },
-    {
-      "name": "alu.op.and.count",
-      "unit": "count",
-      "value": 400000
-    },
-    {
-      "name": "alu.op.or.count",
-      "unit": "count",
-      "value": 400000
-    },
-    {
-      "name": "alu.op.xor.count",
-      "unit": "count",
-      "value": 200000
-    },
-    {
-      "name": "ex.adder.compute.count",
-      "unit": "count",
-      "value": 6000000
-    },
-    {
-      "name": "ex.adder.agen_ls.count",
-      "unit": "count",
-      "value": 5000000
-    },
-    {
-      "name": "ex.adder.agen_branch.count",
-      "unit": "count",
-      "value": 2000000
-    },
-    {
-      "name": "ex.adder.agen_auipc.count",
-      "unit": "count",
-      "value": 500000
-    },
-    {
-      "name": "ex.concurrency.alu_only.count",
-      "unit": "count",
-      "value": 15000000
-    },
-    {
-      "name": "ex.concurrency.pc_only.count",
-      "unit": "count",
-      "value": 3000000
-    },
-    {
-      "name": "ex.concurrency.both.count",
-      "unit": "count",
-      "value": 2000000
     }
   ]
 }

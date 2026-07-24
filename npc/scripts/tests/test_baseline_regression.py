@@ -150,7 +150,22 @@ class TestCanonicalAuthorityEnforcement(unittest.TestCase):
             "cycles": 1000,
             "instret": 500,
             "ipc": 0.5,
-            "perf_counters": [{"name": f"c{i}", "value": i} for i in range(26)],
+            "perf_counters": [
+                {"name": n, "value": i}
+                for i, n in enumerate([
+                    "core.cycle", "core.instret", "core.busy.cycle", "core.stall.cycle",
+                    "inst.class.alu.count", "inst.class.load.count", "inst.class.store.count",
+                    "inst.class.branch.count", "inst.class.jal.count", "inst.class.jalr.count",
+                    "inst.class.csr.count", "inst.class.muldiv.count",
+                    "state.fetch.cycle", "state.decode.cycle", "state.execute.cycle",
+                    "state.memory.cycle", "state.writeback.cycle",
+                    "stall.ifetch.wait_resp.cycle", "stall.mem.wait_resp.cycle",
+                    "stall.mem.req_blocked.cycle", "stall.structural.shared_mem.cycle",
+                    "stall.muldiv.busy.cycle",
+                    "mem.load.req.count", "mem.store.req.count", "mem.mmio.req.count",
+                    "trap.exception.count",
+                ])
+            ],
         }
 
     def test_perf_aggregator_rejects_hierarchy_attribution(self):
@@ -506,7 +521,22 @@ class TestBackwardCompatibility(unittest.TestCase):
             "cycles": 1000,
             "instret": 500,
             "ipc": 0.5,
-            "perf_counters": [{"name": f"c{i}", "value": i} for i in range(26)],
+            "perf_counters": [
+                {"name": n, "value": i}
+                for i, n in enumerate([
+                    "core.cycle", "core.instret", "core.busy.cycle", "core.stall.cycle",
+                    "inst.class.alu.count", "inst.class.load.count", "inst.class.store.count",
+                    "inst.class.branch.count", "inst.class.jal.count", "inst.class.jalr.count",
+                    "inst.class.csr.count", "inst.class.muldiv.count",
+                    "state.fetch.cycle", "state.decode.cycle", "state.execute.cycle",
+                    "state.memory.cycle", "state.writeback.cycle",
+                    "stall.ifetch.wait_resp.cycle", "stall.mem.wait_resp.cycle",
+                    "stall.mem.req_blocked.cycle", "stall.structural.shared_mem.cycle",
+                    "stall.muldiv.busy.cycle",
+                    "mem.load.req.count", "mem.store.req.count", "mem.mmio.req.count",
+                    "trap.exception.count",
+                ])
+            ],
         }
         synth_data = _load_json("synth_summary_canonical_baseline.json")
         # Should not crash — canonical_baseline section is additive only

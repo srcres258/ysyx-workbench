@@ -1,7 +1,7 @@
 # NPC Performance Counter System
 
 NPC 通过 `PerfDPIBundle` (Chisel) → `PerfMonitor` (C++) → TUI PerfPanel / summary dump
-的路径，提供 26 个 polling-first 性能计数器以及 CPI / IPC / Stall% 派生指标。
+的路径，提供 109 个 polling-first 性能计数器以及 CPI / IPC / Stall% 派生指标。
 
 ## Configuration
 
@@ -38,12 +38,40 @@ domain.subdomain[.subdomain].metric
 
 | 层级 | 说明 | 示例 |
 |---|---|---|
-| 顶级 domain | `core`, `inst`, `state`, `stall`, `mem`, `trap` | `core.cycle` |
+| 顶级 domain | `core`, `inst`, `state`, `stall`, `mem`, `trap`, `reg`, `gpr`, `csr`, `ifetch`, `lsu` | `core.cycle` |
 | 子域 | 分类或 pipeline stage 特定 | `inst.class.alu` |
 | metric | 单位指示 (`cycle`, `count`) | `core.cycle` (cycle 单位), `core.instret` (count 单位) |
 
-**所有 26 个 counter 的定义仅维护在一处**：`npc/csrc/perf.cpp::kCounterTable`。
+**所有 counter 的定义仅维护在一处**：`npc/csrc/perf.cpp::kCounterTable`。
 RTL 侧只暴露 `perf_*` 语义信号，不含 counter name 字符串。
+
+## Append-Only Counter Contract (T1 Freeze)
+
+从 T1 起，counter table 锁定为**严格追加式**维护策略：
+
+1. **禁止重命名**：已发布的 counter name 不可更改。
+2. **禁止重排**：counter 在 array / JSON 中的顺序不可调整。
+3. **禁止插入**：新 counter 只能追加到 `kCounterTable` 和 JSON `perf_counters` 数组末尾。
+4. **禁止删除**：已发布的 counter 不可移除。
+5. **名称唯一**：每个 counter name 必须在全表唯一；编译期和聚合器均会检测重复。
+
+### 编译期 Guard
+
+`npc/csrc/perf.cpp` 在编译期强制执行：
+- 表大小 == `kNumCounters`（`static_assert`）
+- 无重复 counter name（`constexpr` 两两比较 + `static_assert`）
+
+### 聚合器 Guard
+
+`npc/scripts/perf_aggregator.py` 在运行时强制执行：
+- `len(perf_counters) >= 26` — 至少包含 baseline 26 个 counter
+- 位置 0–25 的 counter name 与 `BASELINE_COUNTER_NAMES` 精确匹配（名称/顺序锁定）
+- 无重复 counter name（全 array 扫描）
+- 每个 counter 必须包含 `name` / `value` 两字段；`unit` 为可选字段（向后兼容旧 perf JSON）
+
+### Python 侧 Baseline
+
+`perf_aggregator.py` 中的 `BASELINE_COUNTER_NAMES` 列表定义了 26 个 frozen baseline counter name。该列表**不可修改**——它是 T1 contract 的 Python 侧镜像。
 
 ## Polling vs Event-Triggered Boundary
 
@@ -124,6 +152,52 @@ RTL 侧只暴露 `perf_*` 语义信号，不含 counter name 字符串。
 - **IPC** = `core.instret / core.cycle`（`cycle == 0` 时显示 0）
 - **Stall%** = `core.stall.cycle / core.cycle × 100%`（`cycle == 0` 时显示 0）
 
+## Perf Summary Chapters
+
+仿真结束时 `dumpSummary()` 输出 10 个章节的结构化分析报告：
+
+| 章节 | 内容 |
+|---|---|
+| 1. CPI Stage Decomposition | 5 级流水线的周期分布、stall 原因归因、指令类别占比 |
+| 2. Per-Stage Phase Decomposition | IFetch 相位分解、取指事务事件 |
+| 3. Context (Register Writeback) Usage | GPR/CSR 写回源分布与写模式 |
+| 4. GPR Utilization | 读端口使用率、x0 抑制、rs2 语义未使用率 |
+| 5. MEM Payload | 访存请求统计 |
+| 6. CSR Concurrency | CSR 读端口并发、写类别、地址分布 |
+| 7. Arithmetic Concurrency | ALU 操作分布、加法器意图、执行并发性 |
+| 8. IFetch Decomposition | 取指效率指标摘要 |
+| 9. LSU Decomposition | Load/Store 宽度与对齐分布、AXI 通道计数、Store 串行化 |
+| 10. Area-Performance Candidates | 从实测数据推导的面积—性能优化候选 |
+
+## Strict Closure Checks
+
+`PERF_CHECK_STRICT` 控制闭合检查的严格模式：
+
+```bash
+# 默认关闭 — 快速路径，不执行闭合检查
+make -C npc perf
+
+# 开启严格检查 — C++ dumpSummary() 和 Python 聚合器均执行闭合验证
+make -C npc perf PERF_CHECK_STRICT=on
+```
+
+开启后验证以下闭合关系（超出 slack 范围即报错）：
+
+| 检查项 | 关系 | Slack |
+|---|---|---|
+| 指令类闭合 | `sum(inst.class.*) == core.instret` | 1 |
+| 流水线周期闭合 | `sum(state.*.cycle) == core.busy.cycle` | 5 |
+| IFetch 相位闭合 | `sum(ifetch.phase.* except accept_pc) == state.fetch.cycle` | 2 |
+| LSU Load 闭合 | `sum(lsu.load.byte+half+word) == sum(lsu.load.aligned+unaligned)` | 1 |
+| LSU Store 闭合 | `sum(lsu.store.byte+half+word) == sum(lsu.store.aligned+unaligned)` | 1 |
+| GPR 写入抑制 | `gpr.write.suppressed_x0 <= gpr.write.total` | 0 |
+| CSR 并发读数 | `csr.concurrent_3port <= csr.concurrent_2port` | 0 |
+| 执行并发闭合 | `sum(ex.concurrency.*) == core.instret` | 1 |
+
+**实现位置**：
+- C++ `PerfMonitor::dumpSummary()` — 当 `NPC_CONFIG_PERF_CHECK_STRICT=on` 时通过 `setStrict(true)` 激活，将闭合验证结果打印到 stdout
+- Python `perf_aggregator.py --strict` — 当 `PERF_CHECK_STRICT=on` 时聚合器在生成报告前运行闭合检查，失败即退出非零
+
 ## TUI Usage
 
 TUI PerfPanel 展示 7 行分组数据：Core、Derived (CPI/IPC/Stall%)、Inst Class、Pipeline State、Stall、Memory、Trap。
@@ -168,13 +242,16 @@ nix develop --command make -C am-kernels/benchmarks/microbench \
 
 ## How to Add a Counter
 
-1. **定义**：在 `npc/csrc/perf.cpp::kCounterTable` 末尾追加一行 `{ ... }`，包含 `name` / `unit` / `definition` / `rawSource`。
-2. **索引**：在 `npc/include/perf.hpp::Idx` 命名空间末尾添加 `constexpr size_t` 常量。
-3. **RTL 信号**（如需要新信号）：在 `npc/vsrc-chisel/.../PerfDPIBundle.scala` 对应子 bundle 中添加 `Output(Bool())` 字段。
-4. **信号接入**：在 `npc/vsrc-chisel/.../PerfSignalCollector.scala` 中连接实际硬件信号到 bundle 字段。
-5. **采样**：如果新计数器落入已有 domain（如 `core`, `inst`, `state`, `stall`, `mem`, `trap`），在对应的 `accumulate*` 函数中添加 `m_values[Idx::NEW_COUNTER] += ...`。如果需要新 domain，增加对应的 accumulate 方法并在 `PerfMonitor::sampleCycle()` 模板中调用。
-6. **更新表大小**：`PerfCounters::kNumCounters` 及其 `static_assert` 会自动通过 compile-time array size 检查一致性。
-7. **重新生成 RTL + 构建**：
+**重要**：新 counter 必须遵守 [Append-Only Counter Contract](#append-only-counter-contract-t1-freeze) 中的全部规则。
+
+1. **定义**：在 `npc/csrc/perf.cpp::kCounterTable` **末尾**追加一行 `{ ... }`，包含 `name` / `unit` / `definition` / `rawSource`。不得插入到现有 109 个 entry 之间。
+2. **索引**：在 `npc/include/perf.hpp::Idx` 命名空间**末尾**添加 `constexpr size_t` 常量。
+3. **表大小**：更新 `PerfCounters::kNumCounters`；编译期 `static_assert` 自动检查一致性。编译期重复名称检查也会自动触发。
+4. **聚合器 baseline**：在 `npc/scripts/perf_aggregator.py::BASELINE_COUNTER_NAMES` **末尾**追加新 counter name。
+5. **RTL 信号**（如需要新信号）：在 `npc/vsrc-chisel/.../PerfDPIBundle.scala` 对应子 bundle 中添加 `Output(Bool())` 字段。
+6. **信号接入**：在 `npc/vsrc-chisel/.../PerfSignalCollector.scala` 中连接实际硬件信号到 bundle 字段。
+7. **采样**：如果新计数器落入已有 domain（如 `core`, `inst`, `state`, `stall`, `mem`, `trap`），在对应的 `accumulate*` 函数中添加 `m_values[Idx::NEW_COUNTER] += ...`。如果需要新 domain，增加对应的 accumulate 方法并在 `PerfMonitor::sampleCycle()` 模板中调用。
+8. **重新生成 RTL + 构建**：
    ```bash
    nix develop --command make -C npc chisel-gen
    nix develop --command make -C npc

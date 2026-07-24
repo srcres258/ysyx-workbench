@@ -17,7 +17,7 @@
     {
       "name": "core.busy.cycle",
       "unit": "cycle",
-      "value": 10000000
+      "value": 40000000
     },
     {
       "name": "core.stall.cycle",
@@ -27,7 +27,7 @@
     {
       "name": "inst.class.alu.count",
       "unit": "count",
-      "value": 10500000
+      "value": 10000000
     },
     {
       "name": "inst.class.load.count",
@@ -67,7 +67,7 @@
     {
       "name": "state.fetch.cycle",
       "unit": "cycle",
-      "value": 7800000
+      "value": 37800100
     },
     {
       "name": "state.decode.cycle",
@@ -537,7 +537,7 @@
     {
       "name": "ex.concurrency.alu_only.count",
       "unit": "count",
-      "value": 15000000
+      "value": 12000000
     },
     {
       "name": "ex.concurrency.pc_only.count",
