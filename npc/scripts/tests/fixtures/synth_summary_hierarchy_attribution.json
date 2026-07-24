@@ -79,7 +79,7 @@
   "canonical_baseline": {
     "flow_id": "hierarchy_attribution_v4_no_flatten",
     "flow_description": "synth -top $DESIGN -run :fine (no -flatten), share -aggressive (hierarchical), clockgate, dfflibmap, abc (hierarchical), no flatten -- hierarchy preserved for STA",
-    "decision_reason": "The hierarchy-attribution view is analysis-only. It is NOT authoritative for QoR.",
+    "decision_reason": "The hierarchy-attribution view is attribution-only. It is NOT authoritative for QoR.",
     "canonical_sha256": "N/A",
     "canonical_cell_count": 11588,
     "canonical_area_um2": 23598.456,
@@ -92,7 +92,7 @@
     "historical_area_um2_approx": null,
     "flow_comparison": [
       {
-        "flow": "canonical_flat (current, v4 late-flatten)",
+        "flow": "canonical_flat (current, v4 early-flatten)",
         "cells": 11588,
         "area_um2": 23598.46,
         "status": "canonical",
@@ -102,7 +102,7 @@
         "flow": "hierarchy_attribution (current, v4 no-flatten)",
         "cells": 11588,
         "area_um2": 23598.456,
-        "status": "analysis-only",
+        "status": "attribution-only",
         "comparable_to_baseline": true
       },
       {

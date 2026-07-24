@@ -40,7 +40,7 @@ class TestCanonicalBaselineContract(unittest.TestCase):
             canonical_netlist_sha256="ab" * 32,
             hierarchy_attribution_area_um2=None,
         )
-        self.assertEqual(baseline["flow_id"], "canonical_flat_v4_late_flatten")
+        self.assertEqual(baseline["flow_id"], "canonical_flat_v4_early_flatten")
 
     def test_flow_id_hierarchy_attribution_is_correct(self):
         from synth_summary import build_canonical_baseline
@@ -92,7 +92,7 @@ class TestCanonicalBaselineContract(unittest.TestCase):
             canonical_netlist_sha256="ab" * 32,
             hierarchy_attribution_area_um2=300.0,
         )
-        analysis_entries = [e for e in baseline["flow_comparison"] if e["status"] == "analysis-only"]
+        analysis_entries = [e for e in baseline["flow_comparison"] if e["status"] == "attribution-only"]
         self.assertEqual(len(analysis_entries), 1)
         self.assertEqual(analysis_entries[0]["area_um2"], 300.0)
 
@@ -180,9 +180,9 @@ class TestCanonicalAuthorityEnforcement(unittest.TestCase):
     def test_canonical_baseline_section_marks_attribution_analysis_only(self):
         data = _load_json("synth_summary_canonical_baseline.json")
         baseline = data["canonical_baseline"]
-        analysis_entries = [e for e in baseline["flow_comparison"] if "analysis-only" in str(e.get("status", ""))]
+        analysis_entries = [e for e in baseline["flow_comparison"] if "attribution-only" in str(e.get("status", ""))]
         self.assertGreaterEqual(len(analysis_entries), 1)
-        # The analysis-only entry must NOT have status "canonical"
+        # The attribution-only entry must NOT have status "canonical"
         for entry in analysis_entries:
             self.assertNotEqual(entry["status"], "canonical")
 
@@ -347,7 +347,7 @@ class TestEndToEndBaselineRegression(unittest.TestCase):
         data = _load_json("synth_summary_canonical_baseline.json")
         self.assertEqual(
             data["canonical_baseline"]["flow_id"],
-            "canonical_flat_v4_late_flatten",
+            "canonical_flat_v4_early_flatten",
         )
 
     def test_hierarchy_attribution_fixture_has_correct_flow_id(self):

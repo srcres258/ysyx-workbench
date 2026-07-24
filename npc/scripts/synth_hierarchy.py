@@ -592,8 +592,10 @@ def extract_cell_types_from_json(json_path) -> Tuple[List[CellTypeRecord], float
     # In hierarchical JSON, num_cells is a {count, area, ...} object.
     num_cells = top_mod.get("num_cells", {})
     if isinstance(num_cells, dict):
-        total_area = float(num_cells.get("area", 0.0))
+        total_area = float(num_cells.get("area", num_cells.get("local_area", 0.0)))
     else:
+        total_area = float(top_mod.get("area", 0.0))
+    if total_area <= 0.0:
         total_area = float(top_mod.get("area", 0.0))
 
     if total_area <= 0.0:
@@ -607,8 +609,8 @@ def extract_cell_types_from_json(json_path) -> Tuple[List[CellTypeRecord], float
 
     for cell_type, val in cells_by_type_raw.items():
         if isinstance(val, dict):
-            count = int(val.get("count", 0))
-            area = float(val.get("area", 0.0))
+            count = int(val.get("count", val.get("local_count", 0)))
+            area = float(val.get("area", val.get("local_area", 0.0)))
         elif isinstance(val, (int, float)):
             count = int(val)
             area = 0.0

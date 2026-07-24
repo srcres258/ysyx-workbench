@@ -357,11 +357,10 @@ def build_canonical_baseline(
     # ── flow ID ──
     view_type = summary.get("view_type", "canonical_flat")
     if view_type == "canonical_flat":
-        flow_id = "canonical_flat_v4_late_flatten"
+        flow_id = "canonical_flat_v4_early_flatten"
         flow_desc = (
-            "synth -top $DESIGN -run :fine (no -flatten), share -aggressive "
-            "(hierarchical), clockgate, dfflibmap, abc (hierarchical), "
-            "flatten (post-map), opt_clean -purge"
+            "synth -top $DESIGN -flatten -run :fine (pre-ABC), share -aggressive "
+            "(flat), clockgate, dfflibmap, abc (flat), opt_clean -purge"
         )
     elif view_type == "hierarchy_attribution":
         flow_id = "hierarchy_attribution_v4_no_flatten"
@@ -379,15 +378,11 @@ def build_canonical_baseline(
         decision_reason = decision_reason_override
     else:
         decision_reason = (
-            "The current canonical-flat flow produces reproducible, self-consistent "
-            "results verified across multiple synthesis runs.  The historical flow "
+            "The current canonical-flat flow is the profile-B early-flatten baseline. "
+            "The historical flow "
             f"(yosys-sta commit {historical_commit}, pre-ABC flatten via "
-            "synth -flatten -run :fine) produced approximately "
-            f"{historical_cell_count or '~8881'} cells / "
-            f"{historical_area_um2 or '~19650.75'} um2, but the generated RTL has "
-            "changed since that era — the identity gate would fail-closed on the "
-            "mismatched verilog SHA256.  The historical numbers are preserved as "
-            "reference ONLY and MUST NOT be used for QoR regression."
+            "synth -flatten -run :fine) is preserved as reference only because the "
+            "identity gate still fails closed when the generated RTL changes."
         )
 
     # ── are we comparable to history? ──
@@ -396,23 +391,17 @@ def build_canonical_baseline(
 
     # ── area difference reason ──
     area_diff_reason = (
-        "Historical flow (~8881 cells, ~19650.75 um2) used pre-ABC flatten "
-        f"(synth -flatten -run :fine at yosys-sta commit {historical_commit}). "
-        "The -flatten flag in the coarse: phase of synth causes flatten BEFORE "
-        "share -aggressive and ABC, enabling cross-module resource sharing and "
-        "single-module ABC mapping.  The current flow removes -flatten, causing "
-        "share to operate per-module and ABC to map each submodule independently. "
-        "This accounts for the expected ~2707 cell / ~3947.706 um2 delta. "
-        "HOWEVER, the RTL has changed since the historical run, so this delta "
-        "cannot be verified — the identity gate fails closed.  Within the current "
-        "flow, canonical_flat and hierarchy_attribution produce identical cell "
-        "counts because flatten timing does not change mapped cell totals."
+        "The old late-flatten canonical explanation has been retired. "
+        f"Historical flow (~8881 cells, ~19650.75 um2) at yosys-sta commit {historical_commit} "
+        "remains reference-only.  The current canonical baseline is the profile-B "
+        "early-flatten flow, while hierarchy_attribution is attribution-only and must "
+        "not redefine QoR truth."
     )
 
     # ── flow comparison array ──
     flow_comparison: List[Dict[str, Any]] = [
         {
-            "flow": "canonical_flat (current, v4 late-flatten)",
+            "flow": "canonical_flat (current, v4 early-flatten)",
             "cells": cell_count,
             "area_um2": area_um2,
             "status": "canonical",
@@ -425,7 +414,7 @@ def build_canonical_baseline(
             "flow": "hierarchy_attribution (current, v4 no-flatten)",
             "cells": cell_count,  # same mapped cells
             "area_um2": hierarchy_attribution_area_um2,
-            "status": "analysis-only",
+            "status": "attribution-only",
             "comparable_to_baseline": True,
         })
     if historical_cell_count is not None or historical_area_um2 is not None:
@@ -1107,7 +1096,7 @@ def write_area_flow_comparison(
     _w("=" * 70)
     _w()
     _w("This report compares the authoritative canonical-flat QoR view")
-    _w("(flattened, single-module STA netlist) with the analysis-only")
+    _w("(flattened, single-module STA netlist) with the attribution-only")
     _w("hierarchy-attribution view (hierarchy-preserved).  The two views")
     _w("share identical RTL sources, Liberty library, SDC constraints,")
     _w("ABC strategy, and clock-gating settings.  The ONLY difference is")
@@ -1327,7 +1316,7 @@ def write_area_flow_comparison(
 
     _w("--- Verdict ---")
     _w("  Authoritative area QoR:  canonical_flat")
-    _w("  Attribution tool:        hierarchy_attribution (analysis-only)")
+    _w("  Attribution tool:        hierarchy_attribution (attribution-only)")
     _w("  Budget comparison must use canonical_flat area, not hierarchy_attribution.")
     _w()
     _w("=" * 70)
@@ -1489,7 +1478,7 @@ def write_cell_type_delta_report(
        against the sum of per-cell-type areas, with gap reporting.
 
     The report header explicitly labels the authoritative view and notes that
-    hierarchical-attribution data is analysis-only.
+    hierarchical-attribution data is attribution-only.
     """
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -2680,7 +2669,7 @@ def write_canonical_baseline_decision_rpt(
     _w(" Q2. DID FLATTEN TIMING CAUSE THE CELL/AREA INCREASE?")
     _w("=" * 78)
     _w()
-    _w("  Answer: YES — flatten timing is the PRIMARY driver of the delta.")
+    _w("  Answer: The current canonical baseline now follows profile B (early flatten before share/ABC).")
     _w()
     _w("  Mechanism:")
     _w("    1. Historical flow: flatten in synth coarse phase")
@@ -2688,22 +2677,20 @@ def write_canonical_baseline_decision_rpt(
     _w("       → ALL cross-module sharing opportunities are visible")
     _w("       → ABC maps a single flat module with full equivalence scope")
     _w()
-    _w("    2. Current flow: NO flatten in synth coarse phase")
-    _w("       → share -aggressive operates per-module only")
-    _w("       → cross-module sharing is BLOCKED by module boundaries")
-    _w("       → ABC maps each submodule independently")
+    _w("    2. Current canonical flow: profile B early flatten in synth coarse phase")
+    _w("       → share -aggressive sees the flattened netlist")
+    _w("       → cross-module logic sharing is available before ABC")
+    _w("       → ABC maps the flat canonical netlist")
     _w()
-    _w("  The flatten timing controls whether share and ABC see module")
-    _w("  boundaries.  When flatten happens AFTER ABC (current flow), the")
-    _w("  mapped cell count is already fixed and flatten only reshapes")
-    _w("  the netlist hierarchy — it cannot recover the missed sharing.")
+    _w("  The old late-flatten canonical explanation has been retired.")
+    _w("  Hierarchy-attribution keeps hierarchy only for attribution and may")
+    _w("  differ in reported provenance; it is not the canonical QoR source.")
     _w()
     _w("  Supporting evidence:")
-    _w("    - Within the current flow, canonical_flat and hierarchy_attribution")
-    _w(f"     produce identical cell counts ({canonical_cell_count} cells) because")
-    _w("     flatten timing cannot change already-mapped cell totals.")
-    _w("    - The area_flow_comparison.rpt confirms zero delta between")
-    _w("      canonical_flat and hierarchy_attribution within the current flow.")
+    _w("    - canonical_flat is the regression baseline; hierarchy_attribution")
+    _w("      is attribution-only.")
+    _w("    - Historical numbers remain reference-only unless the identity gate")
+    _w("      proves the generated RTL is identical.")
     _w()
 
     # ── Question 3: Which cell types drive the delta? ──
@@ -2711,27 +2698,18 @@ def write_canonical_baseline_decision_rpt(
     _w(" Q3. WHICH STANDARD-CELL TYPES DRIVE THE AREA DELTA?")
     _w("=" * 78)
     _w()
-    _w("  Answer: Cannot be determined precisely without running the historical")
-    _w("          flow on IDENTICAL RTL.  The cell_type_delta.rpt (task 4)")
-    _w("          currently shows zero delta because it compares two views of")
-    _w("          the SAME synthesis (canonical_flat vs hierarchy_attribution),")
-    _w("          which share identical ABC mapping and therefore identical")
-    _w("          cell-type distributions.")
+    _w("  Answer: The cell_type_delta.rpt is attribution-only; it does not")
+    _w("          define the canonical baseline.")
     _w()
-    _w("  Expected contributors (from pass-sequence analysis):")
-    _w("    1. COMBINATIONAL cells (AOI/OAI, NAND/NOR, MUX, other):")
-    _w("       Cross-module sharing in the historical flow would merge")
-    _w("       identical logic across module boundaries.  The current flow")
-    _w("       duplicates that logic per-module, increasing NAND/NOR and")
-    _w("       AOI/OAI counts.")
-    _w("    2. BUFFER/INVERTER cells: Additional module-boundary buffering")
-    _w("       in the hierarchical flow contributes to area increase.")
-    _w("    3. DFF cells: May be affected by opt_dff differences between")
-    _w("       flat and hierarchical netlist scopes.")
+    _w("  Attribution notes (attribution-only):")
+    _w("    1. Cell-type deltas are used to explain provenance, not QoR truth.")
+    _w("    2. The canonical baseline remains profile B early flatten.")
+    _w("    3. Hierarchy-attribution is attribution-only and may differ only")
+    _w("       in module-local reporting.")
     _w()
-    _w("  The cell_type_delta.rpt would report these contributions in the")
+    _w("  The cell_type_delta.rpt records these attribution details in the")
     _w("  per-type table, category aggregates, and sub-class aggregates")
-    _w("  sections when both flows are run on identical RTL.")
+    _w("  sections when the comparison inputs are identical.")
     _w()
 
     # ── Question 4: Is canonical_flat real? ──
@@ -2781,7 +2759,7 @@ def write_canonical_baseline_decision_rpt(
     _w("  These numbers are the AUTHORITATIVE baseline for all future RTL")
     _w("  area regressions.  Any RTL change that increases canonical_flat")
     _w("  area must be justified or rejected.  The hierarchy-attribution")
-    _w("  numbers are provided for per-module analysis only and MUST NOT")
+    _w("  numbers are provided for per-module attribution-only use and MUST NOT")
     _w("  be used as QoR targets.")
     _w()
 
@@ -2815,7 +2793,7 @@ def write_canonical_baseline_decision_rpt(
     _w("  IMPORTANT: The hierarchy-attribution cell count and total area")
     _w("  are IDENTICAL to canonical_flat because both use the same ABC")
     _w("  mapping.  Hierarchy attribution provides PER-MODULE breakdown,")
-    _w("  not different area totals.  It is analysis-only.")
+    _w("  not different area totals.  It is attribution-only.")
     _w()
 
     # ── Question 7: Final Q/QN→D critical path ──
@@ -2866,7 +2844,7 @@ def write_canonical_baseline_decision_rpt(
     _w("    - canonical_flat core_data_reg2reg_fmax")
     _w("    - canonical_flat area budget comparison")
     _w()
-    _w("  ANALYSIS-ONLY (DO NOT use for regression pass/fail):")
+    _w("  ATTRIBUTION-ONLY (DO NOT use for regression pass/fail):")
     _w("    - hierarchy_attribution cell count / area")
     _w("    - hierarchy_attribution per-module breakdown")
     _w("    - hierarchy_attribution timing")
@@ -2909,7 +2887,7 @@ def write_canonical_baseline_decision_rpt(
     _w("  VERDICT: The historical ~8881 cells is preserved as a REFERENCE")
     _w("  POINT ONLY.  It MUST NOT be used as a regression target, a QoR")
     _w("  baseline, or a pass/fail criterion for any RTL change.  The")
-    _w("  canonical baseline for all future work is the current flow:")
+    _w("  canonical baseline for all future work is the current B-style early-flatten flow:")
     _w(f"  {canonical_cell_count} cells, {canonical_area_um2:.2f} um2 at {target_mhz} MHz.")
     _w()
 
@@ -2918,8 +2896,8 @@ def write_canonical_baseline_decision_rpt(
     _w(f" {decision_status} CANONICAL BASELINE DECISION")
     _w("=" * 78)
     _w()
-    _w(f"  Flow:              canonical_flat (v4 late-flatten)")
-    _w(f"  Flow ID:           canonical_flat_v4_late_flatten")
+    _w(f"  Flow:              canonical_flat (v4 early-flatten)")
+    _w(f"  Flow ID:           canonical_flat_v4_early_flatten")
     _w(f"  Cell count:        {canonical_cell_count}")
     _w(f"  Area:              {canonical_area_um2:.2f} um2")
     _w(f"  Target clock:      {target_mhz} MHz")
@@ -2933,7 +2911,7 @@ def write_canonical_baseline_decision_rpt(
     _w("    - equivalence_report.rpt:     VERIFIED only when the shared-gold equivalence run succeeds")
     _w()
     _w(f"  The canonical-flat flow is {'AUTHORITATIVE' if decision_status == 'FINAL' else 'NOT YET AUTHORITATIVE'} for all QoR metrics.")
-    _w("  Hierarchy-attribution is ANALYSIS-ONLY.")
+    _w("  Hierarchy-attribution is ATTRIBUTION-ONLY.")
     _w("  Historical ~8881 cells is NON-COMPARABLE (reference only).")
     _w()
     _w("  This baseline becomes effective only after the report status reaches FINAL.")

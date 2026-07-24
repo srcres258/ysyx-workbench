@@ -97,7 +97,7 @@
     "core_data_reg2reg_source": "dedicated-ista-query"
   },
   "canonical_baseline": {
-    "flow_id": "canonical_flat_v4_late_flatten",
+    "flow_id": "canonical_flat_v4_early_flatten",
     "flow_description": "Historical pre-ABC flatten flow (commit 79952c4)",
     "decision_reason": "The historical flow (yosys-sta commit 79952c4) used pre-ABC flatten which is NOT reproducible with current RTL. The identity gate fails closed.",
     "canonical_sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
@@ -112,7 +112,7 @@
     "historical_area_um2_approx": 19650.75,
     "flow_comparison": [
       {
-        "flow": "canonical_flat (current, v4 late-flatten)",
+        "flow": "canonical_flat (current, v4 early-flatten)",
         "cells": 11588,
         "area_um2": 23598.46,
         "status": "canonical",
