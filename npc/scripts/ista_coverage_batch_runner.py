@@ -84,9 +84,14 @@ def auto_detect_paths(work_dir: Path) -> Tuple[Path, Path, Path]:
     base = work_dir / "canonical_flat" / FREQ_DIR
     netlist = base / f"{DESIGN_NAME}.netlist.v"
     sdc = base / "abc.sdc"
-    # iEDA binary is under yosys-sta/bin/ relative to NPC root
-    yosys_sta = work_dir.parent.parent / "yosys-sta"
-    ieda = yosys_sta / "bin" / "iEDA"
+    # Prefer an explicit Nix-provided binary; otherwise fall back to the
+    # local yosys-sta checkout layout.
+    ieda_env = os.environ.get("IEDA_BIN", "").strip()
+    if ieda_env:
+        ieda = Path(ieda_env)
+    else:
+        yosys_sta = work_dir.parent.parent / "yosys-sta"
+        ieda = yosys_sta / "bin" / "iEDA"
     return netlist, sdc, ieda
 
 
@@ -634,7 +639,11 @@ def main():
     if args.ieda_bin:
         ieda = Path(args.ieda_bin)
 
-    yosys_sta_home = ieda.parent.parent
+    yosys_sta_home_env = os.environ.get("YOSYS_STA_HOME", "").strip()
+    if yosys_sta_home_env:
+        yosys_sta_home = Path(yosys_sta_home_env)
+    else:
+        yosys_sta_home = work_dir.parent.parent / "yosys-sta"
 
     # Validate paths
     if not netlist.is_file():

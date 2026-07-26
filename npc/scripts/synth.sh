@@ -7,6 +7,8 @@
 # Required env vars (set by npc/Makefile):
 #   NPC_HOME         — absolute path to npc/
 #   YOSYS_STA_HOME   — absolute path to yosys-sta/
+#   IEDA_BIN         — absolute path to iEDA binary (defaults to
+#                      ${YOSYS_STA_HOME}/bin/iEDA)
 #   DESIGN           — top module name            (default: ysyx_25070190)
 #   CLK_FREQ_MHZ     — target clock in MHz        (default: 100)
 #   CLK_PORT_NAME    — clock port name in RTL     (default: clock)
@@ -46,6 +48,7 @@ require_dir() {
 # ── defaults ───────────────────────────────────────────────────────
 NPC_HOME="${NPC_HOME:-}"
 YOSYS_STA_HOME="${YOSYS_STA_HOME:-}"
+IEDA_BIN="${IEDA_BIN:-${YOSYS_STA_HOME}/bin/iEDA}"
 DESIGN="${DESIGN:-ysyx_25070190}"
 CLK_FREQ_MHZ="${CLK_FREQ_MHZ:-100}"
 CLK_PORT_NAME="${CLK_PORT_NAME:-clock}"
@@ -85,7 +88,7 @@ is_truthy() {
 
 bootstrap_yosys_sta() {
   local need_init=0
-  [ -x "${YOSYS_STA_HOME}/bin/iEDA" ] || need_init=1
+  [ -x "${IEDA_BIN}" ] || need_init=1
   [ -d "${YOSYS_STA_HOME}/pdk/nangate45" ] || need_init=1
 
   if [ "${need_init}" -eq 0 ]; then
@@ -93,7 +96,7 @@ bootstrap_yosys_sta() {
   fi
 
   if ! is_truthy "${YOSYS_STA_AUTO_INIT}"; then
-    die "yosys-sta is not initialized (missing bin/iEDA and/or pdk/nangate45). Run 'make -C ${YOSYS_STA_HOME} init' first, or re-run with YOSYS_STA_AUTO_INIT=on to bootstrap automatically"
+    die "yosys-sta is not initialized (missing iEDA binary and/or pdk/nangate45). Run 'make -C ${YOSYS_STA_HOME} init' first, or re-run with YOSYS_STA_AUTO_INIT=on to bootstrap automatically"
   fi
 
   info "Bootstrapping yosys-sta (missing iEDA and/or nangate45 PDK)..."
@@ -103,7 +106,7 @@ bootstrap_yosys_sta() {
     die "yosys-sta bootstrap failed. Run 'make -C ${YOSYS_STA_HOME} init' manually to inspect the error"
   fi
 
-  [ -x "${YOSYS_STA_HOME}/bin/iEDA" ] || die "yosys-sta bootstrap did not produce ${YOSYS_STA_HOME}/bin/iEDA"
+  [ -x "${IEDA_BIN}" ] || die "yosys-sta bootstrap did not produce ${IEDA_BIN}"
   [ -d "${YOSYS_STA_HOME}/pdk/nangate45" ] || die "yosys-sta bootstrap did not produce ${YOSYS_STA_HOME}/pdk/nangate45"
 }
 
@@ -222,7 +225,7 @@ PYEOF
 
   local abc_version="PENDING"
   local ista_version="N/A"
-  local ieda_bin="${YOSYS_STA_HOME}/bin/iEDA"
+  local ieda_bin="${IEDA_BIN}"
   if [ -x "${ieda_bin}" ]; then
     ista_version=$(date -r "${ieda_bin}" '+%Y-%m-%d' 2>/dev/null || echo "N/A")
   fi
@@ -967,7 +970,7 @@ info "Rendering synth summary (area budget: ${SYNTH_AREA_BUDGET} µm²)..."
 # Collect provenance for the v3 summary
 PROV_YOSYS_VER="$(yosys -V 2>&1 | grep -oP 'Yosys\s+\K[\d.]+' | head -1 || echo 'N/A')"
 PROV_IEDA_VER="N/A"
-IEDA_BIN="${YOSYS_STA_HOME}/bin/iEDA"
+IEDA_BIN="${IEDA_BIN}"
 if [ -x "${IEDA_BIN}" ]; then
   # iEDA doesn't have a -V flag; use file modification time as a version proxy
   PROV_IEDA_VER="$(date -r "${IEDA_BIN}" '+%Y-%m-%d' 2>/dev/null || echo 'N/A')"
@@ -1014,7 +1017,7 @@ python3 "${SCRIPT_DIR}/synth_summary.py" \
   --fanout-source "${PROV_FANOUT_SOURCE}" \
   --qor-view "${QOR_VIEW_ARG}" \
   --sdc-file "${SDC_FILE}" \
-  --ieda-bin "${YOSYS_STA_HOME}/bin/iEDA" \
+  --ieda-bin "${IEDA_BIN}" \
   --yosys-sta-home "${YOSYS_STA_HOME}" \
   || warn "Failed to write synth summary JSON/text/hotspots"
 

@@ -135,6 +135,7 @@ $(SYNTH_DONE): $(SYNTH_SDC) $(SYNTH_RTL_DEPS) $(SYNTH_STUB_DEPS)
 	 YOSYS_STA_AUTO_INIT=$(YOSYS_STA_AUTO_INIT) \
 	 SYNTH_QOR_VIEW=$(SYNTH_QOR_VIEW) \
 	 SYNTH_EXPERIMENT=$(SYNTH_EXPERIMENT) \
+	 IEDA_BIN=$(IEDA_BIN) \
 	 $(abspath ./scripts/synth.sh)
 
 # Convenience target for frequency search mode

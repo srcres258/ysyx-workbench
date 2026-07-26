@@ -1,15 +1,30 @@
 {
   description = "Nix configuration for my YSYX project.";
 
+  nixConfig = {
+    extra-substituters = [
+      "https://nur-packages-srcres258.cachix.org?priority=10"
+    ];
+    extra-trusted-public-keys = [
+      "nur-packages-srcres258.cachix.org-1:3Nn/bNoV5HnI1RoN5uOtkHrPq078veIhjJZmF0FUGP0="
+    ];
+  };
+
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    nurPackages = {
+      url = "github:srcres258/nur-packages";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
   };
 
   outputs = {
-    self, nixpkgs, flake-utils
+    self, nixpkgs, flake-utils, nurPackages
   }: flake-utils.lib.eachDefaultSystem (system: let
     pkgs = nixpkgs.legacyPackages.${system};
+    hasIeda = system == "x86_64-linux";
+    ieda = nurPackages.packages.${system}.ieda;
     buildDeps = with pkgs; [
       gcc
       gnumake
@@ -64,8 +79,10 @@
 
       hardeningDisable = [ "all" ];
 
-      packages = with pkgs; [
-        verilator
+      packages = [
+        pkgs.verilator
+      ] ++ pkgs.lib.optionals hasIeda [
+        ieda
       ];
 
       shellHook = ''
@@ -75,9 +92,14 @@
         export NVBOARD_HOME="$PWD/nvboard"
         export AM_HOME="$PWD/abstract-machine"
         export NPC_HOME="$PWD/npc"
+        export YOSYS_STA_HOME="$PWD/yosys-sta"
         export VERILATOR_HOME="${pkgs.verilator}/share/verilator"
         export NEMU_HOME="$PWD/nemu"
         export YSYX_HOME="$PWD"
+
+        ${pkgs.lib.optionalString hasIeda ''
+        export IEDA_BIN="${ieda}/bin/iEDA"
+        ''}
       '';
     };
   });
