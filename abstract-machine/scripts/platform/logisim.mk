@@ -7,9 +7,11 @@ CFLAGS    += -I$(AM_HOME)/am/src/platform/nemu/include
 LDSCRIPTS += $(AM_HOME)/scripts/linker.ld
 LDFLAGS   += --defsym=_pmem_start=0x0 --defsym=_entry_offset=0x0
 LDFLAGS   += --gc-sections -e _start
+OBJDUMP_DFLAGS += -M no-aliases
+OBJDUMP_SFLAGS += -M no-aliases
 
 image: image-dep
-	@$(OBJDUMP) -M no-aliases -d $(IMAGE).elf > $(IMAGE).txt
+	$(DUMP_ELF)
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 	python $(AM_HOME)/tools/logisim-ysyx-img.py $(IMAGE).bin

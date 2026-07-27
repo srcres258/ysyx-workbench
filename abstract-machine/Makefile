@@ -84,9 +84,19 @@ CFLAGS   += -O0 -MMD -Wall -Werror $(INCFLAGS) \
             -DARCH_H=\"$(ARCH_H)\" \
             -fno-asynchronous-unwind-tables -fno-builtin -fno-stack-protector \
             -Wno-main -U_FORTIFY_SOURCE -fvisibility=hidden
+### Keep debug info so objdump can interleave source with disassembly.
+CFLAGS   += -g
 CXXFLAGS +=  $(CFLAGS) -ffreestanding -fno-rtti -fno-exceptions
-ASFLAGS  += -MMD $(INCFLAGS)
+ASFLAGS  += -MMD $(INCFLAGS) -g
 LDFLAGS  += -z noexecstack $(addprefix -T, $(LDSCRIPTS))
+
+### Shared disassembly helpers: raw assembly and source-interleaved assembly.
+OBJDUMP_DFLAGS ?= -d
+OBJDUMP_SFLAGS ?= -d -S
+define DUMP_ELF
+	@$(OBJDUMP) $(OBJDUMP_DFLAGS) $(IMAGE).elf > $(IMAGE).txt
+	@$(OBJDUMP) $(OBJDUMP_SFLAGS) $(IMAGE).elf > $(IMAGE).source.txt
+endef
 
 ## 4. Arch-Specific Configurations
 

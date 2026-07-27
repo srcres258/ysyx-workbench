@@ -40,7 +40,7 @@ insert-arg: image
 	@python $(AM_HOME)/tools/insert-arg.py $(IMAGE).bin $(MAINARGS_MAX_LEN) $(MAINARGS_PLACEHOLDER) "$(mainargs)"
 
 image: image-dep
-	@$(OBJDUMP) -d $(IMAGE).elf > $(IMAGE).txt
+	$(DUMP_ELF)
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S -R .bss -R .comment -R .riscv.attributes -O binary $(IMAGE).elf $(IMAGE).bin
 
