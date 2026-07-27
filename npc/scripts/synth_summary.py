@@ -73,6 +73,50 @@ def _top_area_contributors(hierarchy_rows: List[Dict], top_n: int = 5) -> List[D
     return sorted_rows[:top_n]
 
 
+def _backfill_area_totals_from_hierarchy(
+    area_result: Dict[str, Any],
+    hierarchy_rows: List[Dict],
+) -> List[str]:
+    """Backfill missing or zero area totals from the top hierarchy row.
+
+    Returns a list of human-readable fragments describing which fields were
+    recovered. The caller can turn that into a warning.
+    """
+    if not hierarchy_rows:
+        return []
+
+    top = hierarchy_rows[0]
+    derived_cell_count = int(top.get("recursive_cells", 0))
+    derived_area = float(top.get("recursive_area", 0.0))
+    derived_fields: List[str] = []
+
+    if area_result.get("cell_count", 0) == 0 and derived_cell_count > 0:
+        area_result["cell_count"] = derived_cell_count
+        derived_fields.append(f"cells={derived_cell_count}")
+
+    if area_result.get("area_um2", 0.0) <= 0.0 and derived_area > 0.0:
+        area_result["area_um2"] = derived_area
+        derived_fields.append(f"area={derived_area} µm²")
+
+    return derived_fields
+
+
+def _resolve_liberty_cell_area_path(
+    yosys_sta_home: Optional[str],
+    pdk: Optional[str],
+) -> Optional[Path]:
+    """Resolve the Liberty file path for the current PDK when possible."""
+    if not yosys_sta_home or not pdk:
+        return None
+
+    pdk_name = pdk.strip().lower()
+    sta_root = Path(yosys_sta_home)
+    if pdk_name == "nangate45":
+        candidate = sta_root / "pdk" / "nangate45" / "lib" / "Nangate45_typ.lib"
+        return candidate if candidate.is_file() else None
+    return None
+
+
 # ── timing helpers ───────────────────────────────────────────────────
 
 def _per_category_wns_tns(
@@ -2962,6 +3006,7 @@ def render_summary(
         build_hierarchy_area_tree,
         parse_classified_timing,
     )
+    from synth_hierarchy import load_liberty_cell_areas
 
     area_result: Dict[str, Any] = {"cell_count": 0, "area_um2": 0.0}
     hierarchy_rows: List[Dict] = []
@@ -2979,6 +3024,18 @@ def render_summary(
         "warnings": [],
     }
     warnings: List[str] = []
+    liberty_cell_areas: Optional[Dict[str, float]] = None
+
+    liberty_path = _resolve_liberty_cell_area_path(
+        yosys_sta_home,
+        provenance.get("pdk") if provenance else None,
+    )
+    if liberty_path is not None:
+        try:
+            liberty_cell_areas, liberty_warnings = load_liberty_cell_areas(liberty_path)
+            warnings.extend(liberty_warnings)
+        except Exception as e:
+            warnings.append(f"Liberty parse error: {e}")
 
     # ── Parse area ─────────────────────────────────────────────
     if synth_stat and Path(synth_stat).is_file():
@@ -3003,28 +3060,27 @@ def render_summary(
                 hierarchy_json_path,
                 netlist if (netlist and Path(netlist).is_file()) else None,
                 design,
+                cell_area_map=liberty_cell_areas,
             )
         except Exception as e:
             warnings.append(f"Hierarchy parse error: {e}")
     else:
         warnings.append(f"No hierarchy JSON available (tried synth_hierarchy.json and synth_stat.json)")
 
-    # ── Fallback: derive totals from hierarchy_rows when flat-stat parser failed ──
+    # ── Fallback: derive totals from hierarchy_rows when flat-stat parsing is incomplete ──
     # For hierarchical synthesis (hierarchy_attribution view), the flat
-    # synth_stat.txt parser fails because the stat has per-module entries
-    # and the parser expects exactly one cell-count field.  In that case
-    # we extract recursive totals from the top-level hierarchy row so the
-    # summary JSON/txt still reflects real area and cell count.
-    if area_result.get("cell_count", 0) == 0 and hierarchy_rows:
-        top = hierarchy_rows[0]
-        area_result["cell_count"] = int(top.get("recursive_cells", 0))
-        area_result["area_um2"] = float(top.get("recursive_area", 0.0))
-        if area_result.get("cell_count", 0) > 0:
-            warnings.append(
-                f"Flat stat parser did not return totals; "
-                f"derived from hierarchy: cells={area_result['cell_count']}, "
-                f"area={area_result['area_um2']} µm²"
-            )
+    # synth_stat.txt parser can fail because the stat has per-module entries
+    # and the parser expects exactly one cell-count field.  For canonical_flat,
+    # Yosys sometimes reports a valid cell count but a zero area in the flat
+    # stat while the hierarchy JSON still carries the real Liberty-backed area.
+    # In both cases, recover any missing totals from the top-level hierarchy row
+    # so the summary JSON/txt still reflects real area and cell count.
+    derived_fields = _backfill_area_totals_from_hierarchy(area_result, hierarchy_rows)
+    if derived_fields:
+        warnings.append(
+            "Flat stat totals were incomplete; derived from hierarchy: "
+            + ", ".join(derived_fields)
+        )
 
     # ── Parse timing ───────────────────────────────────────────
     if sta_rpt and Path(sta_rpt).is_file():
@@ -3086,6 +3142,18 @@ def render_summary(
     result_dir_p = Path(result_dir)
     result_dir_p.mkdir(parents=True, exist_ok=True)
 
+    liberty_cell_areas: Optional[Dict[str, float]] = None
+    liberty_path = _resolve_liberty_cell_area_path(
+        yosys_sta_home,
+        provenance.get("pdk") if provenance else None,
+    )
+    if liberty_path is not None:
+        try:
+            liberty_cell_areas, liberty_warnings = load_liberty_cell_areas(liberty_path)
+            warnings.extend(liberty_warnings)
+        except Exception as e:
+            warnings.append(f"Liberty parse error: {e}")
+
     # Determine the best JSON source for cell-type area data.
     # Prefer the hierarchy-preserved artifact (post-tech-mapping,
     # pre-flatten) because its num_cells_by_type has Liberty-backed
@@ -3111,7 +3179,10 @@ def render_summary(
     if cell_types_json and Path(cell_types_json).is_file():
         try:
             cell_type_records, liberty_top_area, ct_warnings = (
-                extract_cell_types_from_json(cell_types_json)
+                extract_cell_types_from_json(
+                    cell_types_json,
+                    cell_area_map=liberty_cell_areas,
+                )
             )
             area_report_warnings.extend(ct_warnings)
 

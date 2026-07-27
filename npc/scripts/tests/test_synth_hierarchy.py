@@ -21,6 +21,8 @@ from synth_hierarchy import (
     trace_clock_gating_connectivity,
     extract_register_inventory,
     extract_clock_gating_inventory,
+    extract_cell_types_from_json,
+    load_liberty_cell_areas,
     write_register_inventory_report,
     write_clock_gating_inventory_report,
     RegisterModuleRecord,
@@ -324,6 +326,64 @@ class TestWriteClockGatingInventoryReport(unittest.TestCase):
         text = out.read_text()
         self.assertIn("CLOCK-GATING INVENTORY", text)
         self.assertIn("NONE", text)
+
+
+class TestLibertyAreaBackfill(unittest.TestCase):
+
+    def setUp(self):
+        self._tmpdir = tempfile.mkdtemp(prefix="test_liberty_area_")
+        self._tmp = Path(self._tmpdir)
+
+    def tearDown(self):
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_load_liberty_cell_areas(self):
+        lib = self._tmp / "test.lib"
+        lib.write_text(
+            "\n".join([
+                "library(test) {",
+                "  cell (DFF_X1) {",
+                "    area : 0.75;",
+                "  }",
+                "  cell (NAND2_X1) {",
+                "    area : 0.50;",
+                "  }",
+                "  cell (INV_X1) {",
+                "    area : 0.25;",
+                "  }",
+                "}",
+            ]),
+            encoding="utf-8",
+        )
+
+        areas, warnings = load_liberty_cell_areas(lib)
+        self.assertEqual(areas["DFF_X1"], 0.75)
+        self.assertEqual(areas["NAND2_X1"], 0.50)
+        self.assertEqual(areas["INV_X1"], 0.25)
+        self.assertEqual(warnings, [])
+
+    def test_extract_cell_types_uses_liberty_when_json_is_count_only(self):
+        lib = self._tmp / "test.lib"
+        lib.write_text(
+            "\n".join([
+                "library(test) {",
+                "  cell (DFF_X1) { area : 0.75; }",
+                "  cell (NAND2_X1) { area : 0.50; }",
+                "  cell (INV_X1) { area : 0.25; }",
+                "}",
+            ]),
+            encoding="utf-8",
+        )
+        areas, _ = load_liberty_cell_areas(lib)
+
+        records, total_area, warnings = extract_cell_types_from_json(
+            fixture("synth_stat_minimal.json"),
+            cell_area_map=areas,
+        )
+        self.assertGreater(total_area, 0.0)
+        self.assertTrue(any(r.total_area > 0 for r in records))
+        self.assertTrue(any("Liberty" in w or "derived" in w for w in warnings) or warnings == [])
 
 
 class TestConnectivityWithFixtureNetlist(unittest.TestCase):

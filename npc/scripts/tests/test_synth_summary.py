@@ -3,10 +3,17 @@
 
 import json
 import unittest
+import tempfile
 from pathlib import Path
 
 from tests import fixture
-from synth_summary import build_summary_json, build_summary_text, build_hotspots_text
+from synth_summary import (
+    build_summary_json,
+    build_summary_text,
+    build_hotspots_text,
+    render_summary,
+    _backfill_area_totals_from_hierarchy,
+)
 
 
 class TestBuildSummaryJson(unittest.TestCase):
@@ -927,6 +934,129 @@ class TestV4Schema(unittest.TestCase):
         self.assertIsNone(summary["hierarchy_attribution_area_um2"])
         self.assertIsNone(summary["area_attribution_overhead_um2"])
         self.assertIsNone(summary["area_attribution_overhead_percent"])
+
+    def test_backfill_area_totals_from_hierarchy_restores_zero_area(self):
+        area_result = {"cell_count": 5432, "area_um2": 0.0}
+        hierarchy_rows = [
+            {
+                "instance_path": "top",
+                "module_name": "top",
+                "parent_path": "",
+                "depth": 0,
+                "instance_count": 1,
+                "local_cells": 5432,
+                "local_area": 9999.50,
+                "recursive_cells": 5432,
+                "recursive_area": 9999.50,
+                "pct_of_top_area": 100.0,
+                "categories": {
+                    "sequential": {"count": 200, "area": 500.0},
+                    "combinational": {"count": 4500, "area": 8500.0},
+                    "clock-gating": {"count": 12, "area": 30.0},
+                    "buffer/inverter": {"count": 600, "area": 700.0},
+                    "mux": {"count": 80, "area": 150.0},
+                    "arithmetic": {"count": 30, "area": 50.0},
+                    "other": {"count": 10, "area": 69.5},
+                },
+            }
+        ]
+        derived = _backfill_area_totals_from_hierarchy(
+            area_result,
+            hierarchy_rows,
+        )
+
+        self.assertEqual(area_result["cell_count"], 5432)
+        self.assertEqual(area_result["area_um2"], 9999.50)
+        self.assertEqual(derived, ["area=9999.5 µm²"])
+
+        summary = build_summary_json(
+            design="ysyx_25070190",
+            target_mhz=100,
+            area_result=area_result,
+            hierarchy_rows=hierarchy_rows,
+            timing_result={
+                "wns": 1.5,
+                "tns": 0.0,
+                "reg2reg": [],
+                "data_reg2reg": [],
+                "in2reg": [],
+                "reg2out": [],
+                "in2out": [],
+                "clock_enable": [],
+                "clock_gating_setup": [],
+                "hold": [],
+                "path_groups": [],
+                "high_fanout": [],
+                "unconstrained": [],
+                "warnings": [],
+            },
+            area_by_class={
+                "sequential": {"cell_count": 200, "area_um2": 500.0},
+                "combinational": {"cell_count": 4500, "area_um2": 8500.0},
+                "clock-gating": {"cell_count": 12, "area_um2": 30.0},
+                "buffer/inverter": {"cell_count": 600, "area_um2": 700.0},
+                "mux": {"cell_count": 80, "area_um2": 150.0},
+                "arithmetic": {"cell_count": 30, "area_um2": 50.0},
+                "other": {"cell_count": 10, "area_um2": 69.5},
+            },
+            area_budget_um2=23000,
+        )
+        self.assertEqual(summary["area_um2"], 9999.50)
+        self.assertEqual(summary["area"]["total_area_um2"], 9999.50)
+        self.assertGreater(summary["area"]["utilisation_pct"], 0)
+
+    def test_render_summary_uses_liberty_area_map_for_cell_classes(self):
+        with tempfile.TemporaryDirectory(prefix="test_render_summary_") as tmp:
+            tmp_path = Path(tmp)
+            yosys_sta_home = tmp_path / "yosys-sta"
+            liberty_path = yosys_sta_home / "pdk" / "nangate45" / "lib"
+            liberty_path.mkdir(parents=True, exist_ok=True)
+            (liberty_path / "Nangate45_typ.lib").write_text(
+                "\n".join([
+                    "library(test) {",
+                    "  cell (DFF_X1) { area : 0.75; }",
+                    "  cell (NAND2_X1) { area : 0.50; }",
+                    "  cell (INV_X1) { area : 0.25; }",
+                    "}",
+                ]),
+                encoding="utf-8",
+            )
+
+            result_dir = tmp_path / "result"
+            result_dir.mkdir(parents=True, exist_ok=True)
+            output_dir = tmp_path / "output"
+            output_dir.mkdir(parents=True, exist_ok=True)
+
+            rc = render_summary(
+                design="ysyx_25070190",
+                target_mhz=100,
+                output_dir=str(output_dir),
+                result_dir=str(result_dir),
+                area_budget_um2=23000,
+                sta_rpt=str(fixture("sta_current_typical.rpt")),
+                synth_stat=str(fixture("synth_stat_current_format.txt")),
+                synth_stat_json=str(fixture("synth_stat_minimal.json")),
+                synth_hierarchy_json=None,
+                netlist=None,
+                fanout=None,
+                provenance={
+                    "yosys_version": "Yosys 0.62",
+                    "ieda_version": "iEDA",
+                    "pdk": "nangate45",
+                    "liberty": "Nangate45_typ.lib",
+                    "workbench_commit": "test",
+                    "cpu_commit": "test",
+                    "generated_at": "2026-07-27T00:00:00Z",
+                },
+                yosys_sta_home=str(yosys_sta_home),
+            )
+
+            self.assertEqual(rc, 0)
+            summary = json.loads((output_dir / "synth_summary.json").read_text())
+            classes = summary["area"]["by_cell_class"]
+            self.assertGreater(classes["sequential"]["area_um2"], 0.0)
+            self.assertGreater(classes["combinational"]["area_um2"], 0.0)
+            self.assertGreater(classes["buffer/inverter"]["area_um2"], 0.0)
 
     def test_v4_core_data_reg2reg_source_dedicated(self):
         summary = build_summary_json(

@@ -218,6 +218,23 @@ class TestBuildHierarchyAreaTree(unittest.TestCase):
             self.assertGreaterEqual(r["depth"], 0)
             self.assertIn(r["module_name"], module_names)
 
+    def test_flat_count_only_json_can_use_liberty_cell_area_map(self):
+        rows = build_hierarchy_area_tree(
+            fixture("synth_stat_minimal.json"),
+            netlist_path=None,
+            top_module="ysyx_25070190",
+            cell_area_map={
+                "DFF_X1": 0.75,
+                "NAND2_X1": 0.50,
+                "INV_X1": 0.25,
+            },
+        )
+        self.assertEqual(len(rows), 1)
+        self.assertGreater(rows[0]["recursive_area"], 0.0)
+        self.assertGreater(rows[0]["categories"]["sequential"]["area"], 0.0)
+        self.assertGreater(rows[0]["categories"]["combinational"]["area"], 0.0)
+        self.assertGreater(rows[0]["categories"]["buffer/inverter"]["area"], 0.0)
+
     def test_missing_module_raises(self):
         with self.assertRaises(KeyError):
             build_hierarchy_area_tree(

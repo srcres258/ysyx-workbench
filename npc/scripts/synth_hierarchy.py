@@ -337,6 +337,7 @@ def _build_tree(
     parent_path: str,
     depth: int,
     json_modules: Dict[str, Dict],
+    cell_area_map: Optional[Dict[str, float]] = None,
 ) -> HierarchyRow:
     """Recursively construct a HierarchyRow node and its children.
 
@@ -384,16 +385,36 @@ def _build_tree(
 
     # ── cell classification from num_cells_by_type ──
     cells_by_type_raw = mod_data.get("num_cells_by_type", {})
+    if not isinstance(cells_by_type_raw, dict):
+        cells_by_type_raw = {}
     cells_by_type: Dict[str, Dict[str, float]] = {}
+    derived_area_total = 0.0
     for ct, val in cells_by_type_raw.items():
         if isinstance(val, (int, float)):
-            cells_by_type[ct] = {"count": float(val), "area": 0.0}
+            count = float(val)
+            area = 0.0
+            if cell_area_map is not None:
+                area = count * float(cell_area_map.get(ct, 0.0))
+            cells_by_type[ct] = {"count": count, "area": area}
         elif isinstance(val, dict):
+            count = float(val.get("local_count", val.get("count", 0)))
+            area = float(val.get("local_area", val.get("area", 0.0)))
+            if area <= 0.0 and cell_area_map is not None and count > 0:
+                area = count * float(cell_area_map.get(ct, 0.0))
             cells_by_type[ct] = {
-                "count": float(val.get("local_count", val.get("count", 0))),
-                "area": float(val.get("local_area", val.get("area", 0.0))),
+                "count": count,
+                "area": area,
             }
+        derived_area_total += float(cells_by_type[ct]["area"])
     categories = classify_cell_counts(cells_by_type)
+
+    # When the JSON lacks Liberty-backed area (common in flat/count-only
+    # snapshots), fall back to the per-cell Liberty map if available.
+    if cell_area_map is not None:
+        if local_area <= 0.0 and derived_area_total > 0.0:
+            local_area = derived_area_total
+        if recursive_area <= 0.0 and derived_area_total > 0.0:
+            recursive_area = derived_area_total
 
     return HierarchyRow(
         instance_path=instance_path,
@@ -413,6 +434,7 @@ def build_hierarchy_tree(
     json_modules: Dict[str, Dict],
     netlist_hierarchy: Dict[str, Dict[str, int]],
     top_module: str,
+    cell_area_map: Optional[Dict[str, float]] = None,
 ) -> List[HierarchyRow]:
     """Build a flattened hierarchy area table.
 
@@ -445,7 +467,7 @@ def build_hierarchy_tree(
     def _dfs(
         mod_name: str, parent_path: str, depth: int, inst_count: int = 1
     ) -> List[HierarchyRow]:
-        row = _build_tree(mod_name, parent_path, depth, json_modules)
+        row = _build_tree(mod_name, parent_path, depth, json_modules, cell_area_map)
         row.instance_count = inst_count
         rows = [row]
         for child_name, child_count in netlist_hierarchy.get(mod_name, {}).items():
@@ -488,6 +510,64 @@ def build_hierarchy_tree(
     return all_rows
 
 
+def load_liberty_cell_areas(liberty_path) -> Tuple[Dict[str, float], List[str]]:
+    """Load a Liberty file and return a map of cell type → area.
+
+    The parser is intentionally small and conservative: it scans each
+    ``cell (...) { ... }`` block and records the first ``area :`` value
+    found inside that block.
+    """
+    liberty_path = Path(liberty_path)
+    if not liberty_path.is_file():
+        raise FileNotFoundError(f"Liberty file not found: {liberty_path}")
+
+    text = liberty_path.read_text(encoding="utf-8", errors="replace")
+    cell_areas: Dict[str, float] = {}
+    warnings: List[str] = []
+
+    cell_start_re = re.compile(r"\bcell\s*\(\s*(?P<name>[^)]+?)\s*\)\s*\{")
+    area_re = re.compile(r"\barea\s*:\s*([0-9.+\-eE]+)\s*;")
+
+    def _find_matching_brace(open_index: int) -> int:
+        depth = 0
+        for idx in range(open_index, len(text)):
+            ch = text[idx]
+            if ch == "{":
+                depth += 1
+            elif ch == "}":
+                depth -= 1
+                if depth == 0:
+                    return idx
+        raise ValueError(f"Unbalanced braces while parsing Liberty file {liberty_path}")
+
+    for match in cell_start_re.finditer(text):
+        cell_name = match.group("name").strip().strip('"').strip("'")
+        block_start = match.end() - 1
+        try:
+            block_end = _find_matching_brace(block_start)
+        except ValueError as e:
+            warnings.append(str(e))
+            continue
+
+        block = text[match.end():block_end]
+        area_match = area_re.search(block)
+        if area_match is None:
+            continue
+        try:
+            cell_areas[cell_name] = float(area_match.group(1))
+        except ValueError:
+            warnings.append(
+                f"Liberty cell {cell_name!r}: invalid area value {area_match.group(1)!r}"
+            )
+
+    if not cell_areas:
+        warnings.append(
+            f"STATUS: UNAVAILABLE — no cell areas found in Liberty file {liberty_path}"
+        )
+
+    return cell_areas, warnings
+
+
 def flatten_tree(rows: List[HierarchyRow]) -> List[Dict]:
     """Convert a list of HierarchyRow to plain dicts for serialisation."""
     return [r.to_dict() for r in rows]
@@ -517,7 +597,10 @@ class CellTypeRecord:
     category: str            # classified category (sequential, combinational, etc.)
 
 
-def extract_cell_types_from_json(json_path) -> Tuple[List[CellTypeRecord], float, List[str]]:
+def extract_cell_types_from_json(
+    json_path,
+    cell_area_map: Optional[Dict[str, float]] = None,
+) -> Tuple[List[CellTypeRecord], float, List[str]]:
     """Extract per-cell-type Liberty-backed area data from the hierarchy JSON.
 
     Reads the hierarchy-preserved ``synth_hierarchy.json`` and returns a
@@ -611,10 +694,12 @@ def extract_cell_types_from_json(json_path) -> Tuple[List[CellTypeRecord], float
         if isinstance(val, dict):
             count = int(val.get("count", val.get("local_count", 0)))
             area = float(val.get("area", val.get("local_area", 0.0)))
+            if area <= 0.0 and cell_area_map is not None and count > 0:
+                area = float(cell_area_map.get(cell_type, 0.0)) * count
         elif isinstance(val, (int, float)):
             count = int(val)
-            area = 0.0
-            if total_area > 0:
+            area = float(cell_area_map.get(cell_type, 0.0)) * count if cell_area_map else 0.0
+            if total_area > 0 and area <= 0.0:
                 warnings.append(
                     f"Cell type {cell_type!r}: count={count} but no Liberty area — "
                     f"JSON field is plain integer (pre-flatten snapshot without -liberty?)."
@@ -651,6 +736,15 @@ def extract_cell_types_from_json(json_path) -> Tuple[List[CellTypeRecord], float
             f"Hierarchy JSON {json_path}: all cell types have zero count. "
             f"The design may be empty or the JSON is corrupted."
         )
+
+    if total_area <= 0.0:
+        derived_total_area = sum(r.total_area for r in records)
+        if derived_total_area > 0.0:
+            total_area = derived_total_area
+            warnings.append(
+                "STATUS: RECOVERED — top-module area was zero; derived total area "
+                "from Liberty-backed cell types."
+            )
 
     records.sort(key=lambda r: r.total_area, reverse=True)
     return records, total_area, warnings

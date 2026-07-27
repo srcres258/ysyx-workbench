@@ -501,6 +501,7 @@ def build_hierarchy_area_tree(
     json_path,
     netlist_path=None,
     top_module: str = "ysyx_25070190",
+    cell_area_map=None,
 ) -> List[Dict]:
     """Build a flattened hierarchical area tree from synth artifacts.
 
@@ -572,7 +573,7 @@ def build_hierarchy_area_tree(
         if mod_name not in child_map:
             child_map[mod_name] = {}
 
-    rows = _build(json_modules, child_map, top_module)
+    rows = _build(json_modules, child_map, top_module, cell_area_map=cell_area_map)
 
     # ── annotate hierarchy source in each row ────────────────────
     from synth_hierarchy import flatten_tree as _flatten
