@@ -11,14 +11,14 @@
 - NEMU build/run/gdb and NPC run/gdb auto-commit on the `tracer-ysyx` branch; expect git history churn. NEMU commits "compile NEMU" on build and "run NEMU"/"gdb NEMU" on run/gdb; NPC commits "sim RTL" on run/gdb only (NPC binary build does not auto-commit).
 - Root `.gitignore` is whitelist-based (`*.*` and `*` ignore everything, then `!` patterns re-include), so new root files usually need an explicit `.gitignore` entry.
 - No OpenCode, Cursor, or Copilot config files exist — `AGENTS.md` is the sole agent-facing instruction file.
-- Check `.sisyphus/plans/` before related feature work (28 plans covering NPC features, peripherals, synthesis tooling, and RT-Thread integration).
+- Check `.sisyphus/plans/` before related feature work (29 plans covering NPC features, peripherals, synthesis tooling, memory/boot, RT-Thread integration, and ChipLink).
 
 ## Boundaries
 
-- Submodules: `am-kernels/`, `npc/vsrc-chisel/`, `rt-thread/`, `ysyxSoC/`, `npc-frontend/`, `standard/`, `yosys-sta/`.
+- Submodules: `am-kernels/`, `npc/vsrc-chisel/`, `rt-thread/`, `ysyxSoC/`, `standard/`, `yosys-sta/`.
 - `fceux-am/` is a separate repo (listed in `.gitignore`, not tracked by this repo's git). It exists locally as a clone; glob/file-search tools may miss it due to gitignore exclusions.
-- `nemu/`, `abstract-machine/`, `npc/`, and `nvboard/` are tracked directly in this repo. Note: `abstract-machine/` is NOT in the `.gitignore` whitelist — new files inside it require `git add -f` to track.
-- `.gitmodules` has bad `npc-frontend` and `standard` entries (`path = rt-thread`), so `git submodule status --recursive` can fail.
+- `nemu/`, `abstract-machine/`, `npc/`, and `nvboard/` are tracked directly in this repo. Note: `abstract-machine/`, `nvboard/`, and `nemu/` each have their own `.gitignore` — the root whitelist patterns do NOT control files inside these directories.
+- `.gitmodules` has a bad `standard` entry (`path = rt-thread` instead of `path = standard`), so `git submodule status --recursive` can fail. `npc-frontend` is NOT in `.gitmodules` (stale `.gitignore` whitelist entry and orphaned metadata in `.git/modules/npc-frontend/` only).
 - Do not edit generated output directly: `npc/vsrc/generated/`, `npc/build/`, `nemu/build/`, `ysyxSoC/build/`.
 
 ## Commands that matter
@@ -30,8 +30,12 @@ make -C nemu menuconfig|savedefconfig|%defconfig|run|gdb|clean|clean-all|distcle
 ```
 
 - `run` expects `build/program.elf` (override with `IMG=<path>`).
-- When `CONFIG_TARGET_AM=y` (menuconfig), NEMU switches to AM integration mode — `run`/`gdb`/`menuconfig` targets from `scripts/native.mk` are disabled, replaced by `$(AM_HOME)/Makefile` targets.
+- When `CONFIG_TARGET_AM=y` (menuconfig), NEMU switches to AM integration mode — `run`/`gdb` targets from `scripts/native.mk` are disabled, replaced by `$(AM_HOME)/Makefile` targets.
+- **ENGINE**: Only `interpreter` exists (no JIT or other options). Passing `ENGINE=interpreter` is the default and sole valid value.
+- **GUEST_ISA shortcut**: You can override from the command line without menuconfig: `make -C nemu GUEST_ISA=riscv64`. Valid values: `riscv32`, `riscv64`, `x86`, `mips32`, `loongarch32r`.
+- **Clean scope**: `clean` removes `build/` only; `distclean` removes `build/` + `.config`; `clean-all` does both + cleans all tools subdirectories.
 - **Difftest (NEMU as REF)**: set `TARGET_SHARE=y` in menuconfig → builds NEMU as a shared object (`.so`) with devices disabled. Build the SO: `make -C nemu GUEST_ISA=riscv32 SHARE=1 ENGINE=interpreter`. Output: `build/riscv32-nemu-interpreter-so`. NPC consumes this via `RUN_CONFIG_DIFFTEST_SO_FILE_PATH`.
+- **Difftest (NEMU as DUT)**: NEMU can also compare against external refs — QEMU (any ISA), Spike (riscv only), KVM (x86 only). Enable via menuconfig (`CONFIG_DIFFTEST=y`, pick ref design); the ref SO auto-builds on first `make run`.
 
 ### AbstractMachine / am-kernels
 
@@ -56,13 +60,13 @@ make -C npc [run|gdb|chisel-gen|synth|synth-search|perf|clean]
 ```
 
 - **Select program**: Use `IMG=<path>` to specify the binary/ELF to run (e.g., `make -C npc run IMG=build/flash.bin`).
-- **Sim mode**: `RUN_CONFIG_SIM_MODE` (default `ysyxsoc`) — the ONLY `RUN_CONFIG_*` var processed at Make level. `standalone` uses bare `ysyx_25070190` without SoC peripherals; `ysyxsoc` uses `ysyxSoCFull` with NVBoard.
-- **Key knobs** (all passed as `NPC_CONFIG_*` env vars, default `off` unless noted):
+- **Sim mode**: `RUN_CONFIG_SIM_MODE` (default `ysyxsoc`). `standalone` uses bare `ysyx_25070190` without SoC peripherals; `ysyxsoc` uses `ysyxSoCFull` with NVBoard.
+- **Make-level `RUN_CONFIG_*` vars**: `RUN_CONFIG_SIM_MODE` and `RUN_CONFIG_DPI=on` (default) are processed at Make level. All other `RUN_CONFIG_*` vars are passed as `NPC_CONFIG_*` env vars (default `off` unless noted):
   - `RUN_CONFIG_NVBOARD=on` (default), `RUN_CONFIG_PERF=on` (default)
   - `RUN_CONFIG_DIFFTEST`, `RUN_CONFIG_WAVE`, `RUN_CONFIG_ITRACE`/`MTRACE`/`FTRACE`/`DTRACE`/`ETRACE`
-  - `RUN_CONFIG_TUI`, `RUN_CONFIG_DEVICE`, `RUN_CONFIG_MROM`, `RUN_CONFIG_DPI=on`
+  - `RUN_CONFIG_TUI`, `RUN_CONFIG_DEVICE`, `RUN_CONFIG_MROM`
   - Path overrides: `RUN_CONFIG_WAVE_FILE_PATH` (default `build/sim.fst`), `RUN_CONFIG_DIFFTEST_SO_FILE_PATH`, `RUN_CONFIG_FLASH_BIN_FILE_PATH`, etc.
-- **C++ and ASAN**: Simulator builds with `-std=c++26 -fsanitize=address` and runs with `ASAN_OPTIONS=detect_leaks=0:exitcode=0`. For NPC code changes, code must compile under C++26.
+- **C++ and ASAN**: Simulator builds with `-std=c++26` and links with `-fsanitize=address` (LDFLAGS only; CXXFLAGS does NOT include `-fsanitize=address`, so ASAN instrumentation may be incomplete). Runs with `ASAN_OPTIONS=detect_leaks=0:exitcode=0`. For NPC code changes, code must compile under C++26.
 - `chisel-gen` rebuilds `npc/vsrc-chisel/` → `npc/vsrc/generated/`. It is an **automatic prerequisite** of Verilator builds — running `make` or `make run` triggers it.
 - `synth` runs ASIC synthesis + STA via yosys-sta at 100 MHz. Key synth knobs:
   - `SYNTH_CLK_MHZ` (default 100), `SYNTH_QOR_VIEW` (default `canonical_flat`), `SYNTH_AREA_BUDGET_UM2` (default 23000)
