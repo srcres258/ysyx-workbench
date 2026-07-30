@@ -32,6 +32,7 @@
       pkg-config
 
       openjdk21
+      python313
 
       verilator
       gtkwave
