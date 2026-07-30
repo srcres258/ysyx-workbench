@@ -20,7 +20,7 @@ void EventFeed::push(
     EventType type,
     addr_t pc,
     word_t value,
-    const char *des
+    const char *desc
 ) {
     Event event;
     event.timestamp = timestamp;
