@@ -25,10 +25,13 @@
     pkgs = nixpkgs.legacyPackages.${system};
     hasIeda = system == "x86_64-linux";
     ieda = nurPackages.packages.${system}.ieda;
+    openjdk21 = pkgs.openjdk21;
     buildDeps = with pkgs; [
       gcc
       gnumake
       pkg-config
+
+      openjdk21
 
       verilator
       gtkwave
