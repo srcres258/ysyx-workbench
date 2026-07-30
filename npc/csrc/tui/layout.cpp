@@ -188,9 +188,11 @@ static uint16_t clampU16(uint16_t val, uint16_t lo, uint16_t hi) {
     return val;
 }
 
-bool LayoutTree::computeRect(const LayoutNode &node,
-                              uint16_t row, uint16_t col,
-                              uint16_t h, uint16_t w) {
+bool LayoutTree::computeRect(
+    const LayoutNode &node,
+    uint16_t row, uint16_t col,
+    uint16_t h, uint16_t w
+) {
     if (h < node.minH || w < node.minW) return false;
 
     if (node.type == LayoutNode::Leaf) {
@@ -427,8 +429,10 @@ static std::string getFirstLeafReachable(const LayoutNode &node) {
 
 // Find the innermost tabbed node containing panelId, then return
 // the first leaf in its currently active child tab.
-std::string LayoutTree::getFirstLeafInActiveTab(const LayoutNode &node,
-                                                  const std::string &panelId) const {
+std::string LayoutTree::getFirstLeafInActiveTab(
+    const LayoutNode &node,
+    const std::string &panelId
+) const {
     if (node.type == LayoutNode::Tabbed) {
         for (size_t i = 0; i < node.children.size(); i++) {
             if (isPanelInSubtree(node.children[i], panelId)) {
@@ -469,8 +473,10 @@ std::vector<std::string> LayoutTree::panelIds() const {
     return ids;
 }
 
-void LayoutTree::collectAllLeafIds(const LayoutNode &node,
-                                    std::vector<std::string> &ids) const {
+void LayoutTree::collectAllLeafIds(
+    const LayoutNode &node,
+    std::vector<std::string> &ids
+) const {
     if (node.type == LayoutNode::Leaf) {
         ids.push_back(node.panelId);
         return;
@@ -481,7 +487,8 @@ void LayoutTree::collectAllLeafIds(const LayoutNode &node,
 }
 
 void LayoutTree::forEachLeaf(
-    std::function<void(const std::string &, const Rect &, bool)> fn) const {
+    std::function<void(const std::string &, const Rect &, bool)> fn
+) const {
     for (const auto &kv : m_slots) {
         fn(kv.first, kv.second.rect, kv.second.focused);
     }
@@ -491,8 +498,10 @@ void LayoutTree::forEachLeaf(
 // Internal helpers
 // ============================================================================
 
-void LayoutTree::collectLeafOrder(const LayoutNode &node,
-                                   std::vector<std::string> &ids) const {
+void LayoutTree::collectLeafOrder(
+    const LayoutNode &node,
+    std::vector<std::string> &ids
+) const {
     if (node.type == LayoutNode::Leaf) {
         ids.push_back(node.panelId);
         return;

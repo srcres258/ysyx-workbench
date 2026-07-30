@@ -12,22 +12,22 @@ namespace tui {
 
 const char *actionName(Action a) {
     switch (a) {
-        case Action::QUIT:             return "quit";
-        case Action::FOCUS_NEXT:       return "focus_next";
-        case Action::FOCUS_PREV:       return "focus_prev";
-        case Action::TOGGLE_MAXIMIZE:  return "maximize_toggle";
-        case Action::TAB_NEXT:         return "tab_next";
-        case Action::PAUSE_RESUME:     return "pause_resume";
-        case Action::RESET:            return "reset";
-        case Action::STEP_INST:        return "step_instruction";
-        case Action::STEP_CLOCK:       return "step_clock";
-        case Action::HELP_OVERLAY:     return "help_overlay";
-        case Action::PANEL_PICKER:     return "panel_picker";
-        case Action::RESIZE_UP:        return "resize_up";
-        case Action::RESIZE_DOWN:      return "resize_down";
-        case Action::RESIZE_LEFT:      return "resize_left";
-        case Action::RESIZE_RIGHT:     return "resize_right";
-        case Action::NONE:             return "none";
+        case Action::QUIT:            return "quit";
+        case Action::FOCUS_NEXT:      return "focus_next";
+        case Action::FOCUS_PREV:      return "focus_prev";
+        case Action::TOGGLE_MAXIMIZE: return "maximize_toggle";
+        case Action::TAB_NEXT:        return "tab_next";
+        case Action::PAUSE_RESUME:    return "pause_resume";
+        case Action::RESET:           return "reset";
+        case Action::STEP_INST:       return "step_instruction";
+        case Action::STEP_CLOCK:      return "step_clock";
+        case Action::HELP_OVERLAY:    return "help_overlay";
+        case Action::PANEL_PICKER:    return "panel_picker";
+        case Action::RESIZE_UP:       return "resize_up";
+        case Action::RESIZE_DOWN:     return "resize_down";
+        case Action::RESIZE_LEFT:     return "resize_left";
+        case Action::RESIZE_RIGHT:    return "resize_right";
+        case Action::NONE:            return "none";
     }
     return "unknown";
 }
@@ -37,7 +37,8 @@ namespace {
 std::string toLower(const std::string &s) {
     std::string r;
     r.reserve(s.size());
-    for (char c : s) r.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+    for (char c : s)
+        r.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
     return r;
 }
 
@@ -83,7 +84,8 @@ const NamedKeyEntry kNamedKeys[] = {
 const NamedKeyEntry *findNamedKey(const std::string &name) {
     std::string lower = toLower(name);
     for (const auto &e : kNamedKeys) {
-        if (lower == e.name) return &e;
+        if (lower == e.name)
+            return &e;
     }
     return nullptr;
 }
@@ -121,21 +123,22 @@ KeyChord parseKeyChord(const std::string &spec) {
     }
 
     if (!work.empty() && work[0] == '+') {
-        throw std::runtime_error("keybinding \"" + spec
-            + "\": stray '+' separator — empty key segment");
+        throw std::runtime_error("keybinding \"" + spec +
+                "\": stray '+' separator — empty key segment");
     }
     if (work.empty()) {
-        throw std::runtime_error("keybinding \"" + spec + "\": missing key after modifier");
+        throw std::runtime_error("keybinding \"" + spec +
+                "\": missing key after modifier");
     }
 
     // Check for named keys first.
     const NamedKeyEntry *named = findNamedKey(work);
     if (named) {
         if ((mod & kModShift) && !named->allowsShift) {
-            throw std::runtime_error("keybinding \"" + spec
-                + "\": shift modifier not valid for key \"" + named->name + "\"");
+            throw std::runtime_error("keybinding \"" + spec +
+                    "\": shift modifier not valid for key \"" + named->name + "\"");
         }
-        return KeyChord{mod, named->code};
+        return KeyChord { mod, named->code };
     }
 
     // Single printable ASCII character.
@@ -148,15 +151,15 @@ KeyChord parseKeyChord(const std::string &spec) {
         }
         if (mod & kModCtrl) {
             if (ch < 'a' || ch > 'z') {
-                throw std::runtime_error("keybinding \"" + spec
-                    + "\": ctrl modifier only valid with lowercase letters a–z");
+                throw std::runtime_error("keybinding \"" + spec +
+                        "\": ctrl modifier only valid with lowercase letters a–z");
             }
         }
-        return KeyChord{mod, static_cast<uint32_t>(static_cast<unsigned char>(ch))};
+        return KeyChord { mod, static_cast<uint32_t>(static_cast<unsigned char>(ch)) };
     }
 
-    throw std::runtime_error("keybinding \"" + spec
-        + "\": unknown key \"" + work + "\"");
+    throw std::runtime_error("keybinding \"" + spec +
+            "\": unknown key \"" + work + "\"");
 }
 
 bool validateKeyBinding(const std::string &spec, const char *label) {
@@ -164,8 +167,10 @@ bool validateKeyBinding(const std::string &spec, const char *label) {
         parseKeyChord(spec);
         return true;
     } catch (const std::runtime_error &e) {
-        std::fprintf(stderr, "[tui] invalid keybinding \"%s\" for action \"%s\": %s\n",
-                     spec.c_str(), label, e.what());
+        std::fprintf(
+            stderr, "[tui] invalid keybinding \"%s\" for action \"%s\": %s\n",
+            spec.c_str(), label, e.what()
+        );
         return false;
     }
 }
@@ -192,16 +197,16 @@ namespace {
 
 KeyChord decodeSingleByte(unsigned char b) {
     switch (b) {
-        case 0x09: return KeyChord{kModNone, SpecialKey::kTab};
-        case 0x0D: return KeyChord{kModNone, SpecialKey::kEnter};
-        case 0x7F: return KeyChord{kModNone, SpecialKey::kBackspace};
-        case 0x08: return KeyChord{kModNone, SpecialKey::kBackspace};
-        case 0x20: return KeyChord{kModNone, SpecialKey::kSpace};
+        case 0x09: return KeyChord { kModNone, SpecialKey::kTab };
+        case 0x0D: return KeyChord { kModNone, SpecialKey::kEnter };
+        case 0x7F: return KeyChord { kModNone, SpecialKey::kBackspace };
+        case 0x08: return KeyChord { kModNone, SpecialKey::kBackspace };
+        case 0x20: return KeyChord { kModNone, SpecialKey::kSpace };
     }
 
     if (b >= 1 && b <= 26) {
         char ch = static_cast<char>('a' + b - 1);
-        return KeyChord{kModCtrl, static_cast<uint32_t>(static_cast<unsigned char>(ch))};
+        return KeyChord { kModCtrl, static_cast<uint32_t>(static_cast<unsigned char>(ch)) };
     }
 
     if (b >= 32 && b <= 126) {
@@ -211,36 +216,36 @@ KeyChord decodeSingleByte(unsigned char b) {
             mod = kModShift;
             key = b + ('a' - 'A');
         }
-        return KeyChord{mod, key};
+        return KeyChord { mod, key };
     }
 
-    return KeyChord{kModNone, b};
+    return KeyChord { kModNone, b };
 }
 
 std::optional<KeyChord> decodeEscapeSequence() {
     fd_set fds;
     FD_ZERO(&fds);
     FD_SET(STDIN_FILENO, &fds);
-    struct timeval tv{0, 1000};
+    struct timeval tv { 0, 1000 };
 
     int sel = ::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
     if (sel <= 0) {
-        return KeyChord{kModNone, SpecialKey::kEsc};
+        return KeyChord { kModNone, SpecialKey::kEsc };
     }
 
     unsigned char buf[5];
     int n = ::read(STDIN_FILENO, buf, sizeof(buf));
     if (n <= 0) {
-        return KeyChord{kModNone, SpecialKey::kEsc};
+        return KeyChord { kModNone, SpecialKey::kEsc };
     }
 
     if (n >= 1 && buf[0] == 'O') {
         if (n >= 2) {
             switch (buf[1]) {
-                case 'P': return KeyChord{kModNone, SpecialKey::kF1};
-                case 'Q': return KeyChord{kModNone, SpecialKey::kF2};
-                case 'R': return KeyChord{kModNone, SpecialKey::kF3};
-                case 'S': return KeyChord{kModNone, SpecialKey::kF4};
+                case 'P': return KeyChord { kModNone, SpecialKey::kF1 };
+                case 'Q': return KeyChord { kModNone, SpecialKey::kF2 };
+                case 'R': return KeyChord { kModNone, SpecialKey::kF3 };
+                case 'S': return KeyChord { kModNone, SpecialKey::kF4 };
                 default: break;
             }
         }
@@ -253,11 +258,11 @@ std::optional<KeyChord> decodeEscapeSequence() {
         }
         if (n >= 2) {
             switch (buf[1]) {
-                case 'A': return KeyChord{kModNone, SpecialKey::kUp};
-                case 'B': return KeyChord{kModNone, SpecialKey::kDown};
-                case 'C': return KeyChord{kModNone, SpecialKey::kRight};
-                case 'D': return KeyChord{kModNone, SpecialKey::kLeft};
-                case 'H': return KeyChord{kModNone, SpecialKey::kTab};
+                case 'A': return KeyChord { kModNone, SpecialKey::kUp };
+                case 'B': return KeyChord { kModNone, SpecialKey::kDown };
+                case 'C': return KeyChord { kModNone, SpecialKey::kRight };
+                case 'D': return KeyChord { kModNone, SpecialKey::kLeft };
+                case 'H': return KeyChord { kModNone, SpecialKey::kTab };
                 default: break;
             }
         }
@@ -266,24 +271,24 @@ std::optional<KeyChord> decodeEscapeSequence() {
             int num = 0;
             try { num = std::stoi(digits); } catch (...) {}
             switch (num) {
-                case 11: return KeyChord{kModNone, SpecialKey::kF1};
-                case 12: return KeyChord{kModNone, SpecialKey::kF2};
-                case 13: return KeyChord{kModNone, SpecialKey::kF3};
-                case 14: return KeyChord{kModNone, SpecialKey::kF4};
-                case 15: return KeyChord{kModNone, SpecialKey::kF5};
-                case 17: return KeyChord{kModNone, SpecialKey::kF6};
-                case 18: return KeyChord{kModNone, SpecialKey::kF7};
-                case 19: return KeyChord{kModNone, SpecialKey::kF8};
-                case 20: return KeyChord{kModNone, SpecialKey::kF9};
-                case 21: return KeyChord{kModNone, SpecialKey::kF10};
-                case 23: return KeyChord{kModNone, SpecialKey::kF11};
-                case 24: return KeyChord{kModNone, SpecialKey::kF12};
+                case 11: return KeyChord { kModNone, SpecialKey::kF1 };
+                case 12: return KeyChord { kModNone, SpecialKey::kF2 };
+                case 13: return KeyChord { kModNone, SpecialKey::kF3 };
+                case 14: return KeyChord { kModNone, SpecialKey::kF4 };
+                case 15: return KeyChord { kModNone, SpecialKey::kF5 };
+                case 17: return KeyChord { kModNone, SpecialKey::kF6 };
+                case 18: return KeyChord { kModNone, SpecialKey::kF7 };
+                case 19: return KeyChord { kModNone, SpecialKey::kF8 };
+                case 20: return KeyChord { kModNone, SpecialKey::kF9 };
+                case 21: return KeyChord { kModNone, SpecialKey::kF10 };
+                case 23: return KeyChord { kModNone, SpecialKey::kF11 };
+                case 24: return KeyChord { kModNone, SpecialKey::kF12 };
                 default: break;
             }
         }
     }
 
-    return KeyChord{kModNone, SpecialKey::kEsc};
+    return KeyChord { kModNone, SpecialKey::kEsc };
 }
 
 } // anonymous namespace
@@ -297,6 +302,7 @@ void ActionMap::buildFromConfig(const TuiConfig::Keybindings &kb) {
             KeyChord chord = parseKeyChord(spec);
             m_map[chord] = a;
         } catch (const std::runtime_error &) {
+            // TODO: handle the error
         }
     };
 

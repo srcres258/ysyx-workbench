@@ -15,7 +15,13 @@ void EventFeed::push(const Event &event) {
     }
 }
 
-void EventFeed::push(uint64_t timestamp, EventType type, addr_t pc, word_t value, const char *desc) {
+void EventFeed::push(
+    uint64_t timestamp,
+    EventType type,
+    addr_t pc,
+    word_t value,
+    const char *des
+) {
     Event event;
     event.timestamp = timestamp;
     event.type = type;

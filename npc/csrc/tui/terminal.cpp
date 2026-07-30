@@ -11,12 +11,12 @@ namespace tui {
 // ---------------------------------------------------------------------------
 // ANSI / VT escape sequences
 // ---------------------------------------------------------------------------
-static const char kAltScreenEnter[]  = "\033[?1049h";
-static const char kAltScreenLeave[]  = "\033[?1049l";
-static const char kCursorHide[]      = "\033[?25l";
-static const char kCursorShow[]      = "\033[?25h";
-static const char kSyncStart[]       = "\033[?2026h";
-static const char kSyncEnd[]         = "\033[?2026l";
+static const char kAltScreenEnter[] = "\033[?1049h";
+static const char kAltScreenLeave[] = "\033[?1049l";
+static const char kCursorHide[]     = "\033[?25l";
+static const char kCursorShow[]     = "\033[?25h";
+static const char kSyncStart[]      = "\033[?2026h";
+static const char kSyncEnd[]        = "\033[?2026l";
 
 // ---------------------------------------------------------------------------
 // Static state
@@ -52,15 +52,19 @@ TerminalSession::TerminalSession()
 {
     // --- TTY checks ---
     if (!isatty(m_fd)) {
-        std::fprintf(stderr,
+        std::fprintf(
+            stderr,
             "[tui] fatal: stdout is not a TTY. "
-            "The TUI requires an interactive terminal.\n");
+            "The TUI requires an interactive terminal.\n"
+        );
         return;
     }
     if (!isatty(STDIN_FILENO)) {
-        std::fprintf(stderr,
+        std::fprintf(
+            stderr,
             "[tui] fatal: stdin is not a TTY. "
-            "The TUI requires an interactive terminal.\n");
+            "The TUI requires an interactive terminal.\n"
+        );
         return;
     }
 
@@ -73,8 +77,10 @@ TerminalSession::TerminalSession()
     // so no rollback is needed.  The destructor (m_valid == false)
     // is a harmless no-op.
     if (!enterRawMode()) {
-        std::fprintf(stderr,
-            "[tui] fatal: failed to enter raw mode\n");
+        std::fprintf(
+            stderr,
+            "[tui] fatal: failed to enter raw mode\n"
+        );
         return;
     }
 
@@ -92,7 +98,8 @@ TerminalSession::TerminalSession()
 }
 
 TerminalSession::~TerminalSession() {
-    if (!m_valid) return;
+    if (!m_valid)
+        return;
 
     // Drain any pending synchronized output.
     endSync();
@@ -117,7 +124,8 @@ void TerminalSession::enterAltScreen() {
 }
 
 void TerminalSession::leaveAltScreen() {
-    if (!m_altScreen) return;
+    if (!m_altScreen)
+        return;
     std::fputs(kAltScreenLeave, stdout);
     std::fflush(stdout);
     m_altScreen = false;
@@ -128,8 +136,10 @@ void TerminalSession::leaveAltScreen() {
 // ---------------------------------------------------------------------------
 bool TerminalSession::enterRawMode() {
     if (tcgetattr(STDIN_FILENO, &m_savedTermios) != 0) {
-        std::fprintf(stderr, "[tui] tcgetattr failed: %s\n",
-                     std::strerror(errno));
+        std::fprintf(
+            stderr, "[tui] tcgetattr failed: %s\n",
+            std::strerror(errno)
+        );
         return false;
     }
 
@@ -140,8 +150,10 @@ bool TerminalSession::enterRawMode() {
     raw.c_cc[VTIME] = 0;
 
     if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &raw) != 0) {
-        std::fprintf(stderr, "[tui] tcsetattr (raw) failed: %s\n",
-                     std::strerror(errno));
+        std::fprintf(
+            stderr, "[tui] tcsetattr (raw) failed: %s\n",
+            std::strerror(errno)
+        );
         return false;
     }
     m_rawMode = true;
@@ -149,7 +161,8 @@ bool TerminalSession::enterRawMode() {
 }
 
 void TerminalSession::leaveRawMode() {
-    if (!m_rawMode) return;
+    if (!m_rawMode)
+        return;
     tcsetattr(STDIN_FILENO, TCSAFLUSH, &m_savedTermios);
     m_rawMode = false;
 }
@@ -164,7 +177,8 @@ void TerminalSession::hideCursor() {
 }
 
 void TerminalSession::showCursor() {
-    if (!m_cursorHidden) return;
+    if (!m_cursorHidden)
+        return;
     std::fputs(kCursorShow, stdout);
     std::fflush(stdout);
     m_cursorHidden = false;
@@ -187,7 +201,7 @@ void TerminalSession::endSync() {
 // Terminal size
 // ---------------------------------------------------------------------------
 TerminalSize TerminalSession::querySize() const {
-    TerminalSize ts = {0, 0};
+    TerminalSize ts = { 0, 0 };
     struct winsize ws;
     if (ioctl(m_fd, TIOCGWINSZ, &ws) == 0) {
         ts.rows = ws.ws_row;

@@ -13,8 +13,8 @@ void ProcessorState::dump() const {
     for (i = 0; i < RISCV_GPR_NUM; i++) {
         auto regName = std::format("x{}", i);
         std::cout << std::setfill(' ') << std::setw(4) << regName <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << gpr[i] << std::dec << std::endl;
+            ": 0x" << std::setfill('0') << std::setw(8) <<
+            std::hex << gpr[i] << std::dec << std::endl;
     }
 
     std::cout << "PC is currently at 0x" << std::setfill('0') <<

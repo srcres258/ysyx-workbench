@@ -95,14 +95,14 @@ static void uart_putdec(uint32_t val) {
         return;
     }
 
-    for (i = 0; i < (int)(sizeof(pow10) / sizeof(pow10[0])); i++) {
+    for (i = 0; i < (int) (sizeof(pow10) / sizeof(pow10[0])); i++) {
         uint32_t digit = 0;
         while (val >= pow10[i]) {
             val -= pow10[i];
             digit++;
         }
         if (digit > 0 || started) {
-            uart_putc('0' + (char)digit);
+            uart_putc('0' + (char) digit);
             started = 1;
         }
     }
@@ -126,8 +126,11 @@ static void progress_dot(uint32_t *pline) {
 }
 
 /* Conditionally emit a progress dot when words_done reaches next_dot threshold */
-static void progress_tick(uint32_t words_done, uint32_t *next_dot,
-                          uint32_t *pline) {
+static void progress_tick(
+    uint32_t words_done,
+    uint32_t *next_dot,
+    uint32_t *pline
+) {
     if (words_done >= *next_dot) {
         progress_dot(pline);
         *next_dot += PROGRESS_STEP;
@@ -159,9 +162,11 @@ void _trm_init(void);
  * All progress variables are local stack variables — no global state. */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Warray-bounds"
-static void copy_words_with_progress(volatile uint32_t *dst,
-                                     volatile const uint32_t *src,
-                                     uint32_t words) {
+static void copy_words_with_progress(
+    volatile uint32_t *dst,
+    volatile const uint32_t *src,
+    uint32_t words
+) {
     uint32_t next_dot = PROGRESS_STEP;
     uint32_t pline = 0;
     uint32_t i;
@@ -178,9 +183,11 @@ static void copy_words_with_progress(volatile uint32_t *dst,
 }
 #pragma GCC diagnostic pop
 
-static void copy_tail_bytes(volatile uint8_t *dst,
-                            volatile const uint8_t *src,
-                            uint32_t bytes) {
+static void copy_tail_bytes(
+    volatile uint8_t *dst,
+    volatile const uint8_t *src,
+    uint32_t bytes
+) {
     while (bytes--) {
         *dst++ = *src++;
     }
@@ -204,13 +211,15 @@ static void zero_bytes_with_progress(volatile uint8_t *dst,
 }
 #endif
 
-static void copy_section_with_log(const char *section_name,
-                                  volatile uint8_t *dst,
-                                  volatile const uint8_t *src,
-                                  uint32_t bytes) {
+static void copy_section_with_log(
+    const char *section_name,
+    volatile uint8_t *dst,
+    volatile const uint8_t *src,
+    uint32_t bytes
+) {
     uint32_t len_words = bytes / 4;
-    uint32_t src_addr = (uint32_t)(uintptr_t)src;
-    uint32_t dst_addr = (uint32_t)(uintptr_t)dst;
+    uint32_t src_addr = (uint32_t)(uintptr_t) src;
+    uint32_t dst_addr = (uint32_t)(uintptr_t) dst;
 
     if (bytes == 0) {
         uart_puts("[");
@@ -229,19 +238,25 @@ static void copy_section_with_log(const char *section_name,
     uart_putdec(len_words);
     uart_puts(" words\r\n      ");
 
-    copy_words_with_progress((volatile uint32_t *)(uintptr_t)dst_addr,
-                             (volatile const uint32_t *)(uintptr_t)src_addr,
-                             len_words);
-    copy_tail_bytes((volatile uint8_t *)(uintptr_t)(dst_addr + len_words * 4),
-                    (volatile const uint8_t *)(uintptr_t)(src_addr + len_words * 4),
-                    bytes & 0x3);
+    copy_words_with_progress(
+        (volatile uint32_t *)(uintptr_t) dst_addr,
+        (volatile const uint32_t *)(uintptr_t) src_addr,
+        len_words
+    );
+    copy_tail_bytes(
+        (volatile uint8_t *)(uintptr_t) (dst_addr + len_words * 4),
+        (volatile const uint8_t *)(uintptr_t) (src_addr + len_words * 4),
+        bytes & 0x3
+    );
     uart_puts("      done\r\n\r\n");
 }
 
 #ifdef EMPTY_BSS
-static void clear_section_with_log(const char *section_name,
-                                   volatile uint8_t *dst,
-                                   uint32_t bytes) {
+static void clear_section_with_log(
+    const char *section_name,
+    volatile uint8_t *dst,
+    uint32_t bytes
+) {
     uint32_t dst_addr = (uint32_t)(uintptr_t)dst;
 
     if (bytes == 0) {
@@ -304,42 +319,61 @@ void ssbl_entry(void) {
     /* ================================================================
      * 1. Copy .text section: FLASH LMA -> PSRAM/SDRAM VMA
      * ================================================================ */
-    text_bytes = (uint32_t)(uintptr_t)&_text_end -
-                 (uint32_t)(uintptr_t)&_text_start;
-    copy_section_with_log(".text", (volatile uint8_t *)&_text_start,
-                          (volatile const uint8_t *)&_text_lma, text_bytes);
+    text_bytes = (uint32_t)(uintptr_t) &_text_end -
+                 (uint32_t)(uintptr_t) &_text_start;
+    copy_section_with_log(
+        ".text",
+        (volatile uint8_t *) &_text_start,
+        (volatile const uint8_t *) &_text_lma,
+        text_bytes
+    );
 
     /* ================================================================
      * 2. Copy .data.extra section: FLASH LMA -> PSRAM/SDRAM VMA
      * ================================================================ */
-    data_extra_bytes = (uint32_t)(uintptr_t)&_data_extra_end -
-                       (uint32_t)(uintptr_t)&_data_extra_start;
-    copy_section_with_log(".data.extra", (volatile uint8_t *)&_data_extra_start,
-                          (volatile const uint8_t *)&_data_extra_lma, data_extra_bytes);
+    data_extra_bytes = (uint32_t)(uintptr_t) &_data_extra_end -
+                       (uint32_t)(uintptr_t) &_data_extra_start;
+    copy_section_with_log(
+        ".data.extra",
+        (volatile uint8_t *) &_data_extra_start,
+        (volatile const uint8_t *) &_data_extra_lma,
+        data_extra_bytes
+    );
 
     /* ================================================================
      * 3. Copy .data section: FLASH LMA -> PSRAM/SDRAM VMA
      * ================================================================ */
-    data_bytes = (uint32_t)(uintptr_t)&_data_end -
-                 (uint32_t)(uintptr_t)&_data_start;
-    copy_section_with_log(".data", (volatile uint8_t *)&_data_start,
-                          (volatile const uint8_t *)&_data_lma, data_bytes);
+    data_bytes = (uint32_t)(uintptr_t) &_data_end -
+                 (uint32_t)(uintptr_t) &_data_start;
+    copy_section_with_log(
+        ".data",
+        (volatile uint8_t *) &_data_start,
+        (volatile const uint8_t *) &_data_lma,
+        data_bytes
+    );
 
 #ifdef EMPTY_BSS
     /* ================================================================
      * 4. Zero-initialize .bss.extra section (PSRAM/SDRAM)
      * ================================================================ */
-    bss_extra_bytes = (uint32_t)(uintptr_t)&_bss_extra_end -
-                      (uint32_t)(uintptr_t)&_bss_extra_start;
-    clear_section_with_log(".bss.extra", (volatile uint8_t *)&_bss_extra_start,
-                           bss_extra_bytes);
+    bss_extra_bytes = (uint32_t)(uintptr_t) &_bss_extra_end -
+                      (uint32_t)(uintptr_t) &_bss_extra_start;
+    clear_section_with_log(
+        ".bss.extra",
+        (volatile uint8_t *) &_bss_extra_start,
+        bss_extra_bytes
+    );
 
     /* ================================================================
      * 5. Zero-initialize .bss section (PSRAM/SDRAM)
      * ================================================================ */
-    bss_bytes = (uint32_t)(uintptr_t)&_bss_end -
-                (uint32_t)(uintptr_t)&_bss_start;
-    clear_section_with_log(".bss", (volatile uint8_t *)&_bss_start, bss_bytes);
+    bss_bytes = (uint32_t)(uintptr_t) &_bss_end -
+                (uint32_t)(uintptr_t) &_bss_start;
+    clear_section_with_log(
+        ".bss",
+        (volatile uint8_t *) &_bss_start,
+        bss_bytes
+    );
 #endif
 
     /* ================================================================
@@ -351,9 +385,7 @@ void ssbl_entry(void) {
 
     _trm_init();
 
-    /* Should never reach here */
-    while (1) {
-        /* spin */
-    }
+    /* NOTE: Should never reach here! */
+    while (1); /* spin */
 }
 #pragma GCC diagnostic pop

@@ -57,7 +57,8 @@ void Overlay::appendOutput(const std::string &line) {
 }
 
 void Overlay::insertChar(char ch) {
-    if (ch < 32 || ch > 126) return;
+    if (ch < 32 || ch > 126)
+        return;
     m_input.insert(m_cursorPos, 1, ch);
     ++m_cursorPos;
 }
@@ -86,7 +87,8 @@ void Overlay::moveCursorEnd() {
 }
 
 void Overlay::historyPrev() {
-    if (m_history.empty()) return;
+    if (m_history.empty())
+        return;
     if (m_historyIdx == -1) {
         m_historyIdx = static_cast<int>(m_history.size()) - 1;
     } else if (m_historyIdx > 0) {
@@ -97,7 +99,8 @@ void Overlay::historyPrev() {
 }
 
 void Overlay::historyNext() {
-    if (m_historyIdx == -1) return;
+    if (m_historyIdx == -1)
+        return;
     if (m_historyIdx < static_cast<int>(m_history.size()) - 1) {
         ++m_historyIdx;
         m_input = m_history[m_historyIdx];
@@ -109,12 +112,14 @@ void Overlay::historyNext() {
 }
 
 void Overlay::dispatchCommand(const std::string &cmd) {
-    if (cmd.empty()) return;
+    if (cmd.empty())
+        return;
 
     std::istringstream iss(cmd);
     std::string token;
     iss >> token;
-    if (token.empty()) return;
+    if (token.empty())
+        return;
 
     std::string rest;
     std::getline(iss, rest);
@@ -159,14 +164,16 @@ void Overlay::dispatchCommand(const std::string &cmd) {
             std::istringstream lines(out);
             std::string line;
             while (std::getline(lines, line)) {
-                if (!line.empty()) m_output.push_back(line);
+                if (!line.empty())
+                    m_output.push_back(line);
             }
         } else if (sub == "w") {
             std::string out = sdb_cmdInfoWatchpoints();
             std::istringstream lines(out);
             std::string line;
             while (std::getline(lines, line)) {
-                if (!line.empty()) m_output.push_back(line);
+                if (!line.empty())
+                    m_output.push_back(line);
             }
         } else {
             m_output.push_back("Usage: info r | info w");
@@ -179,12 +186,14 @@ void Overlay::dispatchCommand(const std::string &cmd) {
         size_t xp = exprStr.find_first_not_of(" \t");
         const char *xexpr = (xp != std::string::npos) ? exprStr.c_str() + xp : "";
         int n = nStr.empty() ? 1 : std::atoi(nStr.c_str());
-        if (n <= 0) n = 1;
+        if (n <= 0)
+            n = 1;
         std::string out = sdb_cmdX(n, xexpr);
         std::istringstream lines(out);
         std::string line;
         while (std::getline(lines, line)) {
-            if (!line.empty()) m_output.push_back(line);
+            if (!line.empty())
+                m_output.push_back(line);
         }
     } else if (token == "p") {
         std::string out = sdb_cmdP(args);
@@ -203,18 +212,19 @@ void Overlay::dispatchCommand(const std::string &cmd) {
 }
 
 void Overlay::render(Canvas &canvas, uint16_t rows, uint16_t cols) {
-    if (!m_active) return;
+    if (!m_active)
+        return;
 
     static constexpr uint16_t kOverlayRows = 12;
     uint16_t oh = (rows > kOverlayRows) ? kOverlayRows : rows;
     uint16_t orow = rows - oh;
 
-    Style bgStyle{ColourIndex::kColourBlack, ColourIndex::kColourBlack, false, false, false};
-    Style cmdStyle{ColourIndex::kColourWhite, ColourIndex::kColourBlack, true, false, false};
-    Style promptStyle{ColourIndex::kColourGreen, ColourIndex::kColourBlack, true, false, false};
-    Style outputStyle{ColourIndex::kColourWhite, ColourIndex::kColourBlack, false, false, false};
-    Style hintStyle{ColourIndex::kColourCyan, ColourIndex::kColourBlack, true, false, false};
-    Style borderFg{ColourIndex::kColourCyan, ColourIndex::kColourBlack, false, false, false};
+    Style bgStyle { ColourIndex::kColourBlack, ColourIndex::kColourBlack, false, false, false };
+    Style cmdStyle { ColourIndex::kColourWhite, ColourIndex::kColourBlack, true, false, false };
+    Style promptStyle { ColourIndex::kColourGreen, ColourIndex::kColourBlack, true, false, false };
+    Style outputStyle { ColourIndex::kColourWhite, ColourIndex::kColourBlack, false, false, false };
+    Style hintStyle { ColourIndex::kColourCyan, ColourIndex::kColourBlack, true, false, false };
+    Style borderFg { ColourIndex::kColourCyan, ColourIndex::kColourBlack, false, false, false };
 
     canvas.fill(orow, 0, oh, cols, ' ', bgStyle);
 
@@ -241,7 +251,7 @@ void Overlay::render(Canvas &canvas, uint16_t rows, uint16_t cols) {
         canvas.writeStr(orow + oh - 2, 3, visible, cmdStyle);
         uint16_t cursorVisual = 3 + static_cast<uint16_t>(m_cursorPos);
         if (cursorVisual < cols && m_cursorPos < visible.size()) {
-            Style cursorStyle{ColourIndex::kColourBlack, ColourIndex::kColourWhite, false, false, false};
+            Style cursorStyle { ColourIndex::kColourBlack, ColourIndex::kColourWhite, false, false, false };
             canvas.put(orow + oh - 2, cursorVisual, visible[m_cursorPos], cursorStyle);
         }
     }

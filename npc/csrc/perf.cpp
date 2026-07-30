@@ -123,25 +123,28 @@ static constexpr PerfCounterDef kCounterTable[PerfCounters::kNumCounters] = {
     /* 97 */ { "alu.op.srl.count",                         "count", "ALU SRL/SRLI operations retired",                        "dpi->perf_ex_alu_op_srl (polling)"           },
     /* 98 */ { "alu.op.sra.count",                         "count", "ALU SRA/SRAI operations retired",                        "dpi->perf_ex_alu_op_sra (polling)"           },
     /* 99 */ { "alu.op.and.count",                         "count", "ALU AND/ANDI operations retired",                        "dpi->perf_ex_alu_op_and (polling)"           },
-   /* 100 */ { "alu.op.or.count",                          "count", "ALU OR/ORI operations retired",                          "dpi->perf_ex_alu_op_or (polling)"            },
-   /* 101 */ { "alu.op.xor.count",                         "count", "ALU XOR/XORI operations retired",                        "dpi->perf_ex_alu_op_xor (polling)"           },
-   /* 102 */ { "ex.adder.compute.count",                   "count", "Adder used for arithmetic compute result",               "dpi->perf_ex_adder_compute (polling)"        },
-   /* 103 */ { "ex.adder.agen_ls.count",                   "count", "Adder used for load/store address generation",           "dpi->perf_ex_adder_agen_ls (polling)"        },
-   /* 104 */ { "ex.adder.agen_branch.count",               "count", "Adder used for branch/jump target computation (taken)",  "dpi->perf_ex_adder_agen_branch (polling)"    },
-   /* 105 */ { "ex.adder.agen_auipc.count",                "count", "Adder used for AUIPC pc+imm computation",                "dpi->perf_ex_adder_agen_auipc (polling)"     },
-   /* 106 */ { "ex.concurrency.alu_only.count",            "count", "EX stage: only ALU output consumed (no PC target)",     "dpi->perf_ex_concurrency_alu_only (polling)" },
-   /* 107 */ { "ex.concurrency.pc_only.count",             "count", "EX stage: only PC target consumed (no ALU)",            "dpi->perf_ex_concurrency_pc_only (polling)"  },
-   /* 108 */ { "ex.concurrency.both.count",                "count", "EX stage: both ALU and PC target consumed concurrently","dpi->perf_ex_concurrency_both (polling)"      },
+    /* 100 */ { "alu.op.or.count",                          "count", "ALU OR/ORI operations retired",                          "dpi->perf_ex_alu_op_or (polling)"            },
+    /* 101 */ { "alu.op.xor.count",                         "count", "ALU XOR/XORI operations retired",                        "dpi->perf_ex_alu_op_xor (polling)"           },
+    /* 102 */ { "ex.adder.compute.count",                   "count", "Adder used for arithmetic compute result",               "dpi->perf_ex_adder_compute (polling)"        },
+    /* 103 */ { "ex.adder.agen_ls.count",                   "count", "Adder used for load/store address generation",           "dpi->perf_ex_adder_agen_ls (polling)"        },
+    /* 104 */ { "ex.adder.agen_branch.count",               "count", "Adder used for branch/jump target computation (taken)",  "dpi->perf_ex_adder_agen_branch (polling)"    },
+    /* 105 */ { "ex.adder.agen_auipc.count",                "count", "Adder used for AUIPC pc+imm computation",                "dpi->perf_ex_adder_agen_auipc (polling)"     },
+    /* 106 */ { "ex.concurrency.alu_only.count",            "count", "EX stage: only ALU output consumed (no PC target)",     "dpi->perf_ex_concurrency_alu_only (polling)" },
+    /* 107 */ { "ex.concurrency.pc_only.count",             "count", "EX stage: only PC target consumed (no ALU)",            "dpi->perf_ex_concurrency_pc_only (polling)"  },
+    /* 108 */ { "ex.concurrency.both.count",                "count", "EX stage: both ALU and PC target consumed concurrently","dpi->perf_ex_concurrency_both (polling)"      },
 };
 
 // Compile-time guard: table size must match counter count.
-static_assert(sizeof(kCounterTable) / sizeof(kCounterTable[0]) == PerfCounters::kNumCounters,
-              "kCounterTable size must equal kNumCounters");
+static_assert(
+    sizeof(kCounterTable) / sizeof(kCounterTable[0]) == PerfCounters::kNumCounters,
+    "kCounterTable size must equal kNumCounters"
+);
 
 // Compile-time guard: no duplicate counter names.
 constexpr bool cstr_eq(const char *a, const char *b) noexcept {
     while (*a != '\0' && *b != '\0') {
-        if (*a != *b) return false;
+        if (*a != *b)
+            return false;
         ++a; ++b;
     }
     return *a == *b;
@@ -157,22 +160,28 @@ constexpr bool kCounterTable_has_unique_names() noexcept {
     return true;
 }
 
-static_assert(kCounterTable_has_unique_names(),
-              "kCounterTable contains duplicate counter names — "
-              "every counter name must be unique");
+static_assert(
+    kCounterTable_has_unique_names(),
+    "kCounterTable contains duplicate counter names — "
+    "every counter name must be unique"
+);
 
 // ── Pass accumulated core signals to counter positions ──────────────────
-void PerfCounters::accumulateCore(uint64_t running, uint64_t commitFire,
-                                   uint64_t busy, uint64_t stall) {
+void PerfCounters::accumulateCore(
+    uint64_t running, uint64_t commitFire,
+    uint64_t busy, uint64_t stall
+) {
     m_values[Idx::CORE_CYCLE]       += running;
     m_values[Idx::CORE_INSTRET]     += commitFire;
     m_values[Idx::CORE_BUSY_CYCLE]  += busy;
     m_values[Idx::CORE_STALL_CYCLE] += stall;
 }
 
-void PerfCounters::accumulateInstClass(uint64_t alu, uint64_t load, uint64_t store,
-                                        uint64_t branch, uint64_t jal, uint64_t jalr,
-                                        uint64_t csr, uint64_t muldiv) {
+void PerfCounters::accumulateInstClass(
+    uint64_t alu, uint64_t load, uint64_t store,
+    uint64_t branch, uint64_t jal, uint64_t jalr,
+    uint64_t csr, uint64_t muldiv
+) {
     m_values[Idx::INST_CLASS_ALU_COUNT]    += alu;
     m_values[Idx::INST_CLASS_LOAD_COUNT]   += load;
     m_values[Idx::INST_CLASS_STORE_COUNT]  += store;
@@ -183,8 +192,10 @@ void PerfCounters::accumulateInstClass(uint64_t alu, uint64_t load, uint64_t sto
     m_values[Idx::INST_CLASS_MULDIV_COUNT] += muldiv;
 }
 
-void PerfCounters::accumulateState(uint64_t fetch, uint64_t decode, uint64_t execute,
-                                    uint64_t memory, uint64_t writeback) {
+void PerfCounters::accumulateState(
+    uint64_t fetch, uint64_t decode, uint64_t execute,
+    uint64_t memory, uint64_t writeback
+) {
     m_values[Idx::STATE_FETCH_CYCLE]     += fetch;
     m_values[Idx::STATE_DECODE_CYCLE]    += decode;
     m_values[Idx::STATE_EXECUTE_CYCLE]   += execute;
@@ -192,9 +203,11 @@ void PerfCounters::accumulateState(uint64_t fetch, uint64_t decode, uint64_t exe
     m_values[Idx::STATE_WRITEBACK_CYCLE] += writeback;
 }
 
-void PerfCounters::accumulateStall(uint64_t ifetchWaitResp, uint64_t memWaitResp,
-                                    uint64_t memReqBlocked, uint64_t structSharedMem,
-                                    uint64_t muldivBusy) {
+void PerfCounters::accumulateStall(
+    uint64_t ifetchWaitResp, uint64_t memWaitResp,
+    uint64_t memReqBlocked, uint64_t structSharedMem,
+    uint64_t muldivBusy
+) {
     m_values[Idx::STALL_IFETCH_WAIT_RESP_CYCLE]  += ifetchWaitResp;
     m_values[Idx::STALL_MEM_WAIT_RESP_CYCLE]     += memWaitResp;
     m_values[Idx::STALL_MEM_REQ_BLOCKED_CYCLE]   += memReqBlocked;
@@ -202,8 +215,10 @@ void PerfCounters::accumulateStall(uint64_t ifetchWaitResp, uint64_t memWaitResp
     m_values[Idx::STALL_MULDIV_BUSY_CYCLE]       += muldivBusy;
 }
 
-void PerfCounters::accumulateMem(uint64_t loadReqFire, uint64_t storeReqFire,
-                                  uint64_t mmioReqFire) {
+void PerfCounters::accumulateMem(
+    uint64_t loadReqFire, uint64_t storeReqFire,
+    uint64_t mmioReqFire
+) {
     m_values[Idx::MEM_LOAD_REQ_COUNT]  += loadReqFire;
     m_values[Idx::MEM_STORE_REQ_COUNT] += storeReqFire;
     m_values[Idx::MEM_MMIO_REQ_COUNT]  += mmioReqFire;
@@ -213,12 +228,14 @@ void PerfCounters::accumulateTrap(uint64_t exceptionFire) {
     m_values[Idx::TRAP_EXCEPTION_COUNT] += exceptionFire;
 }
 
-void PerfCounters::accumulateReg(uint64_t gprWbFire, uint64_t csrWbFire,
-                                  uint64_t gprSrcAlu, uint64_t gprSrcDmem,
-                                  uint64_t gprSrcImm, uint64_t gprSrcPcNext,
-                                  uint64_t gprSrcBcu, uint64_t gprSrcCsr,
-                                  uint64_t csrModeRw, uint64_t csrModeRs,
-                                  uint64_t csrModeRc, uint64_t csrModeImm) {
+void PerfCounters::accumulateReg(
+    uint64_t gprWbFire, uint64_t csrWbFire,
+    uint64_t gprSrcAlu, uint64_t gprSrcDmem,
+    uint64_t gprSrcImm, uint64_t gprSrcPcNext,
+    uint64_t gprSrcBcu, uint64_t gprSrcCsr,
+    uint64_t csrModeRw, uint64_t csrModeRs,
+    uint64_t csrModeRc, uint64_t csrModeImm
+) {
     m_values[Idx::REG_GPR_WRITE_COUNT]          += gprWbFire;
     m_values[Idx::REG_CSR_WRITE_COUNT]          += csrWbFire;
     m_values[Idx::REG_GPR_SRC_ALU_COUNT]        += gprSrcAlu;
@@ -233,20 +250,22 @@ void PerfCounters::accumulateReg(uint64_t gprWbFire, uint64_t csrWbFire,
     m_values[Idx::REG_CSR_MODE_IMM_COUNT]       += csrModeImm;
 }
 
-void PerfCounters::accumulateGprCsr(uint64_t gprReadRs1, uint64_t gprReadRs2,
-                                     uint64_t gprReadBoth, uint64_t gprReadRs1X0,
-                                     uint64_t gprReadRs2X0, uint64_t gprReadRs1EqRs2,
-                                     uint64_t gprReadRs2Unused, uint64_t gprReadUpper16,
-                                     uint64_t gprWriteSuppressedX0,
-                                     uint64_t csrReadPort1, uint64_t csrReadPort2,
-                                     uint64_t csrReadPort3, uint64_t csrReadConcurrent2,
-                                     uint64_t csrReadConcurrent3,
-                                     uint64_t csrWriteNormal, uint64_t csrWriteTrap,
-                                     uint64_t csrWriteReturn,
-                                     uint64_t csrAddrMstatus, uint64_t csrAddrMtvec,
-                                     uint64_t csrAddrMepc, uint64_t csrAddrMcause,
-                                     uint64_t csrAddrMtval, uint64_t csrAddrMvendorid,
-                                     uint64_t csrAddrMarchid) {
+void PerfCounters::accumulateGprCsr(
+    uint64_t gprReadRs1, uint64_t gprReadRs2,
+    uint64_t gprReadBoth, uint64_t gprReadRs1X0,
+    uint64_t gprReadRs2X0, uint64_t gprReadRs1EqRs2,
+    uint64_t gprReadRs2Unused, uint64_t gprReadUpper16,
+    uint64_t gprWriteSuppressedX0,
+    uint64_t csrReadPort1, uint64_t csrReadPort2,
+    uint64_t csrReadPort3, uint64_t csrReadConcurrent2,
+    uint64_t csrReadConcurrent3,
+    uint64_t csrWriteNormal, uint64_t csrWriteTrap,
+    uint64_t csrWriteReturn,
+    uint64_t csrAddrMstatus, uint64_t csrAddrMtvec,
+    uint64_t csrAddrMepc, uint64_t csrAddrMcause,
+    uint64_t csrAddrMtval, uint64_t csrAddrMvendorid,
+    uint64_t csrAddrMarchid
+) {
     m_values[Idx::GPR_READ_RS1_COUNT]            += gprReadRs1;
     m_values[Idx::GPR_READ_RS2_COUNT]            += gprReadRs2;
     m_values[Idx::GPR_READ_BOTH_COUNT]           += gprReadBoth;
@@ -274,82 +293,84 @@ void PerfCounters::accumulateGprCsr(uint64_t gprReadRs1, uint64_t gprReadRs2,
 }
 
 void PerfCounters::accumulateIfetchLsu(
-        uint64_t ifetchReq, uint64_t ifetchLsuReqFire,
-        uint64_t ifetchAxiArFire, uint64_t ifetchAxiRFire,
-        uint64_t ifetchRespFire, uint64_t ifetchConsumerReadyAtResp,
-        uint64_t ifetchRespConsumedFirstCycle,
-        uint64_t ifetchPhaseAcceptPc, uint64_t ifetchPhasePrepareReq,
-        uint64_t ifetchPhaseReqBlocked, uint64_t ifetchPhaseWaitResp,
-        uint64_t ifetchPhaseRespBuffered, uint64_t ifetchPhaseOutputBlocked,
-        uint64_t lsuLoadByte, uint64_t lsuLoadHalf,
-        uint64_t lsuLoadWord, uint64_t lsuLoadAligned,
-        uint64_t lsuLoadUnaligned, uint64_t lsuStoreByte,
-        uint64_t lsuStoreHalf, uint64_t lsuStoreWord,
-        uint64_t lsuStoreAligned, uint64_t lsuStoreUnaligned,
-        uint64_t lsuUnalignedExtraTrans,
-        uint64_t lsuAxiArFire, uint64_t lsuAxiAwFire,
-        uint64_t lsuAxiWFire, uint64_t lsuAxiRFire,
-        uint64_t lsuAxiBFire,
-        uint64_t lsuConcurrentReadyOpp, uint64_t lsuAwDoneWaitW,
-        uint64_t lsuWDoneWaitAw) {
-    m_values[Idx::IFETCH_REQUEST_COUNT]                       += ifetchReq;
-    m_values[Idx::IFETCH_LSU_REQ_FIRE_COUNT]                  += ifetchLsuReqFire;
-    m_values[Idx::IFETCH_AXI_AR_FIRE_COUNT]                   += ifetchAxiArFire;
-    m_values[Idx::IFETCH_AXI_R_FIRE_COUNT]                    += ifetchAxiRFire;
-    m_values[Idx::IFETCH_RESPONSE_FIRE_COUNT]                 += ifetchRespFire;
-    m_values[Idx::IFETCH_CONSUMER_READY_AT_RESP_COUNT]        += ifetchConsumerReadyAtResp;
-    m_values[Idx::IFETCH_RESPONSE_CONSUMED_FIRST_CYCLE_COUNT] += ifetchRespConsumedFirstCycle;
-    m_values[Idx::IFETCH_PHASE_ACCEPT_PC_CYCLE]               += ifetchPhaseAcceptPc;
-    m_values[Idx::IFETCH_PHASE_PREPARE_REQUEST_CYCLE]         += ifetchPhasePrepareReq;
-    m_values[Idx::IFETCH_PHASE_REQUEST_BLOCKED_CYCLE]         += ifetchPhaseReqBlocked;
-    m_values[Idx::IFETCH_PHASE_WAIT_RESPONSE_CYCLE]           += ifetchPhaseWaitResp;
-    m_values[Idx::IFETCH_PHASE_RESPONSE_BUFFERED_CYCLE]       += ifetchPhaseRespBuffered;
-    m_values[Idx::IFETCH_PHASE_OUTPUT_BLOCKED_CYCLE]          += ifetchPhaseOutputBlocked;
-    m_values[Idx::LSU_LOAD_BYTE_COUNT]                        += lsuLoadByte;
-    m_values[Idx::LSU_LOAD_HALF_COUNT]                        += lsuLoadHalf;
-    m_values[Idx::LSU_LOAD_WORD_COUNT]                        += lsuLoadWord;
-    m_values[Idx::LSU_LOAD_ALIGNED_COUNT]                     += lsuLoadAligned;
-    m_values[Idx::LSU_LOAD_UNALIGNED_COUNT]                   += lsuLoadUnaligned;
-    m_values[Idx::LSU_STORE_BYTE_COUNT]                       += lsuStoreByte;
-    m_values[Idx::LSU_STORE_HALF_COUNT]                       += lsuStoreHalf;
-    m_values[Idx::LSU_STORE_WORD_COUNT]                       += lsuStoreWord;
-    m_values[Idx::LSU_STORE_ALIGNED_COUNT]                    += lsuStoreAligned;
-    m_values[Idx::LSU_STORE_UNALIGNED_COUNT]                  += lsuStoreUnaligned;
-    m_values[Idx::LSU_UNALIGNED_EXTRA_TRANSACTION_COUNT]       += lsuUnalignedExtraTrans;
-    m_values[Idx::LSU_AXI_AR_FIRE_COUNT]                      += lsuAxiArFire;
-    m_values[Idx::LSU_AXI_AW_FIRE_COUNT]                      += lsuAxiAwFire;
-    m_values[Idx::LSU_AXI_W_FIRE_COUNT]                       += lsuAxiWFire;
-    m_values[Idx::LSU_AXI_R_FIRE_COUNT]                       += lsuAxiRFire;
-    m_values[Idx::LSU_AXI_B_FIRE_COUNT]                       += lsuAxiBFire;
+    uint64_t ifetchReq, uint64_t ifetchLsuReqFire,
+    uint64_t ifetchAxiArFire, uint64_t ifetchAxiRFire,
+    uint64_t ifetchRespFire, uint64_t ifetchConsumerReadyAtResp,
+    uint64_t ifetchRespConsumedFirstCycle,
+    uint64_t ifetchPhaseAcceptPc, uint64_t ifetchPhasePrepareReq,
+    uint64_t ifetchPhaseReqBlocked, uint64_t ifetchPhaseWaitResp,
+    uint64_t ifetchPhaseRespBuffered, uint64_t ifetchPhaseOutputBlocked,
+    uint64_t lsuLoadByte, uint64_t lsuLoadHalf,
+    uint64_t lsuLoadWord, uint64_t lsuLoadAligned,
+    uint64_t lsuLoadUnaligned, uint64_t lsuStoreByte,
+    uint64_t lsuStoreHalf, uint64_t lsuStoreWord,
+    uint64_t lsuStoreAligned, uint64_t lsuStoreUnaligned,
+    uint64_t lsuUnalignedExtraTrans,
+    uint64_t lsuAxiArFire, uint64_t lsuAxiAwFire,
+    uint64_t lsuAxiWFire, uint64_t lsuAxiRFire,
+    uint64_t lsuAxiBFire,
+    uint64_t lsuConcurrentReadyOpp, uint64_t lsuAwDoneWaitW,
+    uint64_t lsuWDoneWaitAw
+) {
+    m_values[Idx::IFETCH_REQUEST_COUNT]                         += ifetchReq;
+    m_values[Idx::IFETCH_LSU_REQ_FIRE_COUNT]                    += ifetchLsuReqFire;
+    m_values[Idx::IFETCH_AXI_AR_FIRE_COUNT]                     += ifetchAxiArFire;
+    m_values[Idx::IFETCH_AXI_R_FIRE_COUNT]                      += ifetchAxiRFire;
+    m_values[Idx::IFETCH_RESPONSE_FIRE_COUNT]                   += ifetchRespFire;
+    m_values[Idx::IFETCH_CONSUMER_READY_AT_RESP_COUNT]          += ifetchConsumerReadyAtResp;
+    m_values[Idx::IFETCH_RESPONSE_CONSUMED_FIRST_CYCLE_COUNT]   += ifetchRespConsumedFirstCycle;
+    m_values[Idx::IFETCH_PHASE_ACCEPT_PC_CYCLE]                 += ifetchPhaseAcceptPc;
+    m_values[Idx::IFETCH_PHASE_PREPARE_REQUEST_CYCLE]           += ifetchPhasePrepareReq;
+    m_values[Idx::IFETCH_PHASE_REQUEST_BLOCKED_CYCLE]           += ifetchPhaseReqBlocked;
+    m_values[Idx::IFETCH_PHASE_WAIT_RESPONSE_CYCLE]             += ifetchPhaseWaitResp;
+    m_values[Idx::IFETCH_PHASE_RESPONSE_BUFFERED_CYCLE]         += ifetchPhaseRespBuffered;
+    m_values[Idx::IFETCH_PHASE_OUTPUT_BLOCKED_CYCLE]            += ifetchPhaseOutputBlocked;
+    m_values[Idx::LSU_LOAD_BYTE_COUNT]                          += lsuLoadByte;
+    m_values[Idx::LSU_LOAD_HALF_COUNT]                          += lsuLoadHalf;
+    m_values[Idx::LSU_LOAD_WORD_COUNT]                          += lsuLoadWord;
+    m_values[Idx::LSU_LOAD_ALIGNED_COUNT]                       += lsuLoadAligned;
+    m_values[Idx::LSU_LOAD_UNALIGNED_COUNT]                     += lsuLoadUnaligned;
+    m_values[Idx::LSU_STORE_BYTE_COUNT]                         += lsuStoreByte;
+    m_values[Idx::LSU_STORE_HALF_COUNT]                         += lsuStoreHalf;
+    m_values[Idx::LSU_STORE_WORD_COUNT]                         += lsuStoreWord;
+    m_values[Idx::LSU_STORE_ALIGNED_COUNT]                      += lsuStoreAligned;
+    m_values[Idx::LSU_STORE_UNALIGNED_COUNT]                    += lsuStoreUnaligned;
+    m_values[Idx::LSU_UNALIGNED_EXTRA_TRANSACTION_COUNT]        += lsuUnalignedExtraTrans;
+    m_values[Idx::LSU_AXI_AR_FIRE_COUNT]                        += lsuAxiArFire;
+    m_values[Idx::LSU_AXI_AW_FIRE_COUNT]                        += lsuAxiAwFire;
+    m_values[Idx::LSU_AXI_W_FIRE_COUNT]                         += lsuAxiWFire;
+    m_values[Idx::LSU_AXI_R_FIRE_COUNT]                         += lsuAxiRFire;
+    m_values[Idx::LSU_AXI_B_FIRE_COUNT]                         += lsuAxiBFire;
     m_values[Idx::LSU_STORE_CONCURRENT_READY_OPPORTUNITY_CYCLE] += lsuConcurrentReadyOpp;
-    m_values[Idx::LSU_STORE_AW_DONE_WAIT_W_CYCLE]             += lsuAwDoneWaitW;
-    m_values[Idx::LSU_STORE_W_DONE_WAIT_AW_CYCLE]             += lsuWDoneWaitAw;
+    m_values[Idx::LSU_STORE_AW_DONE_WAIT_W_CYCLE]               += lsuAwDoneWaitW;
+    m_values[Idx::LSU_STORE_W_DONE_WAIT_AW_CYCLE]               += lsuWDoneWaitAw;
 }
 
 void PerfCounters::accumulateEx(
-        uint64_t aluOpAdd, uint64_t aluOpSub,
-        uint64_t aluOpSll, uint64_t aluOpSrl,
-        uint64_t aluOpSra, uint64_t aluOpAnd,
-        uint64_t aluOpOr,  uint64_t aluOpXor,
-        uint64_t adderCompute, uint64_t adderAgenLs,
-        uint64_t adderAgenBranch, uint64_t adderAgenAuipc,
-        uint64_t concAluOnly, uint64_t concPcOnly,
-        uint64_t concBoth) {
-    m_values[Idx::ALU_OP_ADD_COUNT]         += aluOpAdd;
-    m_values[Idx::ALU_OP_SUB_COUNT]         += aluOpSub;
-    m_values[Idx::ALU_OP_SLL_COUNT]         += aluOpSll;
-    m_values[Idx::ALU_OP_SRL_COUNT]         += aluOpSrl;
-    m_values[Idx::ALU_OP_SRA_COUNT]         += aluOpSra;
-    m_values[Idx::ALU_OP_AND_COUNT]         += aluOpAnd;
-    m_values[Idx::ALU_OP_OR_COUNT]          += aluOpOr;
-    m_values[Idx::ALU_OP_XOR_COUNT]         += aluOpXor;
-    m_values[Idx::EX_ADDER_COMPUTE_COUNT]   += adderCompute;
-    m_values[Idx::EX_ADDER_AGEN_LS_COUNT]   += adderAgenLs;
-    m_values[Idx::EX_ADDER_AGEN_BRANCH_COUNT] += adderAgenBranch;
-    m_values[Idx::EX_ADDER_AGEN_AUIPC_COUNT]  += adderAgenAuipc;
-    m_values[Idx::EX_CONC_ALU_ONLY_COUNT]   += concAluOnly;
-    m_values[Idx::EX_CONC_PC_ONLY_COUNT]    += concPcOnly;
-    m_values[Idx::EX_CONC_BOTH_COUNT]       += concBoth;
+    uint64_t aluOpAdd, uint64_t aluOpSub,
+    uint64_t aluOpSll, uint64_t aluOpSrl,
+    uint64_t aluOpSra, uint64_t aluOpAnd,
+    uint64_t aluOpOr,  uint64_t aluOpXor,
+    uint64_t adderCompute, uint64_t adderAgenLs,
+    uint64_t adderAgenBranch, uint64_t adderAgenAuipc,
+    uint64_t concAluOnly, uint64_t concPcOnly,
+    uint64_t concBoth
+) {
+    m_values[Idx::ALU_OP_ADD_COUNT]             += aluOpAdd;
+    m_values[Idx::ALU_OP_SUB_COUNT]             += aluOpSub;
+    m_values[Idx::ALU_OP_SLL_COUNT]             += aluOpSll;
+    m_values[Idx::ALU_OP_SRL_COUNT]             += aluOpSrl;
+    m_values[Idx::ALU_OP_SRA_COUNT]             += aluOpSra;
+    m_values[Idx::ALU_OP_AND_COUNT]             += aluOpAnd;
+    m_values[Idx::ALU_OP_OR_COUNT]              += aluOpOr;
+    m_values[Idx::ALU_OP_XOR_COUNT]             += aluOpXor;
+    m_values[Idx::EX_ADDER_COMPUTE_COUNT]       += adderCompute;
+    m_values[Idx::EX_ADDER_AGEN_LS_COUNT]       += adderAgenLs;
+    m_values[Idx::EX_ADDER_AGEN_BRANCH_COUNT]   += adderAgenBranch;
+    m_values[Idx::EX_ADDER_AGEN_AUIPC_COUNT]    += adderAgenAuipc;
+    m_values[Idx::EX_CONC_ALU_ONLY_COUNT]       += concAluOnly;
+    m_values[Idx::EX_CONC_PC_ONLY_COUNT]        += concPcOnly;
+    m_values[Idx::EX_CONC_BOTH_COUNT]           += concBoth;
 }
 
 // ── Clear ────────────────────────────────────────────────────────────────
@@ -390,9 +411,11 @@ inline double pct(uint64_t part, uint64_t whole) {
     return (whole > 0) ? 100.0 * static_cast<double>(part) / static_cast<double>(whole) : 0.0;
 }
 
-inline void printClosureCheck(std::ostream &os, const char *label,
-                               uint64_t actual, uint64_t expected,
-                               uint64_t slack = 1) {
+inline void printClosureCheck(
+    std::ostream &os, const char *label,
+    uint64_t actual, uint64_t expected,
+    uint64_t slack = 1
+) {
     int64_t diff = static_cast<int64_t>(actual) - static_cast<int64_t>(expected);
     bool ok = (diff >= 0) && (static_cast<uint64_t>(diff) <= slack);
     os << "    [closure] " << label << ": sum=" << actual

@@ -269,9 +269,11 @@ static void execute(uint64_t n) {
     for (i = n; i > 0; i--) {
         if (!simExecOnce()) {
             sim_state.state = SIM_ABORT;
-            tui::g_eventFeed.push(execCount, tui::EventType::ABORT,
-                                  simExecInfo.pc, 0,
-                                  "Simulation aborted — simExecOnce returned false");
+            tui::g_eventFeed.push(
+                execCount, tui::EventType::ABORT,
+                simExecInfo.pc, 0,
+                "Simulation aborted — simExecOnce returned false"
+            );
             break;
         }
         flushOutput();
@@ -366,25 +368,33 @@ void simExec(uint64_t n) {
             }
 
             if (sim_state.state == SIM_END) {
-                tui::g_eventFeed.push(execCount,
+                tui::g_eventFeed.push(
+                    execCount,
                     (halt_ret == 0) ? tui::EventType::TRAP_GOOD : tui::EventType::TRAP_BAD,
                     sim_state.haltPC, halt_ret,
-                    (halt_ret == 0) ? "Good trap" : "Bad trap");
+                    (halt_ret == 0) ? "Good trap" : "Bad trap"
+                );
             }
     }
 
     // 未达检测: difftest 已配置但 startPC 从未到达
     if (sim_config.config_difftest && !s_difftestActive
         && (sim_state.state == SIM_END || sim_state.state == SIM_STOP)) {
-        std::println(stderr,
+        std::println(
+            stderr,
             "[difftest] 错误: DiffTest 已启用但从未激活! 配置的 startPC=0x{:08x} "
             "在仿真过程中从未到达 (共执行 {} 条指令).",
-            sim_config.config_difftestStartPC, execCount);
-        std::println(stderr,
-            "[difftest] 请检查: (1) startPC 是否设置正确; (2) 程序是否确实会执行到该地址.");
-        tui::g_eventFeed.push(execCount, tui::EventType::DIFFTEST_WARNING,
-                              sim_config.config_difftestStartPC, execCount,
-                              "DiffTest enabled but startPC never reached");
+            sim_config.config_difftestStartPC, execCount
+        );
+        std::println(
+            stderr,
+            "[difftest] 请检查: (1) startPC 是否设置正确; (2) 程序是否确实会执行到该地址."
+        );
+        tui::g_eventFeed.push(
+            execCount, tui::EventType::DIFFTEST_WARNING,
+            sim_config.config_difftestStartPC, execCount,
+            "DiffTest enabled but startPC never reached"
+        );
     }
 }
 
@@ -402,9 +412,11 @@ bool simulate(bool sdbEnabled) {
     install_signal_handlers();
 
     tui::initEventFeed();
-    tui::g_eventFeed.push(0, tui::EventType::CONFIG, 0,
-                           static_cast<word_t>(sim_config.config_tui ? 1 : 0),
-                           sim_config.config_tui ? "TUI mode enabled" : "TUI mode disabled");
+    tui::g_eventFeed.push(
+        0, tui::EventType::CONFIG, 0,
+        static_cast<word_t>(sim_config.config_tui ? 1 : 0),
+        sim_config.config_tui ? "TUI mode enabled" : "TUI mode disabled"
+    );
 
     timer_initRand();
     disasm_init();
@@ -445,8 +457,10 @@ bool simulate(bool sdbEnabled) {
     if (sim_config.config_device) {
 #ifndef NPC_STANDALONE
         if (sim_config.config_nvboard) {
-            fprintf(stderr, "[NPC] Entering NVBoard init path (config_device=%d, config_nvboard=%d)\n",
-                    sim_config.config_device, sim_config.config_nvboard);
+            fprintf(
+                stderr, "[NPC] Entering NVBoard init path (config_device=%d, config_nvboard=%d)\n",
+                sim_config.config_device, sim_config.config_nvboard
+            );
             extern void nvboard_bind_all_pins(VysyxSoCFull* top);
             nvboard_bind_all_pins(top);
             nvboard_init();
@@ -494,8 +508,9 @@ bool simulate(bool sdbEnabled) {
         if (!sim_config.config_difftestPayloadBinFilePath.empty()) {
             std::println("[sim] 正在将 Payload 二进制加载到后备存储...");
             if (!difftest_dut_loadPayloadToBackingStore(
-                    sim_config.config_difftestPayloadBinFilePath.c_str(),
-                    sim_config.config_difftestPayloadLoadAddr)) {
+                sim_config.config_difftestPayloadBinFilePath.c_str(),
+                sim_config.config_difftestPayloadLoadAddr
+            )) {
                 std::println(stderr, "[sim] 致命: Payload 加载失败, 退出!");
                 success = false;
                 goto sim_cleanup;
@@ -509,39 +524,54 @@ bool simulate(bool sdbEnabled) {
             // 不填充执行区域就会导致 REF 在 activation 时收到空的 PSRAM 数据.
             {
                 addr_t execRegionBase = 0;
-                if (sim_config.config_difftestStartPC >= PSRAM_ADDR &&
-                    sim_config.config_difftestStartPC < PSRAM_ADDR + PSRAM_LEN) {
+                if (
+                    sim_config.config_difftestStartPC >= PSRAM_ADDR &&
+                    sim_config.config_difftestStartPC < PSRAM_ADDR + PSRAM_LEN
+                ) {
                     execRegionBase = PSRAM_ADDR;
-                } else if (sim_config.config_difftestStartPC >= SDRAM_ADDR &&
-                           sim_config.config_difftestStartPC < SDRAM_ADDR + SDRAM_LEN) {
+                } else if (
+                    sim_config.config_difftestStartPC >= SDRAM_ADDR &&
+                    sim_config.config_difftestStartPC < SDRAM_ADDR + SDRAM_LEN
+                ) {
                     execRegionBase = SDRAM_ADDR;
-                } else if (sim_config.config_difftestStartPC >= SRAM_ADDR &&
-                           sim_config.config_difftestStartPC < SRAM_ADDR + SRAM_LEN) {
+                } else if (
+                    sim_config.config_difftestStartPC >= SRAM_ADDR &&
+                    sim_config.config_difftestStartPC < SRAM_ADDR + SRAM_LEN
+                ) {
                     execRegionBase = SRAM_ADDR;
                 }
                 // 计算 loadAddr 所在内存区域的基址, 用于与执行区域比较.
                 // 当 loadAddr 位于 PSRAM 或 SDRAM 范围内时, 其区域基址为对应设备的基址;
                 // 否则 loadRegionBase 保持 0, 此时也会触发执行区域加载 (兼容非标地址).
                 addr_t loadRegionBase = 0;
-                if (sim_config.config_difftestPayloadLoadAddr >= PSRAM_ADDR &&
-                    sim_config.config_difftestPayloadLoadAddr < PSRAM_ADDR + PSRAM_LEN) {
+                if (
+                    sim_config.config_difftestPayloadLoadAddr >= PSRAM_ADDR &&
+                    sim_config.config_difftestPayloadLoadAddr < PSRAM_ADDR + PSRAM_LEN
+                ) {
                     loadRegionBase = PSRAM_ADDR;
-                } else if (sim_config.config_difftestPayloadLoadAddr >= SDRAM_ADDR &&
-                           sim_config.config_difftestPayloadLoadAddr < SDRAM_ADDR + SDRAM_LEN) {
+                } else if (
+                    sim_config.config_difftestPayloadLoadAddr >= SDRAM_ADDR &&
+                    sim_config.config_difftestPayloadLoadAddr < SDRAM_ADDR + SDRAM_LEN
+                ) {
                     loadRegionBase = SDRAM_ADDR;
-                } else if (sim_config.config_difftestPayloadLoadAddr >= SRAM_ADDR &&
-                           sim_config.config_difftestPayloadLoadAddr < SRAM_ADDR + SRAM_LEN) {
+                } else if (
+                    sim_config.config_difftestPayloadLoadAddr >= SRAM_ADDR &&
+                    sim_config.config_difftestPayloadLoadAddr < SRAM_ADDR + SRAM_LEN
+                ) {
                     loadRegionBase = SRAM_ADDR;
                 }
                 if (execRegionBase != 0 && execRegionBase != loadRegionBase) {
-                    std::println("[sim] startPC=0x{:08x} 所在执行区域与 loadAddr=0x{:08x} 不同, "
-                                 "同步加载 Payload 到执行区域基址 0x{:08x}...",
-                                 sim_config.config_difftestStartPC,
-                                 sim_config.config_difftestPayloadLoadAddr,
-                                 execRegionBase);
+                    std::println(
+                        "[sim] startPC=0x{:08x} 所在执行区域与 loadAddr=0x{:08x} 不同, "
+                        "同步加载 Payload 到执行区域基址 0x{:08x}...",
+                        sim_config.config_difftestStartPC,
+                        sim_config.config_difftestPayloadLoadAddr,
+                        execRegionBase
+                    );
                     if (!difftest_dut_loadPayloadToBackingStore(
-                            sim_config.config_difftestPayloadBinFilePath.c_str(),
-                            execRegionBase)) {
+                        sim_config.config_difftestPayloadBinFilePath.c_str(),
+                        execRegionBase
+                    )) {
                         std::println(stderr, "[sim] 致命: 执行区域 Payload 加载失败, 退出!");
                         success = false;
                         goto sim_cleanup;
@@ -549,16 +579,20 @@ bool simulate(bool sdbEnabled) {
                 }
             }
         } else {
-            if ((sim_config.config_difftestStartPC >= PSRAM_ADDR &&
-                 sim_config.config_difftestStartPC < PSRAM_ADDR + PSRAM_LEN) ||
+            if (
+                (sim_config.config_difftestStartPC >= PSRAM_ADDR &&
+                    sim_config.config_difftestStartPC < PSRAM_ADDR + PSRAM_LEN) ||
                 (sim_config.config_difftestStartPC >= SDRAM_ADDR &&
-                 sim_config.config_difftestStartPC < SDRAM_ADDR + SDRAM_LEN) ||
+                    sim_config.config_difftestStartPC < SDRAM_ADDR + SDRAM_LEN) ||
                 (sim_config.config_difftestStartPC >= SRAM_ADDR &&
-                 sim_config.config_difftestStartPC < SRAM_ADDR + SRAM_LEN)) {
-                std::println(stderr,
+                    sim_config.config_difftestStartPC < SRAM_ADDR + SRAM_LEN)
+            ) {
+                std::println(
+                    stderr,
                     "[sim] 警告: startPC=0x{:08x} 在 PSRAM/SDRAM/SRAM 内但未指定 Payload BIN 文件. "
                     "Activation 时内存同步会将空数据发到 REF, 可能导致 INVALID OPCODE 崩溃.",
-                    sim_config.config_difftestStartPC);
+                    sim_config.config_difftestStartPC
+                );
             }
         }
     }
@@ -618,9 +652,11 @@ bool simulate(bool sdbEnabled) {
         // ── Build layout tree from config preset ──
         tui::LayoutTree layout;
         if (!layout.buildFromPreset(tui::g_tuiConfig.layout.preset)) {
-            std::fprintf(stderr,
+            std::fprintf(
+                stderr,
                 "[tui] fatal: unknown layout preset \"%s\"\n",
-                tui::g_tuiConfig.layout.preset.c_str());
+                tui::g_tuiConfig.layout.preset.c_str()
+            );
             success = false;
             goto sim_cleanup;
         }
@@ -630,9 +666,11 @@ bool simulate(bool sdbEnabled) {
 
         // ── Validate that all panel IDs in the layout exist ──
         if (!tui::PanelRegistry::instance().validateLayout(layout)) {
-            std::fprintf(stderr,
+            std::fprintf(
+                stderr,
                 "[tui] fatal: layout references unknown panel IDs. "
-                "Check your [layout] preset or panel registrations.\n");
+                "Check your [layout] preset or panel registrations.\n"
+            );
             success = false;
             goto sim_cleanup;
         }
@@ -707,8 +745,10 @@ bool simulate(bool sdbEnabled) {
             // ── Take snapshot & build frame model ──
             tui::NpcSnapshot snap;
             tui::TuiFrameModel fm;
-            if (sim_state.state == SIM_RUNNING || sim_state.state == SIM_STOP ||
-                sim_state.state == SIM_END || sim_state.state == SIM_ABORT) {
+            if (
+                sim_state.state == SIM_RUNNING || sim_state.state == SIM_STOP ||
+                sim_state.state == SIM_END || sim_state.state == SIM_ABORT
+            ) {
                 snap = tui::makeNpcSnapshot();
                 fm   = tui::makeFrameModel(snap);
             }
@@ -716,8 +756,10 @@ bool simulate(bool sdbEnabled) {
 
             // ── Render each panel through the layout system ──
             auto &reg = tui::PanelRegistry::instance();
-            layout.forEachLeaf([&](const std::string &panelId,
-                                    const tui::Rect &rect, bool focused) {
+            layout.forEachLeaf([&](
+                const std::string &panelId,
+                const tui::Rect &rect, bool focused
+            ) {
                 tui::Panel *panel = reg.get(panelId);
                 if (panel) {
                     panel->render(renderer.canvas(), rect, fm, focused);
@@ -735,17 +777,23 @@ bool simulate(bool sdbEnabled) {
                 if (sim_state.state == SIM_RUNNING) simLabel = "RUN";
                 else if (sim_state.state == SIM_END)    simLabel = "END";
                 else if (sim_state.state == SIM_ABORT)  simLabel = "ABORT";
-                std::snprintf(leftBuf, sizeof(leftBuf),
+                std::snprintf(
+                    leftBuf, sizeof(leftBuf),
                     " Preset: %s | Sim: %s | Focus: %s%s",
                     tui::g_tuiConfig.layout.preset.c_str(),
                     simLabel,
                     layout.focusedPanel().c_str(),
-                    layout.isMaximized() ? " [MAX]" : "");
-                std::snprintf(rightBuf, sizeof(rightBuf),
-                    "q:quit  h:overlay  tab:focus  m:max  space:pause  s:step");
-                renderer.drawStatusBar(sz.rows - 1, leftBuf, rightBuf,
+                    layout.isMaximized() ? " [MAX]" : ""
+                );
+                std::snprintf(
+                    rightBuf, sizeof(rightBuf),
+                    "q:quit  h:overlay  tab:focus  m:max  space:pause  s:step"
+                );
+                renderer.drawStatusBar(
+                    sz.rows - 1, leftBuf, rightBuf,
                     tui::styleBg(tui::kColourBlue),
-                    tui::styleFgBold(tui::kColourWhite));
+                    tui::styleFgBold(tui::kColourWhite)
+                );
             }
 
             overlay.render(renderer.canvas(), sz.rows, sz.cols);
@@ -845,8 +893,10 @@ bool simulate(bool sdbEnabled) {
                         overlay.appendOutput("── Keybindings ──");
                         for (const auto &[ch, a] : actionMap.allBindings()) {
                             char buf[64];
-                            std::snprintf(buf, sizeof(buf), "  %-16s → %s",
-                                          "key", tui::actionName(a));
+                            std::snprintf(
+                                buf, sizeof(buf), "  %-16s → %s",
+                                "key", tui::actionName(a)
+                            );
                             overlay.appendOutput(buf);
                         }
                         overlay.appendOutput("── Overlay commands ──");
@@ -881,10 +931,12 @@ bool simulate(bool sdbEnabled) {
                             int idx = 0;
                             for (const auto &pid : pickerIds) {
                                 char buf[128];
-                                std::snprintf(buf, sizeof(buf), "  [%d] %s%s",
+                                std::snprintf(
+                                    buf, sizeof(buf), "  [%d] %s%s",
                                     idx,
                                     tui::PanelRegistry::instance().displayNameFor(pid).c_str(),
-                                    (pid == layout.focusedPanel()) ? " (*)" : "");
+                                    (pid == layout.focusedPanel()) ? " (*)" : ""
+                                );
                                 overlay.appendOutput(buf);
                                 idx++;
                             }

@@ -5,7 +5,9 @@
 
 namespace tui {
 
-static constexpr uint16_t minU16(uint16_t a, uint16_t b) { return a < b ? a : b; }
+static constexpr uint16_t minU16(uint16_t a, uint16_t b) {
+    return a < b ? a : b;
+}
 
 static int ansiFgCode(ColourIndex c) {
     switch (c) {
@@ -44,16 +46,18 @@ static bool appendSGR(std::string &buf, Style style) {
     std::string seq = "\033[";
     bool first = true;
 
-    if (style.bold)        { seq += "1";  first = false; }
-    if (style.underline)   { if (!first) seq += ';'; seq += "4";  first = false; }
-    if (style.reverse)     { if (!first) seq += ';'; seq += "7";  first = false; }
+    if (style.bold)      { seq += "1";  first = false; }
+    if (style.underline) { if (!first) seq += ';'; seq += "4";  first = false; }
+    if (style.reverse)   { if (!first) seq += ';'; seq += "7";  first = false; }
     if (style.fg != kColourNone) {
-        if (!first) seq += ';';
+        if (!first)
+            seq += ';';
         seq += std::to_string(ansiFgCode(style.fg));
         first = false;
     }
     if (style.bg != kColourNone) {
-        if (!first) seq += ';';
+        if (!first)
+            seq += ';';
         seq += std::to_string(ansiBgCode(style.bg));
         first = false;
     }
@@ -68,12 +72,11 @@ static bool appendSGR(std::string &buf, Style style) {
 // ============================================================================
 
 Canvas::Canvas(uint16_t rows, uint16_t cols)
-    : m_rows(rows), m_cols(cols), m_cells(rows * cols)
-{
-}
+    : m_rows(rows), m_cols(cols), m_cells(rows * cols) {}
 
 void Canvas::put(uint16_t row, uint16_t col, char ch, Style style) {
-    if (row >= m_rows || col >= m_cols) return;
+    if (row >= m_rows || col >= m_cols)
+        return;
     Cell &cell = m_cells[row * m_cols + col];
     cell.ch[0] = ch;
     cell.ch[1] = '\0';
@@ -81,7 +84,8 @@ void Canvas::put(uint16_t row, uint16_t col, char ch, Style style) {
 }
 
 void Canvas::write(uint16_t row, uint16_t col, const char *text, Style style) {
-    if (!text || row >= m_rows) return;
+    if (!text || row >= m_rows)
+        return;
     const char *p = text;
     size_t off = row * m_cols;
     while (*p && col < m_cols) {
@@ -102,9 +106,12 @@ void Canvas::writeStr(uint16_t row, uint16_t col, const std::string &text, Style
     write(row, col, text.c_str(), style);
 }
 
-void Canvas::fill(uint16_t row, uint16_t col, uint16_t h, uint16_t w,
-                  char ch, Style style) {
-    if (row >= m_rows || col >= m_cols) return;
+void Canvas::fill(
+    uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+    char ch, Style style
+) {
+    if (row >= m_rows || col >= m_cols)
+        return;
     uint16_t endRow = minU16(row + h, m_rows);
     uint16_t endCol = minU16(col + w, m_cols);
     for (uint16_t r = row; r < endRow; r++) {
@@ -122,7 +129,8 @@ void Canvas::clear(Style style) {
 }
 
 void Canvas::applyStyle(uint16_t row, uint16_t col, uint16_t h, uint16_t w, Style style) {
-    if (row >= m_rows || col >= m_cols) return;
+    if (row >= m_rows || col >= m_cols)
+        return;
     uint16_t endRow = minU16(row + h, m_rows);
     uint16_t endCol = minU16(col + w, m_cols);
     for (uint16_t r = row; r < endRow; r++) {
@@ -141,11 +149,14 @@ void Canvas::writeF(uint16_t row, uint16_t col, Style style, const char *fmt, ..
     write(row, col, buf, style);
 }
 
-void Canvas::blit(uint16_t dstRow, uint16_t dstCol,
-                  const Canvas &src,
-                  uint16_t srcRow, uint16_t srcCol,
-                  uint16_t h, uint16_t w) {
-    if (dstRow >= m_rows || dstCol >= m_cols) return;
+void Canvas::blit(
+    uint16_t dstRow, uint16_t dstCol,
+    const Canvas &src,
+    uint16_t srcRow, uint16_t srcCol,
+    uint16_t h, uint16_t w
+) {
+    if (dstRow >= m_rows || dstCol >= m_cols)
+        return;
     uint16_t copyRows = minU16(h, minU16(m_rows - dstRow, src.m_rows - srcRow));
     uint16_t copyCols = minU16(w, minU16(m_cols - dstCol, src.m_cols - srcCol));
 
@@ -166,7 +177,8 @@ void Canvas::blitAll(uint16_t dstRow, uint16_t dstCol, const Canvas &src) {
 }
 
 bool Canvas::regionIsEmpty(uint16_t row, uint16_t col, uint16_t h, uint16_t w) const {
-    if (row >= m_rows || col >= m_cols) return true;
+    if (row >= m_rows || col >= m_cols)
+        return true;
     uint16_t endRow = minU16(row + h, m_rows);
     uint16_t endCol = minU16(col + w, m_cols);
     for (uint16_t r = row; r < endRow; r++) {
@@ -199,7 +211,8 @@ void Renderer::resize(uint16_t rows, uint16_t cols) {
 }
 
 void Renderer::beginFrame() {
-    if (!m_canvas) return;
+    if (!m_canvas)
+        return;
     m_inFrame = true;
     m_canvas->clear();
 }
@@ -209,7 +222,8 @@ void Renderer::endFrame() {
 }
 
 void Renderer::flush() {
-    if (!m_canvas) return;
+    if (!m_canvas)
+        return;
 
     if (m_tooSmall) {
         std::fputs("\033[H\033[2J", stdout);
@@ -289,18 +303,24 @@ std::string Renderer::encodeFrame() const {
 // Renderer convenience wrappers
 // ============================================================================
 
-void Renderer::drawBox(uint16_t row, uint16_t col, uint16_t h, uint16_t w,
-                       const char *title, Style titleStyle, Style borderStyle) {
+void Renderer::drawBox(
+    uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+    const char *title, Style titleStyle, Style borderStyle
+) {
     primDrawBox(*m_canvas, row, col, h, w, title, titleStyle, borderStyle);
 }
 
-void Renderer::drawStatusBar(uint16_t row, const char *left, const char *right,
-                             Style barStyle, Style textStyle) {
+void Renderer::drawStatusBar(
+    uint16_t row, const char *left, const char *right,
+    Style barStyle, Style textStyle
+) {
     primDrawStatusBar(*m_canvas, row, left, right, barStyle, textStyle);
 }
 
-void Renderer::drawKeyHints(uint16_t row, uint16_t col,
-                            const char *hints, Style style) {
+void Renderer::drawKeyHints(
+    uint16_t row, uint16_t col,
+    const char *hints, Style style
+) {
     primDrawKeyHints(*m_canvas, row, col, hints, style);
 }
 
@@ -308,10 +328,13 @@ void Renderer::drawKeyHints(uint16_t row, uint16_t col,
 // Free drawing primitives
 // ============================================================================
 
-void primDrawBox(Canvas &canvas,
-                 uint16_t row, uint16_t col, uint16_t h, uint16_t w,
-                 const char *title, Style titleStyle, Style borderStyle) {
-    if (h < 2 || w < 2) return;
+void primDrawBox(
+    Canvas &canvas,
+    uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+    const char *title, Style titleStyle, Style borderStyle
+) {
+    if (h < 2 || w < 2)
+        return;
 
     canvas.put(row, col, '+', borderStyle);
     canvas.fill(row, col + 1, 1, w - 2, '-', borderStyle);
@@ -335,11 +358,14 @@ void primDrawBox(Canvas &canvas,
     canvas.put(row + h - 1, col + w - 1, '+', borderStyle);
 }
 
-void primDrawStatusBar(Canvas &canvas, uint16_t row,
-                       const char *left, const char *right,
-                       Style barStyle, Style textStyle) {
+void primDrawStatusBar(
+    Canvas &canvas, uint16_t row,
+    const char *left, const char *right,
+    Style barStyle, Style textStyle
+) {
     uint16_t cols = canvas.cols();
-    if (row >= canvas.rows() || cols == 0) return;
+    if (row >= canvas.rows() || cols == 0)
+        return;
 
     canvas.fill(row, 0, 1, cols, ' ', barStyle);
 
@@ -355,12 +381,14 @@ void primDrawStatusBar(Canvas &canvas, uint16_t row,
     }
 }
 
-void primDrawTable(Canvas &canvas,
-                   uint16_t row, uint16_t col,
-                   const char *const headers[], size_t nCols,
-                   const char *const rows[], size_t nDataRows,
-                   Style headerStyle, Style cellStyle,
-                   Style borderStyle) {
+void primDrawTable(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *const headers[], size_t nCols,
+    const char *const rows[], size_t nDataRows,
+    Style headerStyle, Style cellStyle,
+    Style borderStyle
+) {
     if (nCols == 0) return;
 
     uint16_t r = row;
@@ -380,7 +408,8 @@ void primDrawTable(Canvas &canvas,
     }
 
     for (size_t i = 0; i < nDataRows; i++) {
-        if (r >= canvas.rows()) break;
+        if (r >= canvas.rows())
+            break;
         for (size_t c = 0; c < nCols; c++) {
             const char *cellText = rows[i * nCols + c];
             if (!cellText) cellText = "";
@@ -398,21 +427,27 @@ void primDrawTable(Canvas &canvas,
     }
 }
 
-void primDrawList(Canvas &canvas,
-                  uint16_t row, uint16_t col,
-                  const char *const items[], size_t nItems,
-                  Style itemStyle) {
+void primDrawList(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *const items[], size_t nItems,
+    Style itemStyle
+) {
     for (size_t i = 0; i < nItems; i++) {
-        if (row + i >= canvas.rows()) break;
+        if (row + i >= canvas.rows())
+            break;
         if (items[i])
             canvas.write(row + static_cast<uint16_t>(i), col, items[i], itemStyle);
     }
 }
 
-void primDrawBadge(Canvas &canvas,
-                   uint16_t row, uint16_t col,
-                   const char *text, Style badgeStyle) {
-    if (!text || !text[0]) return;
+void primDrawBadge(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *text, Style badgeStyle
+) {
+    if (!text || !text[0])
+        return;
 
     size_t tlen = std::strlen(text);
     canvas.put(row, col, '[', badgeStyle);
@@ -420,10 +455,14 @@ void primDrawBadge(Canvas &canvas,
     canvas.put(row, col + static_cast<uint16_t>(tlen) + 1, ']', badgeStyle);
 }
 
-void primDrawKeyHints(Canvas &canvas,
-                      uint16_t row, uint16_t col,
-                      const char *hints, Style style) {
-    if (!hints) return;
+void primDrawKeyHints(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *hints, Style style
+) {
+    if (!hints)
+        return;
+
     canvas.write(row, col, hints, style);
 }
 

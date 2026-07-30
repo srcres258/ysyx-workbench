@@ -48,17 +48,21 @@ int32_t getInt(const toml::table &tbl, const char *key, int32_t defaultVal) {
 
 // Create parent directories for a file path.
 bool mkdirParents(const std::string &path) {
-    if (path.empty()) return true;
+    if (path.empty())
+        return true;
     auto pos = path.find_last_of('/');
-    if (pos == std::string::npos) return true; // no parent dir
+    if (pos == std::string::npos)
+        return true; // no parent dir
     std::string parent = path.substr(0, pos);
-    if (parent.empty()) return true;
+    if (parent.empty())
+        return true;
     // Recursively try to create
     struct stat st;
     if (stat(parent.c_str(), &st) == 0) {
         return S_ISDIR(st.st_mode);
     }
-    if (!mkdirParents(parent)) return false;
+    if (!mkdirParents(parent))
+        return false;
     if (mkdir(parent.c_str(), 0755) != 0 && errno != EEXIST) {
         std::cerr << "[tui] failed to create directory " << parent
                   << ": " << strerror(errno) << std::endl;
@@ -144,11 +148,14 @@ TuiConfig parseTuiConfig(const std::string &path) {
 // validateTuiConfig
 // ============================================================================
 
-static bool validateStringEnum(const char *section, const char *key,
-                                const std::string &val,
-                                const char *const allowed[], size_t n) {
+static bool validateStringEnum(
+    const char *section, const char *key,
+    const std::string &val,
+    const char *const allowed[], size_t n
+) {
     for (size_t i = 0; i < n; ++i) {
-        if (val == allowed[i]) return true;
+        if (val == allowed[i])
+            return true;
     }
     std::cerr << "[tui] error: [" << section << "] " << key
               << " = \"" << val << "\" is not a recognised value."
@@ -221,21 +228,21 @@ static void emitKeybindings(std::ostream &os, const TuiConfig &cfg, bool full) {
         os << "# All bindings must be valid key tokens; unbound actions are no-ops.\n";
     }
     os << "\n[keybindings]\n";
-    os << "focus_next = \""        << cfg.keybindings.focus_next        << "\"\n";
-    os << "focus_prev = \""        << cfg.keybindings.focus_prev        << "\"\n";
-    os << "help_overlay = \""      << cfg.keybindings.help_overlay      << "\"\n";
-    os << "maximize_toggle = \""   << cfg.keybindings.maximize_toggle   << "\"\n";
-    os << "panel_picker = \""      << cfg.keybindings.panel_picker      << "\"\n";
-    os << "pause_resume = \""      << cfg.keybindings.pause_resume      << "\"\n";
-    os << "quit = \""              << cfg.keybindings.quit              << "\"\n";
-    os << "reset = \""             << cfg.keybindings.reset             << "\"\n";
-    os << "resize_down = \""       << cfg.keybindings.resize_down       << "\"\n";
-    os << "resize_left = \""       << cfg.keybindings.resize_left       << "\"\n";
-    os << "resize_right = \""      << cfg.keybindings.resize_right      << "\"\n";
-    os << "resize_up = \""         << cfg.keybindings.resize_up         << "\"\n";
-    os << "step_clock = \""        << cfg.keybindings.step_clock        << "\"\n";
-    os << "step_instruction = \""  << cfg.keybindings.step_instruction  << "\"\n";
-    os << "tab_next = \""          << cfg.keybindings.tab_next          << "\"\n";
+    os << "focus_next = \""       << cfg.keybindings.focus_next       << "\"\n";
+    os << "focus_prev = \""       << cfg.keybindings.focus_prev       << "\"\n";
+    os << "help_overlay = \""     << cfg.keybindings.help_overlay     << "\"\n";
+    os << "maximize_toggle = \""  << cfg.keybindings.maximize_toggle  << "\"\n";
+    os << "panel_picker = \""     << cfg.keybindings.panel_picker     << "\"\n";
+    os << "pause_resume = \""     << cfg.keybindings.pause_resume     << "\"\n";
+    os << "quit = \""             << cfg.keybindings.quit             << "\"\n";
+    os << "reset = \""            << cfg.keybindings.reset            << "\"\n";
+    os << "resize_down = \""      << cfg.keybindings.resize_down      << "\"\n";
+    os << "resize_left = \""      << cfg.keybindings.resize_left      << "\"\n";
+    os << "resize_right = \""     << cfg.keybindings.resize_right     << "\"\n";
+    os << "resize_up = \""        << cfg.keybindings.resize_up        << "\"\n";
+    os << "step_clock = \""       << cfg.keybindings.step_clock       << "\"\n";
+    os << "step_instruction = \"" << cfg.keybindings.step_instruction << "\"\n";
+    os << "tab_next = \""         << cfg.keybindings.tab_next         << "\"\n";
     os << "\n";
 }
 

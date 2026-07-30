@@ -18,10 +18,13 @@ void vga_init() {
     SDL_Init(SDL_INIT_VIDEO);
     SDL_CreateWindowAndRenderer(
         VGA_SCREEN_W * 2, VGA_SCREEN_H * 2, 0,
-        &vga_window, &vga_renderer);
+        &vga_window, &vga_renderer
+    );
     SDL_SetWindowTitle(vga_window, "NPC-Standalone-VGA");
-    vga_texture = SDL_CreateTexture(vga_renderer, SDL_PIXELFORMAT_ARGB8888,
-        SDL_TEXTUREACCESS_STATIC, VGA_SCREEN_W, VGA_SCREEN_H);
+    vga_texture = SDL_CreateTexture(
+        vga_renderer, SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STATIC, VGA_SCREEN_W, VGA_SCREEN_H
+    );
     SDL_RenderPresent(vga_renderer);
 }
 
@@ -101,7 +104,8 @@ void vga_write(uint32_t addr, uint32_t data, uint8_t strb) {
     }
     if (addr >= VGA_FB_BASE && addr < VGA_FB_BASE + VGA_FB_SIZE) {
         auto pixelIdx = (addr - VGA_FB_BASE) / 4;
-        if (pixelIdx >= VGA_FB_COUNT) return;
+        if (pixelIdx >= VGA_FB_COUNT)
+            return;
         maskedWrite(vga_fb[pixelIdx], data, strb);
     }
 }

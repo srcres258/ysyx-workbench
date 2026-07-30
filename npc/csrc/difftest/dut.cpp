@@ -233,8 +233,10 @@ bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t load
 
     size_t fileSize = f.tellg();
     if (fileSize > maxAvail) {
-        std::println("[difftest] 错误: Payload 文件 {} 过大 ({} > {} max), 无法装入 {}!",
-                     binFilePath, fileSize, maxAvail, regionName);
+        std::println(
+            "[difftest] 错误: Payload 文件 {} 过大 ({} > {} max), 无法装入 {}!",
+            binFilePath, fileSize, maxAvail, regionName
+        );
         return false;
     }
 
@@ -250,7 +252,9 @@ bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t load
         device_sram_syncDUTFromShadow(loadAddr, fileSize);
     }
 
-    std::println("[difftest] 成功加载 payload {} ({} 字节) 到 {} 地址 0x{:08x}",
-                 binFilePath, fileSize, regionName, loadAddr);
+    std::println(
+        "[difftest] 成功加载 payload {} ({} 字节) 到 {} 地址 0x{:08x}",
+        binFilePath, fileSize, regionName, loadAddr
+    );
     return true;
 }

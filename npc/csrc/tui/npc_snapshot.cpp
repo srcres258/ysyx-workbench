@@ -43,7 +43,9 @@ NpcSnapshot makeNpcSnapshot() {
 
     // Tail of event feed
     snap.numRecentEvents = g_eventFeed.getRecentEvents(
-        snap.recentEvents, NpcSnapshot::kMaxRecentEvents);
+        snap.recentEvents,
+        NpcSnapshot::kMaxRecentEvents
+    );
 
     auto appendInstMark = [&snap](const char *name, addr_t pc, bool valid, bool hasPc) {
         if (snap.numInstMarks >= NpcSnapshot::kMaxInstMarks) return;
@@ -54,11 +56,11 @@ NpcSnapshot makeNpcSnapshot() {
         mark.hasPc = hasPc;
     };
 
-    appendInstMark("IF",  dpi->core_pc,               dpi->ifu_if_nextStage_valid,  true);
-    appendInstMark("ID",  0,                          dpi->idu_id_nextStage_valid,  false);
-    appendInstMark("EX",  dpi->exu_exPc,              dpi->exu_ex_nextStage_valid,  true);
-    appendInstMark("MEM", dpi->memu_memPc,            dpi->memu_mem_nextStage_valid, true);
-    appendInstMark("WB",  dpi->wbu_pc,                dpi->wbu_wb_nextStage_valid,  true);
+    appendInstMark("IF",  dpi->core_pc,    dpi->ifu_if_nextStage_valid,  true);
+    appendInstMark("ID",  0,               dpi->idu_id_nextStage_valid,  false);
+    appendInstMark("EX",  dpi->exu_exPc,   dpi->exu_ex_nextStage_valid,  true);
+    appendInstMark("MEM", dpi->memu_memPc, dpi->memu_mem_nextStage_valid, true);
+    appendInstMark("WB",  dpi->wbu_pc,     dpi->wbu_wb_nextStage_valid,  true);
 
     return snap;
 }
@@ -109,10 +111,14 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
 
     // ---- PC strings ----
     std::snprintf(fm.pcStr, sizeof(fm.pcStr), "0x%08x", snap.nextPc);
-    std::snprintf(fm.retiredPcStr, sizeof(fm.retiredPcStr),
-                  "0x%08x", snap.retiredPc);
-    std::snprintf(fm.instStr, sizeof(fm.instStr),
-                  "0x%08x", snap.retiredInst);
+    std::snprintf(
+        fm.retiredPcStr, sizeof(fm.retiredPcStr),
+        "0x%08x", snap.retiredPc
+    );
+    std::snprintf(
+        fm.instStr, sizeof(fm.instStr),
+        "0x%08x", snap.retiredInst
+    );
 
     fm.retiredPcRaw   = snap.retiredPc;
     fm.retiredInstRaw = snap.retiredInst;
@@ -125,16 +131,18 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
         instBytes[1] = static_cast<uint8_t>((snap.retiredInst >> 8) & 0xff);
         instBytes[2] = static_cast<uint8_t>((snap.retiredInst >> 16) & 0xff);
         instBytes[3] = static_cast<uint8_t>((snap.retiredInst >> 24) & 0xff);
-        disasm_disassemble(fm.disasmStr, sizeof(fm.disasmStr),
-                           snap.retiredPc, instBytes, 4);
+        disasm_disassemble(
+            fm.disasmStr, sizeof(fm.disasmStr),
+            snap.retiredPc, instBytes, 4
+        );
     }
 
     // ---- Performance ----
     fm.execCount      = snap.execCount;
     fm.execCountClock = snap.execCountClock;
-    fm.ipc = (snap.execCountClock > 0)
-        ? static_cast<double>(snap.execCount) / static_cast<double>(snap.execCountClock)
-        : 0.0;
+    fm.ipc = (snap.execCountClock > 0) ?
+        static_cast<double>(snap.execCount) / static_cast<double>(snap.execCountClock) :
+        0.0;
 
     // ---- Perf counter snapshot ----
     fm.perfValid = false;
@@ -148,38 +156,48 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
         uint64_t coreInstret = fm.perfValues[perf::Idx::CORE_INSTRET];
         uint64_t coreStall   = fm.perfValues[perf::Idx::CORE_STALL_CYCLE];
 
-        fm.perfIpc = (coreCycle > 0)
-            ? static_cast<double>(coreInstret) / static_cast<double>(coreCycle)
-            : 0.0;
-        fm.perfCpi = (coreInstret > 0)
-            ? static_cast<double>(coreCycle) / static_cast<double>(coreInstret)
-            : 0.0;
-        fm.perfStallPct = (coreCycle > 0)
-            ? static_cast<double>(coreStall) / static_cast<double>(coreCycle) * 100.0
-            : 0.0;
+        fm.perfIpc = (coreCycle > 0) ?
+            static_cast<double>(coreInstret) / static_cast<double>(coreCycle) :
+            0.0;
+        fm.perfCpi = (coreInstret > 0) ?
+            static_cast<double>(coreCycle) / static_cast<double>(coreInstret) :
+            0.0;
+        fm.perfStallPct = (coreCycle > 0) ?
+            static_cast<double>(coreStall) / static_cast<double>(coreCycle) * 100.0 :
+            0.0;
         fm.perfValid = true;
     }
 
     // ---- State strings ----
-    std::snprintf(fm.stateStr, sizeof(fm.stateStr), "%s",
-                  stateString(snap.simState));
+    std::snprintf(
+        fm.stateStr, sizeof(fm.stateStr), "%s",
+        stateString(snap.simState)
+    );
     if (snap.simState == SIM_END || snap.simState == SIM_ABORT) {
-        std::snprintf(fm.haltPcStr, sizeof(fm.haltPcStr),
-                      "0x%08x", snap.haltPc);
+        std::snprintf(
+            fm.haltPcStr, sizeof(fm.haltPcStr),
+            "0x%08x", snap.haltPc
+        );
     } else {
         fm.haltPcStr[0] = '\0';
     }
-    std::snprintf(fm.difftestStr, sizeof(fm.difftestStr),
-                  "DiffTest: %s", snap.difftestActive ? "active" : "inactive");
+    std::snprintf(
+        fm.difftestStr, sizeof(fm.difftestStr),
+        "DiffTest: %s", snap.difftestActive ? "active" : "inactive"
+    );
 
     // ---- Recent events ----
     fm.numRecentEvents = snap.numRecentEvents;
-    std::memcpy(fm.recentEvents, snap.recentEvents,
-                snap.numRecentEvents * sizeof(Event));
+    std::memcpy(
+        fm.recentEvents, snap.recentEvents,
+        snap.numRecentEvents * sizeof(Event)
+    );
 
     fm.numInstMarks = snap.numInstMarks;
-    std::memcpy(fm.instMarks, snap.instMarks,
-                snap.numInstMarks * sizeof(NpcSnapshot::InstMark));
+    std::memcpy(
+        fm.instMarks, snap.instMarks,
+        snap.numInstMarks * sizeof(NpcSnapshot::InstMark)
+    );
 
     fm.callFrames = snap.callFrames;
 
@@ -200,8 +218,10 @@ std::vector<TraceEntry> drainTraceRingBuffer(size_t maxLines) {
 
     size_t pos = 0;
     size_t nl;
-    while ((nl = s_partial.find('\n', pos)) != std::string::npos
-           && result.size() < maxLines) {
+    while (
+        (nl = s_partial.find('\n', pos)) != std::string::npos &&
+        result.size() < maxLines
+    ) {
         TraceEntry entry{};
         std::string view = s_partial.substr(pos, nl - pos);
         if (!view.empty()) {

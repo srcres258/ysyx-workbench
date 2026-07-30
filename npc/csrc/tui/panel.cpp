@@ -79,15 +79,17 @@ bool PanelRegistry::validateLayout(const LayoutTree &tree) const {
 
 static void drawPanelBorder(Canvas &canvas, const Rect &rect,
                               const char *title, bool focused) {
-    Style borderStyle = focused
-        ? Style{kColourCyan,  kColourNone, true,  false, false}
-        : Style{kColourBlue,  kColourNone, false, false, false};
-    Style titleStyle = focused
-        ? Style{kColourCyan,  kColourNone, true,  false, false}
-        : Style{kColourWhite, kColourNone, false, false, false};
+    Style borderStyle = focused ?
+        Style { kColourCyan,  kColourNone, true,  false, false } :
+        Style { kColourBlue,  kColourNone, false, false, false };
+    Style titleStyle = focused ?
+        Style { kColourCyan,  kColourNone, true,  false, false } :
+        Style { kColourWhite, kColourNone, false, false, false };
 
-    primDrawBox(canvas, rect.row, rect.col, rect.h, rect.w,
-                title, titleStyle, borderStyle);
+    primDrawBox(
+        canvas, rect.row, rect.col, rect.h, rect.w,
+        title, titleStyle, borderStyle
+    );
 }
 
 static addr_t chooseInstAnchorPc(const TuiFrameModel &fm) {
@@ -137,14 +139,17 @@ public:
     const char *id()          const override { return "core"; }
     const char *displayName() const override { return "Core"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Core ", focused);
 
         uint16_t r = rect.row + 1;
         uint16_t c = rect.col + 1;
         uint16_t maxW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (maxW == 0 || r >= rect.row + rect.h) return;
+        if (maxW == 0 || r >= rect.row + rect.h)
+            return;
 
         // --- State badge ---
         ColourIndex stateColor = kColourGreen;
@@ -154,52 +159,71 @@ public:
         if (std::strcmp(fm.stateStr, "QUIT") == 0)  stateColor = kColourMagenta;
 
         writeClipped(canvas, r, c, c, maxW, "State: ", styleFg(kColourWhite));
-        writeClippedF(canvas, r, static_cast<uint16_t>(c + 7), c, maxW,
-                      styleFgBold(stateColor), "[%s]", fm.stateStr);
+        writeClippedF(
+            canvas, r, static_cast<uint16_t>(c + 7), c, maxW,
+            styleFgBold(stateColor), "[%s]", fm.stateStr
+        );
 
         // Halt PC on same line if present
         if (fm.haltPcStr[0] && maxW > 50) {
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 25), c, maxW,
-                          styleFg(kColourWhite), " @ %s", fm.haltPcStr);
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 25), c, maxW,
+                styleFg(kColourWhite), " @ %s", fm.haltPcStr
+            );
         }
         r++;
-        if (r >= rect.row + rect.h) return;
+        if (r >= rect.row + rect.h)
+            return;
 
         // --- PC line ---
-        writeClippedF(canvas, r, c, c, maxW, styleFg(kColourWhite),
-                      "PC: %s", fm.pcStr);
+        writeClippedF(
+            canvas, r, c, c, maxW, styleFg(kColourWhite),
+            "PC: %s", fm.pcStr
+        );
 
         // Retired PC on same line if space
         if (maxW > 45) {
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 22), c, maxW,
-                          styleFg(kColourWhite), " Retired: %s", fm.retiredPcStr);
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 22), c, maxW,
+                styleFg(kColourWhite), " Retired: %s", fm.retiredPcStr
+            );
         }
         r++;
-        if (r >= rect.row + rect.h) return;
+        if (r >= rect.row + rect.h)
+            return;
 
         // --- Instruction line ---
         if (fm.instStr[0]) {
-            writeClippedF(canvas, r, c, c, maxW, styleFg(kColourWhite),
-                          "Inst: %s", fm.instStr);
+            writeClippedF(
+                canvas, r, c, c, maxW, styleFg(kColourWhite),
+                "Inst: %s", fm.instStr
+            );
             if (fm.disasmStr[0] && maxW > 35) {
-                writeClippedF(canvas, r, static_cast<uint16_t>(c + 16), c, maxW,
-                              styleFg(kColourCyan), " %s", fm.disasmStr);
+                writeClippedF(
+                    canvas, r, static_cast<uint16_t>(c + 16), c, maxW,
+                    styleFg(kColourCyan), " %s", fm.disasmStr
+                );
             }
             r++;
-            if (r >= rect.row + rect.h) return;
+            if (r >= rect.row + rect.h)
+                return;
         }
 
         // --- Performance summary line ---
-        writeClippedF(canvas, r, c, c, maxW, styleFg(kColourWhite),
-                      "Cycles: %lu   Exec: %lu   IPC: %.4f",
-                      fm.execCountClock, fm.execCount, fm.ipc);
+        writeClippedF(
+            canvas, r, c, c, maxW, styleFg(kColourWhite),
+            "Cycles: %lu   Exec: %lu   IPC: %.4f",
+            fm.execCountClock, fm.execCount, fm.ipc
+        );
         r++;
-        if (r >= rect.row + rect.h) return;
+        if (r >= rect.row + rect.h)
+            return;
 
         // --- DiffTest status ---
         if (fm.difftestStr[0]) {
-            ColourIndex dtColor = (std::strstr(fm.difftestStr, "active") != nullptr)
-                ? kColourGreen : kColourBlue;
+            ColourIndex dtColor = (std::strstr(fm.difftestStr, "active") != nullptr) ?
+                kColourGreen :
+                kColourBlue;
             writeClippedF(canvas, r, c, c, maxW, styleFg(dtColor), "%s", fm.difftestStr);
         }
     }
@@ -214,18 +238,21 @@ public:
     const char *id()          const override { return "regs"; }
     const char *displayName() const override { return "Registers"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Registers ", focused);
 
         uint16_t r = rect.row + 1;
         uint16_t c = rect.col + 1;
         uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
         uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
-        if (innerW < 10 || innerH == 0) return;
+        if (innerW < 10 || innerH == 0)
+            return;
 
-        bool useAbi  = g_tuiConfig.regs.abi_names;
-        bool doHl    = g_tuiConfig.regs.highlight_changed;
+        bool useAbi = g_tuiConfig.regs.abi_names;
+        bool doHl   = g_tuiConfig.regs.highlight_changed;
 
         // Minimum cell width depends on display mode:
         //   ABI names ("zero") + ":" + value ("0xHHHHHHHH") = 15 chars max
@@ -274,33 +301,42 @@ public:
 
                 // Style: highlight if changed
                 bool changed = doHl && m_changed[idx];
-                Style nameStyle = changed
-                    ? styleFgBold(kColourGreen)
-                    : styleFgBold(kColourYellow);
-                Style valStyle = changed
-                    ? styleFgBold(kColourGreen)
-                    : styleFg(kColourWhite);
+                Style nameStyle = changed ?
+                    styleFgBold(kColourGreen) :
+                    styleFgBold(kColourYellow);
+                Style valStyle = changed ?
+                    styleFgBold(kColourGreen) :
+                    styleFg(kColourWhite);
 
                 // Format: "name: value" or compact "name:value"
                 char cellBuf[32];
-                std::snprintf(cellBuf, sizeof(cellBuf),
-                              "%s:%s", name, fm.gprs[idx].valueStr);
-                writeClipped(canvas, r + static_cast<uint16_t>(row), xpos,
-                             xpos, cellW, cellBuf, valStyle);
+                std::snprintf(
+                    cellBuf, sizeof(cellBuf),
+                    "%s:%s", name, fm.gprs[idx].valueStr
+                );
+                writeClipped(
+                    canvas, r + static_cast<uint16_t>(row), xpos,
+                    xpos, cellW, cellBuf, valStyle
+                );
 
                 // Overwrite the name portion with nameStyle
                 // (simple approach: draw name first, then value)
                 size_t nameLen = std::strlen(name);
                 if (nameLen + 1 < cellW) {
                     // Write name with highlight color
-                    writeClipped(canvas, r + static_cast<uint16_t>(row), xpos,
-                                 xpos, cellW, name, nameStyle);
+                    writeClipped(
+                        canvas, r + static_cast<uint16_t>(row), xpos,
+                        xpos, cellW, name, nameStyle
+                    );
                     // Write colon
-                    Style colonStyle = changed
-                        ? styleFgBold(kColourGreen) : styleFg(kColourWhite);
-                    writeClipped(canvas, r + static_cast<uint16_t>(row),
-                                 xpos + static_cast<uint16_t>(nameLen),
-                                 xpos, cellW, ":", colonStyle);
+                    Style colonStyle = changed ?
+                        styleFgBold(kColourGreen) :
+                        styleFg(kColourWhite);
+                    writeClipped(
+                        canvas, r + static_cast<uint16_t>(row),
+                        xpos + static_cast<uint16_t>(nameLen),
+                        xpos, cellW, ":", colonStyle
+                    );
                 }
             }
         }
@@ -313,8 +349,8 @@ public:
 
 private:
     word_t m_prevGprs[RISCV_GPR_NUM] = {};
-    bool   m_changed[RISCV_GPR_NUM]   = {};
-    bool   m_initialized              = false;
+    bool   m_changed[RISCV_GPR_NUM]  = {};
+    bool   m_initialized             = false;
 };
 
 // ============================================================================
@@ -326,8 +362,10 @@ public:
     const char *id()          const override { return "csr"; }
     const char *displayName() const override { return "CSR"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " CSR ", focused);
 
         uint16_t r = rect.row + 1;
@@ -348,26 +386,32 @@ public:
             if (r >= rect.row + rect.h - 1) break;
 
             bool changed = m_changed[i];
-            Style nameStyle = changed
-                ? styleFgBold(kColourYellow)
-                : styleFg(kColourWhite);
-            Style valStyle = changed
-                ? styleFgBold(kColourYellow)
-                : styleFg(kColourWhite);
+            Style nameStyle = changed ?
+                styleFgBold(kColourYellow) :
+                styleFg(kColourWhite);
+            Style valStyle = changed ?
+                styleFgBold(kColourYellow) :
+                styleFg(kColourWhite);
 
             // Name column
-            writeClippedF(canvas, r, c, c, innerW, nameStyle,
-                          "%-10s", fm.csrs[i].name);
+            writeClippedF(
+                canvas, r, c, c, innerW, nameStyle,
+                "%-10s", fm.csrs[i].name
+            );
 
             // Value
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 11), c, innerW,
-                          valStyle, "%s", fm.csrs[i].valueStr);
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 11), c, innerW,
+                valStyle, "%s", fm.csrs[i].valueStr
+            );
 
             // Binary bit breakdown for mstatus (index 0) if space permits
             if (i == 0 && innerW >= 50) {
                 // Show 32-bit binary view for mstatus
-                writeClippedF(canvas, r, static_cast<uint16_t>(c + 24), c, innerW,
-                              styleFg(kColourBlue), " [");
+                writeClippedF(
+                    canvas, r, static_cast<uint16_t>(c + 24), c, innerW,
+                    styleFg(kColourBlue), " ["
+                );
                 // Show top bits compactly
                 word_t val = fm.csrs[i].value;
                 char bitBuf[40];
@@ -380,8 +424,10 @@ public:
                     if (pos >= 38) break;
                 }
                 bitBuf[pos] = '\0';
-                writeClippedF(canvas, r, static_cast<uint16_t>(c + 27), c, innerW,
-                              styleFg(kColourBlue), "%s]", bitBuf);
+                writeClippedF(
+                    canvas, r, static_cast<uint16_t>(c + 27), c, innerW,
+                    styleFg(kColourBlue), "%s]", bitBuf
+                );
             }
             r++;
         }
@@ -407,8 +453,10 @@ public:
     const char *id()          const override { return "perf"; }
     const char *displayName() const override { return "Performance"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Performance ", focused);
 
         uint16_t r = rect.row + 1;
@@ -421,11 +469,15 @@ public:
         // ── No perf data ──
         if (!fm.perfValid) {
             if (fm.execCountClock == 0) {
-                writeClippedF(canvas, r, c, c, innerW, styleFg(kColourBlue),
-                              "Waiting for simulation data...");
+                writeClippedF(
+                    canvas, r, c, c, innerW, styleFg(kColourBlue),
+                    "Waiting for simulation data..."
+                );
             } else {
-                writeClippedF(canvas, r, c, c, innerW, styleFg(kColourBlue),
-                              "Perf counters: inactive");
+                writeClippedF(
+                    canvas, r, c, c, innerW, styleFg(kColourBlue),
+                    "Perf counters: inactive"
+                );
             }
             return;
         }
@@ -438,79 +490,116 @@ public:
             uint64_t ins = pv[perf::Idx::CORE_INSTRET];
             uint64_t busy = pv[perf::Idx::CORE_BUSY_CYCLE];
             uint64_t stall= pv[perf::Idx::CORE_STALL_CYCLE];
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourGreen),
-                          "Core: c=%lu i=%lu b=%lu s=%lu", cyc, ins, busy, stall);
-            r++; if (r >= endRow) return;
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourGreen),
+                "Core: c=%lu i=%lu b=%lu s=%lu", cyc, ins, busy, stall
+            );
+            r++;
+            if (r >= endRow)
+                return;
         }
 
+        // ── CPI / IPC / Stall% ──
         {
             const char *cpiFmt = (fm.perfCpi > 0.0) ? "%.2f" : "-";
             const char *ipcFmt = (fm.perfIpc > 0.0) ? "%.3f" : "-";
             const char *stFmt  = (fm.perfStallPct > 0.0) ? "%.1f%%" : "-";
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourYellow),
-                          "CPI=");
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 4), c, innerW,
-                          styleFg(kColourYellow), cpiFmt, fm.perfCpi);
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 11), c, innerW,
-                          styleFg(kColourYellow), " IPC=");
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 16), c, innerW,
-                          styleFg(kColourYellow), ipcFmt, fm.perfIpc);
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 23), c, innerW,
-                          styleFg(kColourYellow), " St%=");
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 28), c, innerW,
-                          styleFg(kColourYellow), stFmt, fm.perfStallPct);
-            r++; if (r >= endRow) return;
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourYellow),
+                "CPI="
+            );
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 4), c, innerW,
+                styleFg(kColourYellow), cpiFmt, fm.perfCpi
+            );
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 11), c, innerW,
+                styleFg(kColourYellow), " IPC="
+            );
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 16), c, innerW,
+                styleFg(kColourYellow), ipcFmt, fm.perfIpc
+            );
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 23), c, innerW,
+                styleFg(kColourYellow), " St%="
+            );
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 28), c, innerW,
+                styleFg(kColourYellow), stFmt, fm.perfStallPct
+            );
+            r++;
+            if (r >= endRow)
+                return;
         }
 
         // ── Inst Class ──
         {
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
-                          "ICls: al=%lu ld=%lu st=%lu br=%lu",
-                          pv[perf::Idx::INST_CLASS_ALU_COUNT],
-                          pv[perf::Idx::INST_CLASS_LOAD_COUNT],
-                          pv[perf::Idx::INST_CLASS_STORE_COUNT],
-                          pv[perf::Idx::INST_CLASS_BRANCH_COUNT]);
-            r++; if (r >= endRow) return;
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
-                          "      jl=%lu jr=%lu cs=%lu md=%lu",
-                          pv[perf::Idx::INST_CLASS_JAL_COUNT],
-                          pv[perf::Idx::INST_CLASS_JALR_COUNT],
-                          pv[perf::Idx::INST_CLASS_CSR_COUNT],
-                          pv[perf::Idx::INST_CLASS_MULDIV_COUNT]);
-            r++; if (r >= endRow) return;
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourWhite),
+                "ICls: al=%lu ld=%lu st=%lu br=%lu",
+                pv[perf::Idx::INST_CLASS_ALU_COUNT],
+                pv[perf::Idx::INST_CLASS_LOAD_COUNT],
+                pv[perf::Idx::INST_CLASS_STORE_COUNT],
+                pv[perf::Idx::INST_CLASS_BRANCH_COUNT]
+            );
+            r++;
+            if (r >= endRow)
+                return;
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourWhite),
+                "      jl=%lu jr=%lu cs=%lu md=%lu",
+                pv[perf::Idx::INST_CLASS_JAL_COUNT],
+                pv[perf::Idx::INST_CLASS_JALR_COUNT],
+                pv[perf::Idx::INST_CLASS_CSR_COUNT],
+                pv[perf::Idx::INST_CLASS_MULDIV_COUNT]
+            );
+            r++;
+            if (r >= endRow)
+                return;
         }
 
         // ── State ──
         {
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourCyan),
-                          "Pipe: IF=%lu DE=%lu EX=%lu ME=%lu WB=%lu",
-                          pv[perf::Idx::STATE_FETCH_CYCLE],
-                          pv[perf::Idx::STATE_DECODE_CYCLE],
-                          pv[perf::Idx::STATE_EXECUTE_CYCLE],
-                          pv[perf::Idx::STATE_MEMORY_CYCLE],
-                          pv[perf::Idx::STATE_WRITEBACK_CYCLE]);
-            r++; if (r >= endRow) return;
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourCyan),
+                "Pipe: IF=%lu DE=%lu EX=%lu ME=%lu WB=%lu",
+                pv[perf::Idx::STATE_FETCH_CYCLE],
+                pv[perf::Idx::STATE_DECODE_CYCLE],
+                pv[perf::Idx::STATE_EXECUTE_CYCLE],
+                pv[perf::Idx::STATE_MEMORY_CYCLE],
+                pv[perf::Idx::STATE_WRITEBACK_CYCLE]
+            );
+            r++;
+            if (r >= endRow)
+                return;
         }
 
         // ── Stall + Mem + Trap (condensed into remaining rows) ──
         {
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourMagenta),
-                          "Stall: iw=%lu mw=%lu bk=%lu sm=%lu mb=%lu",
-                          pv[perf::Idx::STALL_IFETCH_WAIT_RESP_CYCLE],
-                          pv[perf::Idx::STALL_MEM_WAIT_RESP_CYCLE],
-                          pv[perf::Idx::STALL_MEM_REQ_BLOCKED_CYCLE],
-                          pv[perf::Idx::STALL_STRUCT_SHARED_MEM_CYCLE],
-                          pv[perf::Idx::STALL_MULDIV_BUSY_CYCLE]);
-            r++; if (r >= endRow) return;
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourMagenta),
+                "Stall: iw=%lu mw=%lu bk=%lu sm=%lu mb=%lu",
+                pv[perf::Idx::STALL_IFETCH_WAIT_RESP_CYCLE],
+                pv[perf::Idx::STALL_MEM_WAIT_RESP_CYCLE],
+                pv[perf::Idx::STALL_MEM_REQ_BLOCKED_CYCLE],
+                pv[perf::Idx::STALL_STRUCT_SHARED_MEM_CYCLE],
+                pv[perf::Idx::STALL_MULDIV_BUSY_CYCLE]
+            );
+            r++;
+            if (r >= endRow)
+                return;
         }
 
         {
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourWhite),
-                          "Mem: ld=%lu st=%lu mm=%lu  |  Trap: %lu",
-                          pv[perf::Idx::MEM_LOAD_REQ_COUNT],
-                          pv[perf::Idx::MEM_STORE_REQ_COUNT],
-                          pv[perf::Idx::MEM_MMIO_REQ_COUNT],
-                          pv[perf::Idx::TRAP_EXCEPTION_COUNT]);
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourWhite),
+                "Mem: ld=%lu st=%lu mm=%lu  |  Trap: %lu",
+                pv[perf::Idx::MEM_LOAD_REQ_COUNT],
+                pv[perf::Idx::MEM_STORE_REQ_COUNT],
+                pv[perf::Idx::MEM_MMIO_REQ_COUNT],
+                pv[perf::Idx::TRAP_EXCEPTION_COUNT]
+            );
         }
     }
 };
@@ -524,8 +613,10 @@ public:
     const char *id()          const override { return "inst"; }
     const char *displayName() const override { return "Inst"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Inst ", focused);
 
         uint16_t r = rect.row + 1;
@@ -567,21 +658,26 @@ public:
                 std::snprintf(disasm, sizeof(disasm), "invalid");
             }
 
-            Style lineStyle = highlighted ? styleFgBold(kColourGreen)
-                                          : styleFg(kColourWhite);
+            Style lineStyle = highlighted ?
+                styleFgBold(kColourGreen) :
+                styleFg(kColourWhite);
             const char *arrow = highlighted ? "-> " : "   ";
 
             if (readable) {
-                writeClippedF(canvas, static_cast<uint16_t>(r + i), c, c, innerW,
-                              lineStyle,
-                              "%s0x%08x: %02x %02x %02x %02x      %-24s",
-                              arrow, linePc,
-                              bytes[3], bytes[2], bytes[1], bytes[0], disasm);
+                writeClippedF(
+                    canvas, static_cast<uint16_t>(r + i), c, c, innerW,
+                    lineStyle,
+                    "%s0x%08x: %02x %02x %02x %02x      %-24s",
+                    arrow, linePc,
+                    bytes[3], bytes[2], bytes[1], bytes[0], disasm
+                );
             } else {
-                writeClippedF(canvas, static_cast<uint16_t>(r + i), c, c, innerW,
-                              styleFg(kColourBlue),
-                              "%s0x%08x: ?? ?? ?? ??      %s",
-                              arrow, linePc, disasm);
+                writeClippedF(
+                    canvas, static_cast<uint16_t>(r + i), c, c, innerW,
+                    styleFg(kColourBlue),
+                    "%s0x%08x: ?? ?? ?? ??      %s",
+                    arrow, linePc, disasm
+                );
             }
         }
     }
@@ -596,8 +692,10 @@ public:
     const char *id()          const override { return "func"; }
     const char *displayName() const override { return "Func"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Func ", focused);
 
         uint16_t r = rect.row + 1;
@@ -613,8 +711,10 @@ public:
 
         {
             char spBuf[32];
-            std::snprintf(spBuf, sizeof(spBuf), "current_sp=0x%08x  depth=%zu",
-                          fm.spRaw, fm.callFrames.size());
+            std::snprintf(
+                spBuf, sizeof(spBuf), "current_sp=0x%08x  depth=%zu",
+                fm.spRaw, fm.callFrames.size()
+            );
             writeClipped(canvas, r, c, c, innerW, spBuf, styleFg(kColourCyan));
             r++;
         }
@@ -635,14 +735,17 @@ public:
             formatHexAddr(retAddrBuf, sizeof(retAddrBuf), frame.retAddr);
             formatHexAddr(callerSpBuf, sizeof(callerSpBuf), frame.callerSp);
 
-            Style lineStyle = highlighted ? styleFgBold(kColourGreen)
-                                          : styleFg(kColourWhite);
+            Style lineStyle = highlighted ?
+                styleFgBold(kColourGreen) :
+                styleFg(kColourWhite);
             const char *arrow = highlighted ? "-> " : "   ";
 
-            writeClippedF(canvas, static_cast<uint16_t>(r + i), c, c, innerW,
-                          lineStyle, "%s%s@%s (ret=%s, caller_sp=%s)",
-                          arrow, frame.funcName.c_str(), funcAddrBuf,
-                          retAddrBuf, callerSpBuf);
+            writeClippedF(
+                canvas, static_cast<uint16_t>(r + i), c, c, innerW,
+                lineStyle, "%s%s@%s (ret=%s, caller_sp=%s)",
+                arrow, frame.funcName.c_str(), funcAddrBuf,
+                retAddrBuf, callerSpBuf
+            );
         }
     }
 };
@@ -656,15 +759,18 @@ public:
     const char *id()          const override { return "trace"; }
     const char *displayName() const override { return "Trace"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Trace ", focused);
 
         uint16_t r = rect.row + 1;
         uint16_t c = rect.col + 1;
         uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
         uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (innerH == 0 || innerW < 10) return;
+        if (innerH == 0 || innerW < 10)
+            return;
 
         size_t bufMax = maxLines();
 
@@ -685,14 +791,18 @@ public:
             char buf[256];
             uint8_t const *inst = reinterpret_cast<uint8_t const *>(&fm.retiredInstRaw);
             if (fm.disasmStr[0]) {
-                std::snprintf(buf, sizeof(buf),
+                std::snprintf(
+                    buf, sizeof(buf),
                     "0x%08x: %02x %02x %02x %02x      %s",
                     fm.retiredPcRaw, inst[3], inst[2], inst[1], inst[0],
-                    fm.disasmStr);
+                    fm.disasmStr
+                );
             } else {
-                std::snprintf(buf, sizeof(buf),
+                std::snprintf(
+                    buf, sizeof(buf),
                     "0x%08x: %02x %02x %02x %02x",
-                    fm.retiredPcRaw, inst[3], inst[2], inst[1], inst[0]);
+                    fm.retiredPcRaw, inst[3], inst[2], inst[1], inst[0]
+                );
             }
             m_lines.push_back(buf);
         }
@@ -712,35 +822,44 @@ public:
 
         // ── Calculate viewport ──
         size_t visibleLines = innerH;
-        if (visibleLines > totalLines) visibleLines = totalLines;
+        if (visibleLines > totalLines)
+            visibleLines = totalLines;
 
         size_t startIdx;
         if (m_followTail) {
-            startIdx = (totalLines > visibleLines)
-                ? (totalLines - visibleLines) : 0;
+            startIdx = (totalLines > visibleLines) ?
+                (totalLines - visibleLines) :
+                0;
         } else {
             if (m_scrollOffset + visibleLines > totalLines) {
-                m_scrollOffset = (totalLines > visibleLines)
-                    ? (totalLines - visibleLines) : 0;
+                m_scrollOffset = (totalLines > visibleLines) ?
+                    (totalLines - visibleLines) :
+                    0;
             }
             startIdx = totalLines - visibleLines - m_scrollOffset;
         }
 
         // ── Render visible lines ──
         for (size_t i = 0; i < visibleLines; i++) {
-            if (r + static_cast<uint16_t>(i) >= rect.row + rect.h - 1) break;
+            if (r + static_cast<uint16_t>(i) >= rect.row + rect.h - 1)
+                break;
 
             size_t idx = startIdx + i;
-            if (idx >= totalLines) break;
+            if (idx >= totalLines)
+                break;
 
             const std::string &line = m_lines[idx];
             if (line.size() > static_cast<size_t>(innerW)) {
                 std::string trunc = line.substr(0, innerW);
-                canvas.writeStr(r + static_cast<uint16_t>(i), c,
-                                trunc, styleFg(kColourWhite));
+                canvas.writeStr(
+                    r + static_cast<uint16_t>(i), c,
+                    trunc, styleFg(kColourWhite)
+                );
             } else {
-                canvas.writeStr(r + static_cast<uint16_t>(i), c,
-                                line, styleFg(kColourWhite));
+                canvas.writeStr(
+                    r + static_cast<uint16_t>(i), c,
+                    line, styleFg(kColourWhite)
+                );
             }
         }
 
@@ -748,15 +867,19 @@ public:
         if (!m_followTail && totalLines > visibleLines && m_scrollOffset > 0) {
             uint16_t indicatorR = r;
             if (innerW > 6) {
-                canvas.writeF(indicatorR, static_cast<uint16_t>(c + innerW - 6),
-                              styleFgBold(kColourYellow), "[up]");
+                canvas.writeF(
+                    indicatorR, static_cast<uint16_t>(c + innerW - 6),
+                    styleFgBold(kColourYellow), "[up]"
+                );
             }
         }
         if (m_followTail && totalLines > visibleLines) {
             uint16_t indicatorR = r;
             if (innerW > 8) {
-                canvas.writeF(indicatorR, static_cast<uint16_t>(c + innerW - 8),
-                              styleFgBold(kColourGreen), "[tail]");
+                canvas.writeF(
+                    indicatorR, static_cast<uint16_t>(c + innerW - 8),
+                    styleFgBold(kColourGreen), "[tail]"
+                );
             }
         }
     }
@@ -783,15 +906,18 @@ public:
     const char *id()          const override { return "events"; }
     const char *displayName() const override { return "Events"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Events ", focused);
 
         uint16_t r = rect.row + 1;
         uint16_t c = rect.col + 1;
         uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
         uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (innerH == 0 || innerW < 10) return;
+        if (innerH == 0 || innerW < 10)
+            return;
 
         // ── Poll event feed for new entries ──
         size_t feedSize = g_eventFeed.size();
@@ -827,40 +953,44 @@ public:
 
         size_t startIdx;
         if (m_followTail) {
-            startIdx = (totalEvents > visibleLines)
-                ? (totalEvents - visibleLines) : 0;
+            startIdx = (totalEvents > visibleLines) ?
+                (totalEvents - visibleLines) :
+                0;
         } else {
             if (m_scrollOffset + visibleLines > totalEvents) {
-                m_scrollOffset = (totalEvents > visibleLines)
-                    ? (totalEvents - visibleLines) : 0;
+                m_scrollOffset = (totalEvents > visibleLines) ?
+                    (totalEvents - visibleLines) :
+                    0;
             }
             startIdx = totalEvents - visibleLines - m_scrollOffset;
         }
 
         // ── Render events ──
         for (size_t i = 0; i < visibleLines; i++) {
-            if (r + static_cast<uint16_t>(i) >= rect.row + rect.h - 1) break;
+            if (r + static_cast<uint16_t>(i) >= rect.row + rect.h - 1)
+                break;
 
             size_t idx = startIdx + i;
-            if (idx >= totalEvents) break;
+            if (idx >= totalEvents)
+                break;
 
             const Event &ev = m_events[idx];
 
             ColourIndex evColor = kColourWhite;
             const char *prefix = "[*]";
             switch (ev.type) {
-                case EventType::HALT:               prefix = "[H]"; evColor = kColourRed;    break;
-                case EventType::TRAP_GOOD:          prefix = "[T]"; evColor = kColourGreen;  break;
-                case EventType::TRAP_BAD:           prefix = "[!]"; evColor = kColourRed;    break;
-                case EventType::ABORT:              prefix = "[A]"; evColor = kColourRed;    break;
-                case EventType::WATCHPOINT:         prefix = "[W]"; evColor = kColourYellow; break;
-                case EventType::DIFFTEST_MISMATCH:  prefix = "[D]"; evColor = kColourRed;    break;
-                case EventType::DIFFTEST_ACTIVATE:  prefix = "[D]"; evColor = kColourCyan;   break;
-                case EventType::DIFFTEST_WARNING:   prefix = "[W]"; evColor = kColourYellow; break;
-                case EventType::PAUSE:              prefix = "[P]"; evColor = kColourYellow; break;
-                case EventType::RESUME:             prefix = "[R]"; evColor = kColourGreen;  break;
-                case EventType::RESET:              prefix = "[R]"; evColor = kColourCyan;   break;
-                case EventType::CONFIG:             prefix = "[C]"; evColor = kColourBlue;   break;
+                case EventType::HALT:              prefix = "[H]"; evColor = kColourRed;    break;
+                case EventType::TRAP_GOOD:         prefix = "[T]"; evColor = kColourGreen;  break;
+                case EventType::TRAP_BAD:          prefix = "[!]"; evColor = kColourRed;    break;
+                case EventType::ABORT:             prefix = "[A]"; evColor = kColourRed;    break;
+                case EventType::WATCHPOINT:        prefix = "[W]"; evColor = kColourYellow; break;
+                case EventType::DIFFTEST_MISMATCH: prefix = "[D]"; evColor = kColourRed;    break;
+                case EventType::DIFFTEST_ACTIVATE: prefix = "[D]"; evColor = kColourCyan;   break;
+                case EventType::DIFFTEST_WARNING:  prefix = "[W]"; evColor = kColourYellow; break;
+                case EventType::PAUSE:             prefix = "[P]"; evColor = kColourYellow; break;
+                case EventType::RESUME:            prefix = "[R]"; evColor = kColourGreen;  break;
+                case EventType::RESET:             prefix = "[R]"; evColor = kColourCyan;   break;
+                case EventType::CONFIG:            prefix = "[C]"; evColor = kColourBlue;   break;
                 default: break;
             }
             canvas.write(r + static_cast<uint16_t>(i), c, prefix,
@@ -869,12 +999,15 @@ public:
             size_t descW = (innerW > 4) ? (static_cast<size_t>(innerW) - 4) : 0;
             if (descW > 0) {
                 char desc[128];
-                std::snprintf(desc, sizeof(desc), "%.*s",
-                              static_cast<int>(std::min(descW, size_t(100))),
-                              ev.description);
+                std::snprintf(
+                    desc, sizeof(desc), "%.*s",
+                    static_cast<int>(std::min(descW, size_t(100))),
+                    ev.description
+                );
                 canvas.write(r + static_cast<uint16_t>(i),
-                             static_cast<uint16_t>(c + 4), desc,
-                             styleFg(kColourWhite));
+                    static_cast<uint16_t>(c + 4), desc,
+                    styleFg(kColourWhite)
+                );
             }
         }
 
@@ -882,15 +1015,19 @@ public:
         if (!m_followTail && totalEvents > visibleLines && m_scrollOffset > 0) {
             uint16_t indicatorR = r;
             if (innerW > 6) {
-                canvas.writeF(indicatorR, static_cast<uint16_t>(c + innerW - 6),
-                              styleFgBold(kColourYellow), "[up]");
+                canvas.writeF(
+                    indicatorR, static_cast<uint16_t>(c + innerW - 6),
+                    styleFgBold(kColourYellow), "[up]"
+                );
             }
         }
         if (m_followTail && totalEvents > visibleLines) {
             uint16_t indicatorR = r;
             if (innerW > 8) {
-                canvas.writeF(indicatorR, static_cast<uint16_t>(c + innerW - 8),
-                              styleFgBold(kColourGreen), "[tail]");
+                canvas.writeF(
+                    indicatorR, static_cast<uint16_t>(c + innerW - 8),
+                    styleFgBold(kColourGreen), "[tail]"
+                );
             }
         }
     }
@@ -914,8 +1051,10 @@ public:
     const char *id()          const override { return "rawperf"; }
     const char *displayName() const override { return "Raw Perf"; }
 
-    void render(Canvas &canvas, const Rect &rect,
-                const TuiFrameModel &fm, bool focused) override {
+    void render(
+        Canvas &canvas, const Rect &rect,
+        const TuiFrameModel &fm, bool focused
+    ) override {
         drawPanelBorder(canvas, rect, " Raw Perf ", focused);
 
         uint16_t r = rect.row + 1;
@@ -929,28 +1068,39 @@ public:
 
         // ── No perf data ──
         if (!fm.perfValid) {
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourBlue),
-                          "No perf counter data available");
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourBlue),
+                "No perf counter data available"
+            );
             return;
         }
 
         // ── Column headers ──
-        writeClippedF(canvas, r, c, c, innerW, styleFgBold(kColourCyan),
-                      "%-40s %s", "Name", "Value");
-        r++; if (r >= endRow) return;
+        writeClippedF(
+            canvas, r, c, c, innerW, styleFgBold(kColourCyan),
+            "%-40s %s", "Name", "Value"
+        );
+        r++;
+        if (r >= endRow)
+            return;
 
         // ── Counter rows ──
         for (size_t i = 0; i < numCounters; i++) {
-            if (r >= endRow) break;
+            if (r >= endRow)
+                break;
 
             const auto &def = perf::PerfMonitor::counterDef(i);
             uint64_t val = fm.perfValues[i];
 
-            writeClippedF(canvas, r, c, c, innerW, styleFg(kColourGreen),
-                          "%-40s", def.name);
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourGreen),
+                "%-40s", def.name
+            );
 
-            writeClippedF(canvas, r, static_cast<uint16_t>(c + 41), c, innerW,
-                          styleFg(kColourWhite), "%lu", val);
+            writeClippedF(
+                canvas, r, static_cast<uint16_t>(c + 41), c, innerW,
+                styleFg(kColourWhite), "%lu", val
+            );
             r++;
         }
     }

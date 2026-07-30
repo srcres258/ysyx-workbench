@@ -10,24 +10,29 @@ static volatile bool s_pauseRequested = false;
 static bool s_wasPaused = false;
 
 void requestSimStepInst(uint64_t n) {
-    if (n == 0) return;
+    if (n == 0)
+        return;
     simExec(n);
 }
 
 void requestSimStepClock(uint64_t n) {
-    if (n == 0) return;
+    if (n == 0)
+        return;
     simExecClockPeriod(n);
 }
 
 void requestSimContinue() {
     clearPauseRequest();
-    if (sim_state.state == SIM_END || sim_state.state == SIM_ABORT
-        || sim_state.state == SIM_QUIT) {
+    if (
+        sim_state.state == SIM_END || sim_state.state == SIM_ABORT ||
+        sim_state.state == SIM_QUIT
+    ) {
         return;
     }
     if (s_wasPaused) {
         s_wasPaused = false;
-        tui::g_eventFeed.push(getExecCount(),
+        tui::g_eventFeed.push(
+            getExecCount(),
             tui::EventType::RESUME,
             simExecInfo.pc, 0,
             "Simulation resumed from pause"
@@ -39,7 +44,8 @@ void requestSimContinue() {
 void requestSimPause() {
     s_pauseRequested = true;
     s_wasPaused = true;
-    tui::g_eventFeed.push(getExecCount(),
+    tui::g_eventFeed.push(
+        getExecCount(),
         tui::EventType::PAUSE,
         simExecInfo.pc, 0,
         "Pause requested"
@@ -50,7 +56,8 @@ void requestSimReset(int cycles) {
     s_pauseRequested = false;
     s_wasPaused = false;
     simReset(cycles);
-    tui::g_eventFeed.push(getExecCount(),
+    tui::g_eventFeed.push(
+        getExecCount(),
         tui::EventType::RESET,
         0, static_cast<word_t>(cycles),
         "Simulation reset"

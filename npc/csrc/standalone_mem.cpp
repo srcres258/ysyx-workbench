@@ -36,10 +36,11 @@ int dpi_pmem_read(int addr) {
         trace_record_dtrace(0, "vga", false, a, 4, (word_t) value, "standalone", "VGA");
         return value;
     }
-    if (!addr_valid(a))          return 0;
+    if (!addr_valid(a))
+        return 0;
     uint32_t val;
     memcpy(&val, &pmem[a - PMEM_BASE], 4);
-    return (int)val;
+    return (int) val;
 }
 
 void dpi_pmem_write(int addr, int data, char strb) {
@@ -49,7 +50,7 @@ void dpi_pmem_write(int addr, int data, char strb) {
         uint8_t  wstrb = (uint8_t)strb;
         for (int i = 0; i < 4; i++) {
             if (wstrb & (1u << i)) {
-                std::cout << (char)((wdata >> (i * 8)) & 0xFF);
+                std::cout << (char) ((wdata >> (i * 8)) & 0xFF);
             }
         }
         std::cout << std::flush;
@@ -86,7 +87,7 @@ void standalone_mem_loadBin(const char *path) {
         std::cerr << "[standalone] Failed to open binary: " << path << std::endl;
         return;
     }
-    ifs.read((char *)pmem, PMEM_SIZE);
+    ifs.read((char *) pmem, PMEM_SIZE);
     size_t bytes = ifs.gcount();
     std::cout << "[standalone] Loaded " << bytes << " bytes from "
               << path << " into physical memory (0x80000000)" << std::endl;
