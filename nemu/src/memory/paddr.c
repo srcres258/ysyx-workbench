@@ -19,18 +19,39 @@
 #include <isa.h>
 #include <utils.h>
 
-/* --------------------------------------------------------------------------
- * Multi-region physical memory for ysyxSoC difftest REF builds.
- * Replaces the single-pmem model with explicit routing through a static
- * region table.  Each entry owns its own malloc'd backing store.
- *
- * Region addresses and sizes are fixed by the ysyxSoCFull memory map:
- *   SRAM   0x0f000000   8 KB
- *   MROM   0x20000000   4 KB
- *   FLASH  0x30000000  16 MB
- *   PSRAM  0x80000000   4 MB
- *   SDRAM  0xa0000000  32 MB
- * -------------------------------------------------------------------------- */
+#ifndef CONFIG_TARGET_SHARE
+
+# if defined(CONFIG_PMEM_MALLOC)
+static uint8_t *pmem = NULL;
+# else
+static uint8_t pmem[CONFIG_MSIZE] PG_ALIGN = {};
+# endif
+
+uint8_t* guest_to_host(paddr_t paddr) { return pmem + paddr - CONFIG_MBASE; }
+paddr_t host_to_guest(uint8_t *haddr) { return haddr - pmem + CONFIG_MBASE; }
+
+static word_t pmem_read(paddr_t addr, int len) {
+  return host_read(guest_to_host(addr), len);
+}
+
+static void pmem_write(paddr_t addr, int len, word_t data) {
+  host_write(guest_to_host(addr), len, data);
+}
+
+bool in_pmem(paddr_t addr) {
+  return addr >= PMEM_LEFT && addr <= PMEM_RIGHT;
+}
+
+void init_mem() {
+# if defined(CONFIG_PMEM_MALLOC)
+  pmem = malloc(CONFIG_MSIZE);
+  assert(pmem);
+# endif
+  IFDEF(CONFIG_MEM_RANDOM, memset(pmem, rand(), CONFIG_MSIZE));
+  Log("physical memory area [" FMT_PADDR ", " FMT_PADDR "]", PMEM_LEFT, PMEM_RIGHT);
+}
+
+#else
 
 typedef struct {
   paddr_t  base;
@@ -68,12 +89,6 @@ static MemRegion *find_region_by_host(uint8_t *haddr) {
   return NULL;
 }
 
-/* --- public wrappers --- */
-
-bool in_pmem(paddr_t addr) {
-  return find_region(addr) != NULL;
-}
-
 uint8_t* guest_to_host(paddr_t paddr) {
   MemRegion *r = find_region(paddr);
   if (r == NULL) {
@@ -92,23 +107,16 @@ paddr_t host_to_guest(uint8_t *haddr) {
   return r->base + (haddr - r->buf);
 }
 
-/* --- internal helpers --- */
-
 static word_t pmem_read(paddr_t addr, int len) {
-  word_t ret = host_read(guest_to_host(addr), len);
-  return ret;
+  return host_read(guest_to_host(addr), len);
 }
 
 static void pmem_write(paddr_t addr, int len, word_t data) {
   host_write(guest_to_host(addr), len, data);
 }
 
-static void out_of_bound(paddr_t addr) {
-#ifdef CONFIG_ITRACE
-  nemu_iringbuf_dump();
-#endif
-  panic("address " FMT_PADDR " is out of bound of every memory region at pc = " FMT_WORD,
-      addr, cpu.pc);
+bool in_pmem(paddr_t addr) {
+  return find_region(addr) != NULL;
 }
 
 void init_mem() {
@@ -126,6 +134,16 @@ void init_mem() {
   Log("  FLASH [0x30000000, 0x30ffffff] 16MB");
   Log("  PSRAM [0x80000000, 0x803fffff] 4MB");
   Log("  SDRAM [0xa0000000, 0xa1ffffff] 32MB");
+}
+
+#endif
+
+static void out_of_bound(paddr_t addr) {
+#ifdef CONFIG_ITRACE
+  nemu_iringbuf_dump();
+#endif
+  panic("address " FMT_PADDR " is out of bound of every memory region at pc = " FMT_WORD,
+      addr, cpu.pc);
 }
 
 #ifdef CONFIG_MTRACE
