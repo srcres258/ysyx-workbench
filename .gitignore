@@ -13,7 +13,7 @@
 !learning_record.md
 !.gitignore
 !init.sh
-/fceux-am
+!/fceux-am
 !/docs/*.md
 !LICENSE.txt
 !flake.nix
