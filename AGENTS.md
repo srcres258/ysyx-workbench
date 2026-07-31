@@ -18,7 +18,7 @@
 - Submodules: `am-kernels/`, `npc/vsrc-chisel/`, `rt-thread/`, `ysyxSoC/`, `standard/`, `yosys-sta/`.
 - `fceux-am/` is a separate repo (listed in `.gitignore`, not tracked by this repo's git). It exists locally as a clone; glob/file-search tools may miss it due to gitignore exclusions.
 - `nemu/`, `abstract-machine/`, `npc/`, and `nvboard/` are tracked directly in this repo. Note: `abstract-machine/`, `nvboard/`, and `nemu/` each have their own `.gitignore` — the root whitelist patterns do NOT control files inside these directories.
-- `.gitmodules` has a bad `standard` entry (`path = rt-thread` instead of `path = standard`), so `git submodule status --recursive` can fail. `npc-frontend` is NOT in `.gitmodules` (stale `.gitignore` whitelist entry and orphaned metadata in `.git/modules/npc-frontend/` only).
+- `.gitmodules` has a bad `standard` entry (`path = rt-thread` instead of `path = standard`) and `fceux-am` has no `.gitmodules` entry at all — either will cause `git submodule status --recursive` to fail. `npc-frontend` is NOT in `.gitmodules` (stale `.gitignore` whitelist entry and orphaned metadata in `.git/modules/npc-frontend/` only).
 - Do not edit generated output directly: `npc/vsrc/generated/`, `npc/build/`, `nemu/build/`, `ysyxSoC/build/`.
 
 ## Commands that matter
@@ -108,3 +108,4 @@ make -C yosys-sta              # setup (auto-bootstraps on first npc synth if YO
 - **Difftest flow**: (1) `make -C nemu menuconfig` → enable `TARGET_SHARE=y` → (2) `make -C nemu GUEST_ISA=riscv32 SHARE=1 ENGINE=interpreter` → (3) `make -C npc run RUN_CONFIG_DIFFTEST=on`.
 - **Waveform**: `make -C npc run RUN_CONFIG_WAVE=on` produces `build/sim.fst` (FST format via Verilator `--trace-fst`).
 - **Performance regression**: `make -C npc perf` (builds microbench with `USE_SDRAM=1`, simulates, aggregates).
+- **NPC tooling tests**: `python3 -m pytest npc/scripts/tests/` runs pytest-based unit tests for the synth/perf/equiv checker tooling.
