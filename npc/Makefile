@@ -28,6 +28,7 @@ NPC_INC = $(abspath ./include/)
 NPC_INC += $(abspath $(VERILATOR_HOME)/include/)
 NPC_INC += $(abspath $(VERILATOR_HOME)/include/vltstd/)
 NPC_INC += $(abspath $(BUILD_DIR))
+NPC_INC += $(abspath ../nemu/src/monitor/sdb)
 OBJ_DIR = $(BUILD_DIR)/obj_dir
 NPC_INC += $(abspath $(OBJ_DIR))
 NPC_INC += $(abspath $(NVBOARD_HOME)/usr/include)
@@ -178,6 +179,8 @@ $(SRC_AUTO_BIND): $(NXDC_FILES)
 auto_bind: $(SRC_AUTO_BIND)
 
 CSRCS = $(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp")
+SDB_CORE_SRC = $(abspath ../nemu/src/monitor/sdb/sdb_core.c)
+SDB_CORE_OBJ = $(OBJ_DIR)/sdb_core.o
 ifneq ($(RUN_CONFIG_SIM_MODE),standalone)
 CSRCS += $(SRC_AUTO_BIND)
 endif
@@ -194,6 +197,7 @@ default: $(BIN)
 
 # C/C++ 源文件对应的 .o 文件路径（放到构建目录下的对应子目录）
 COBJS = $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(CSRCS))
+COBJS += $(SDB_CORE_OBJ)
 COBJS_D = $(filter %.o,$(COBJS))
 
 # 让头文件变更也能触发对应 C++ 对象重编译，避免旧的 obj_dir/*.o
@@ -224,6 +228,10 @@ VERILATOR_CFLAGS += $(VERILATOR_INCFLAGS)
 $(OBJ_DIR)/%.o: csrc/%.cpp | $(VERILATED_LIB)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+$(SDB_CORE_OBJ): $(SDB_CORE_SRC)
+	@mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -std=c11 -I$(abspath ../nemu/src/monitor/sdb) -c $< -o $@
 
 # 规则：用 Verilator 生成仿真代码（不自动编译 C++ 源文件）
 # Prerequisite chisel-gen ensures generated RTL exists before Verilator runs.

@@ -17,21 +17,30 @@
 #define __SDB_H__
 
 #include <common.h>
-
-#define NR_EXPR_LEN 1024
+#include "sdb_core.h"
 
 typedef struct watchpoint {
   int NO;
   struct watchpoint *next;
 
-  char expr[NR_EXPR_LEN];
-  int64_t val;
+  char *expr;
+  SdbExpr *expr_ast;
+  SdbExpr *cond_ast;
+  SdbValue val;
   bool evaluated;
+  bool enabled;
+  bool temporary;
+  int hit_count;
+  int ignore_count;
+  int stop_count;
 } WP;
 
 word_t expr(char *e, bool *success);
 WP *new_wp(void);
 void free_wp(WP *wp);
 WP *find_wp(int NO);
+
+void sdb_eval_and_update_wp(void);
+const SdbTargetOps *sdb_nemu_target_ops(void);
 
 #endif

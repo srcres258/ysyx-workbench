@@ -2,16 +2,26 @@
 #define __SDB_HPP__ 1
 
 #include <common.hpp>
+#include <string>
 
-#define NR_EXPR_LEN 1024
+extern "C" {
+#include "sdb_core.h"
+}
 
 struct WatchPoint {
     int no;
     WatchPoint *next;
 
-    char expr[NR_EXPR_LEN];
-    int64_t val;
+    char *expr;
+    SdbExpr *expr_ast;
+    SdbExpr *cond_ast;
+    SdbValue val;
     bool evaluated;
+    bool enabled;
+    bool temporary;
+    int hit_count;
+    int ignore_count;
+    int stop_count;
 };
 
 /**
@@ -22,6 +32,7 @@ struct WatchPoint {
  * @return word_t 该表达式的求值结果
  */
 word_t sdb_expr(const char *e, bool *success);
+const SdbTargetOps *sdb_npc_target_ops();
 
 /**
  * @brief SDB：添加监视点。

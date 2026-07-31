@@ -15,6 +15,7 @@
 
 #include <isa.h>
 #include <cpu/cpu.h>
+#include <stdlib.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <utils.h>
@@ -135,6 +136,7 @@ static int cmd_x(char *args) {
   int N, i;
   uint32_t value;
   bool success;
+  SdbValue memv = {0};
 
   if (!args) {
     print_bad_arguments();
@@ -154,7 +156,12 @@ static int cmd_x(char *args) {
   printf("Memory scan: addr=0x%08X, N=%d\n", addr, N);
   cur_addr = addr;
   for (i = 0; i < N; i++) {
-    value = vaddr_read_mtrace(cur_addr, 4, false);
+    if (!sdb_nemu_target_ops()->read_memory(NULL, SDB_ADDR_MEM, cur_addr, 32, false, false, &memv, NULL)) {
+      printf("0x%08X: N/A\n", cur_addr);
+      cur_addr += 4;
+      continue;
+    }
+    value = (uint32_t)sdb_value_as_u64(memv);
     printf("0x%08X: %08X\n", cur_addr, value);
     cur_addr += 4;
   }
@@ -175,21 +182,22 @@ static int cmd_x(char *args) {
  * @return int 
  */
 static int cmd_p(char *args) {
-  bool success;
-  int64_t val;
-  uint64_t uVal;
+  SdbEvalResult result = {0};
 
   if (!args) {
     print_bad_arguments();
     return 0;
   }
 
-  val = expr(args, &success);
-  if (success) {
-    uVal = (uint64_t) val;
-    printf("求值结果：%ld (%016lX)\n", val, uVal);
+  if (sdb_expr_eval_text(args, sdb_nemu_target_ops(), &result)) {
+    printf("$1 = %ld\n", (long)sdb_value_as_i64(result.value));
+    printf("unsigned = %lu\n", (unsigned long)sdb_value_as_u64(result.value));
+    printf(
+      "hex = 0x%0*lx\n", (int)(result.value.width > 32 ? 16 : 8),
+      (unsigned long)sdb_value_as_u64(result.value)
+    );
   } else {
-    printf("求值失败，请检查您输入的表达式是否有误！\n");
+    printf("求值失败：%s (%s)\n", result.error.message, sdb_error_code_name(result.error.code));
   }
 
   return 0;
@@ -209,22 +217,43 @@ static int cmd_p(char *args) {
  */
 static int cmd_w(char *args) {
   WP *wp;
-  int64_t val;
-  bool success;
+  SdbError err = {0};
 
   if (!args) {
     printf("请给定要进行监视的表达式的内容！\n");
     return 0;
   }
   wp = new_wp();
+  if (!wp) {
+    printf("Error: no free watchpoint.\n");
+    return 0;
+  }
+  wp->expr = (char *)malloc(strlen(args) + 1);
+  if (!wp->expr) {
+    free_wp(wp);
+    printf("Error: out of memory.\n");
+    return 0;
+  }
   strcpy(wp->expr, args);
-  val = expr(wp->expr, &success);
-  if (success) {
-    wp->val = val;
-    wp->evaluated = true;
-    printf("成功设置监视点%d，内容为：%s，初始值为：%ld\n", wp->NO, wp->expr, wp->val);
+  wp->expr_ast = sdb_expr_parse(wp->expr, &err);
+  if (wp->expr_ast) {
+    SdbEvalResult result = {0};
+    if (sdb_expr_eval(wp->expr_ast, sdb_nemu_target_ops(), &result)) {
+      wp->val = result.value;
+      wp->evaluated = true;
+      printf(
+        "成功设置监视点%d，内容为：%s，初始值为：%ld\n",
+        wp->NO, wp->expr, (long)sdb_value_as_i64(wp->val)
+      );
+    } else {
+      printf(
+        "成功设置监视点%d，内容为：%s，但初始求值失败：%s\n",
+        wp->NO, wp->expr, result.error.message
+      );
+    }
   } else {
-    printf("成功设置监视点%d，内容为：%s，此时无法求值。\n", wp->NO, wp->expr);
+    printf("监视点表达式解析失败：%s (%s)\n", err.message, sdb_error_code_name(err.code));
+    free_wp(wp);
   }
 
   return 0;
@@ -346,9 +375,6 @@ void sdb_mainloop() {
 }
 
 void init_sdb() {
-  /* Compile the regular expressions. */
-  init_regex();
-
   /* Initialize the watchpoint pool. */
   init_wp_pool();
 }

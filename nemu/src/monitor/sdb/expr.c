@@ -1,432 +1,145 @@
-/***************************************************************************************
-* Copyright (c) 2014-2024 Zihao Yu, Nanjing University
-*
-* NEMU is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 #include <isa.h>
+#include <memory/paddr.h>
 #include <memory/vaddr.h>
+#include <string.h>
+#include <utils.h>
+#include <utils/symbol.h>
 
-/* We use the POSIX regex functions to process regular expressions.
- * Type 'man regex' for more information about POSIX regex functions.
- */
-#include <regex.h>
+#include "sdb.h"
 
-#include <ctype.h>
-
-enum {
-  TK_NOTYPE = 256, TK_EQ, TK_NUM, TK_REG,
-
-  TK_NEG_MUL, // 负数乘法，用于当第二个乘数为负时将负号合并入乘号
-  TK_NEG_DIV, // 负数除法，用于当除数为负时将负号合并入除号
-  TK_DEREF    // 解引用运算，用于取后面一个数字所指向的内存地址的值
-};
-
-static struct rule {
-  const char *regex;
-  int token_type;
-} rules[] = {
-  { " +", TK_NOTYPE },                      // spaces
-  { "\\+", '+' },                           // plus
-  { "-", '-' },                             // minus
-  { "\\*", '*' },                           // multiply
-  { "/", '/' },                             // divide
-  { "\\(", '(' },                           // left parenthesis
-  { "\\)", ')' },                           // right parenthesis
-  { "==", TK_EQ },                          // equal
-  { "(0[xX]?)?[0-9a-zA-Z]+", TK_NUM },            // number
-  { "\\$[0-9a-zA-Z]+", TK_REG },                  // register
-};
-
-#define NR_REGEX ARRLEN(rules)
-
-static regex_t re[NR_REGEX] = {};
-
-/* Rules are used for many times.
- * Therefore we compile them only once before any usage.
- */
-void init_regex() {
-  int i;
-  char error_msg[128];
-  int ret;
-
-  for (i = 0; i < NR_REGEX; i ++) {
-    ret = regcomp(&re[i], rules[i].regex, REG_EXTENDED);
-    if (ret != 0) {
-      regerror(ret, &re[i], error_msg, 128);
-      panic("regex compilation failed: %s\n%s", error_msg, rules[i].regex);
-    }
+static bool sdb_nemu_read_register(void *userdata, const char *name, SdbValue *out, SdbError *err) {
+  (void)userdata;
+  bool success = false;
+  if (strcmp(name, "pc") == 0) {
+    *out = sdb_value_make(cpu.pc, sizeof(word_t) * 8, false);
+    return true;
   }
-}
-
-typedef struct token {
-  int type;
-  char str[32];
-} Token;
-
-#define LEN_TOKENS 256
-
-static Token tokens[LEN_TOKENS] __attribute__((used)) = {};
-static int nr_token __attribute__((used))  = 0;
-
-static void record_token(int i, char *substr_start, int substr_len) {
-  tokens[nr_token].type = rules[i].token_type;
-  strncpy(tokens[nr_token].str, substr_start, substr_len);
-  tokens[nr_token].str[substr_len] = '\0';
-  nr_token++;
-}
-
-static bool make_token(char *e) {
-  int position = 0;
-  int i;
-  regmatch_t pmatch;
-
-  nr_token = 0;
-
-  while (e[position] != '\0') {
-    /* Try all rules one by one. */
-    for (i = 0; i < NR_REGEX; i ++) {
-      if (regexec(&re[i], e + position, 1, &pmatch, 0) == 0 && pmatch.rm_so == 0) {
-        char *substr_start = e + position;
-        int substr_len = pmatch.rm_eo;
-
-        position += substr_len;
-
-        if (nr_token >= LEN_TOKENS) {
-          panic("Regex tokens buffer overflow");
-        }
-
-        if (rules[i].token_type != TK_NOTYPE) { // Ignore spaces.
-          // 如果这个符号是 + 或 -
-          if (rules[i].token_type == '+' || rules[i].token_type == '-') {
-            // 如果没有前一个符号，或者前一个符号为 ( 左括号
-            if (nr_token == 0 || tokens[nr_token - 1].type == '(') {
-              // 先补充前导0，以形成 0 + ... 或 0 - ... 这种符合运算算法的等价表示形式
-              tokens[nr_token].type = TK_NUM;
-              strcpy(tokens[nr_token].str, "0");
-              nr_token++;
-
-              // 再记录当前符号
-              record_token(i, substr_start, substr_len);
-            // 如果有前一个符号且前一个符号为 * 或 /
-            } else if (nr_token > 0 && (tokens[nr_token - 1].type == '*' || tokens[nr_token - 1].type == '/')) {
-              // 如果当前符号是负号的话，将这个负号与前面的 * 或 / 合并成负数版本（正号的话就不管了）
-              if (rules[i].token_type == '-') {
-                if (tokens[nr_token - 1].type == '*') { // * 号
-                  tokens[nr_token - 1].type = TK_NEG_MUL;
-                } else { // / 号
-                  tokens[nr_token - 1].type = TK_NEG_DIV;
-                }
-              }
-            } else {
-              // 都没问题了，是常规情况，正常记录
-              record_token(i, substr_start, substr_len);
-            }
-          // 如果这个符号是 *
-          } else if (rules[i].token_type == '*') {
-            // 如果没有前一个符号，或者前一个符号既不是数字也不是非寄存器、也不是右括号
-            if (
-              nr_token == 0 ||
-              (tokens[nr_token - 1].type != TK_NUM &&
-              tokens[nr_token - 1].type != TK_REG &&
-              tokens[nr_token - 1].type != ')')
-            ) {
-              // 说明这个 * 号应当被理解为解引用运算（取后面一个数字所指向的内存地址的值）
-              // 记录这个 * 号为解引用运算符
-              tokens[nr_token].type = TK_DEREF;
-              strcpy(tokens[nr_token].str, "*");
-              nr_token++;
-            } else {
-              // 都没问题了，是常规情况，正常记录
-              record_token(i, substr_start, substr_len);
-            }
-          } else {
-            record_token(i, substr_start, substr_len);
-          }
-        }
-
-        break;
-      }
-    }
-
-    if (i == NR_REGEX) {
-      return false;
-    }
+  word_t value = isa_reg_str2val(name, &success);
+  if (!success) {
+    sdb_error_set(err, SDB_ERR_UNKNOWN_REGISTER, 0, 0, "unknown register", "nemu");
+    return false;
   }
-
+  *out = sdb_value_make(value, sizeof(word_t) * 8, false);
   return true;
 }
 
-static bool check_parentheses(int p, int q) {
-  int par_level, i;
-
-  if (p >= q) {
+static bool sdb_nemu_read_memory(
+  void *userdata, SdbAddressSpace space, uint64_t addr, unsigned width,
+  bool is_signed, bool force_mmio, SdbValue *out, SdbError *err
+) {
+  (void)userdata;
+  (void)space;
+  int len = (int)(width / 8);
+  if (len != 1 && len != 2 && len != 4 && len != 8) {
+    sdb_error_set(err, SDB_ERR_INVALID_LITERAL, 0, 0, "unsupported memory width", "nemu");
     return false;
   }
-  if (p < 0 || p >= nr_token) {
+  if (!force_mmio && !in_pmem((paddr_t)addr)) {
+#ifdef CONFIG_DEVICE
+    sdb_error_set(err, SDB_ERR_MMIO_SIDE_EFFECT, 0, 0, "refusing to read MMIO without force flag", "nemu");
     return false;
-  }
-  if (q < 0 || q >= nr_token) {
+#else
+    sdb_error_set(err, SDB_ERR_MEMORY_FAULT, 0, 0, "memory access fault", "nemu");
     return false;
+#endif
   }
-  if (tokens[p].type != '(') {
-    return false;
-  }
-  if (tokens[q].type != ')') {
-    return false;
-  }
-  par_level = 1;
-  for (i = p + 1; i < q; i++) {
-    switch (tokens[i].type) {
-      case '(':
-        par_level++;
-        break;
-      case ')':
-        par_level--;
-        break;
-    }
-    if (par_level <= 0) {
-      return false;
-    }
-  }
-  return par_level == 1;
+  word_t value = vaddr_read_mtrace((vaddr_t)addr, len, false);
+  *out = sdb_value_make((uint64_t)value, width, is_signed);
+  return true;
 }
 
-static int find_op_index(int p, int q) { // 寻找主运算符索引
-  /*
-    + - == 运算比 * / 运算更低级，所以先考虑 + -，
-    实在没找到再看 * /。
-  */
-  bool found_pm;
-  int i;
-  int last_pm; // 最后一个 + - == 号的索引位置
-  int last_td; // 最后一个 * / 号的索引位置
-  /*
-    当前括号层级（必须当层级为0时才统计上述两种符号的索引，
-    因为括号内的总是优先计算，故不可能在括号内有主运算符）
-  */
-  int par_level;
-
-  if (p >= q) {
-    return -1;
-  }
-
-  found_pm = false;
-  last_pm = -1;
-  last_td = -1;
-  par_level = 0;
-  for (i = p; i <= q; i++) {
-    if (tokens[i].type >= 0 && tokens[i].type <= 255) {
-    }
-    switch (tokens[i].type) {
-      case '(':
-        par_level++;
-        break;
-      case ')':
-        par_level--;
-        break;
-      case '+':
-      case '-':
-      case TK_EQ:
-        if (par_level == 0) {
-          if (!found_pm) {
-            found_pm = true;
-          }
-          last_pm = i;
-        }
-        break;
-      case '*':
-      case '/':
-      case TK_NEG_MUL:
-      case TK_NEG_DIV:
-        if (par_level == 0) {
-          last_td = i;
-        }
-        break;
-      default:
-    }
-  }
-  if (last_pm < 0 && last_td < 0) {
-    return -1;
-  }
-
-  return found_pm ? last_pm : last_td;
+static bool sdb_nemu_write_register(void *userdata, const char *name, SdbValue value, SdbError *err) {
+  (void)userdata;
+  (void)value;
+  sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "register write is unsupported in NEMU wrapper", "nemu");
+  return false;
 }
 
-//去除尾部空白字符 包括\t \n \r  
-/*
-标准的空白字符包括：
-' '     (0x20)    space (SPC) 空格符
-'\t'    (0x09)    horizontal tab (TAB) 水平制表符    
-'\n'    (0x0a)    newline (LF) 换行符
-'\v'    (0x0b)    vertical tab (VT) 垂直制表符
-'\f'    (0x0c)    feed (FF) 换页符
-'\r'    (0x0d)    carriage return (CR) 回车符
-//windows \r\n linux \n mac \r
-*/ 
-static char *rtrim(char *str) { 
-  if (str == NULL || *str == '\0') { 
-        return str; 
-  } 
-  int len = strlen(str); 
-  char *p = str + len - 1; 
-  while (p >= str && isspace(*p)) { 
-    *p = '\0'; --p; 
-  } 
-  return str; 
-} 
-
-static int64_t reg_str2val(const char *reg_name, bool *success) {
-  char regn[1024];
-
-  strcpy(regn, reg_name);
-  rtrim(regn); // 去掉尾部空白字符
-  if (strcmp(regn, "pc") == 0) { // 如果是pc
-    *success = true;
-    return cpu.pc; // 直接从CPU数据结构读取pc值
-  } else {
-    return isa_reg_str2val(regn, success); // 从ISA特定数据结构读取寄存器值
-  }
+static bool sdb_nemu_write_memory(
+  void *userdata, SdbAddressSpace space, uint64_t addr, unsigned width,
+  SdbValue value, bool force_mmio, SdbError *err
+) {
+  (void)userdata;
+  (void)space;
+  (void)value;
+  (void)force_mmio;
+  (void)addr;
+  (void)width;
+  sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "memory write is unsupported in NEMU wrapper", "nemu");
+  return false;
 }
 
-// 注意由于求值可能为负数，所以返回值类型得用 int64_t（带符号整数）而非 word_t
-// （原始代码给的类型是 word_t，是不对的）
-static int64_t eval(int p, int q, bool *success) {
-  bool stat;
-  int64_t num, val1, val2;
-  int op;
-  char *reg_name;
-  vaddr_t mem_addr;
-
-  if (p > q) {
-    /* Bad expression. */
-
-    *success = false;
-    return 0;
-  } else if (p == q) {
-    /*
-      Single token.
-
-      For now this token should be a number or a register name.
-      Return the value of the number or register.
-    */
-
-    if (tokens[p].type == TK_NUM) {
-      num = strtoul(tokens[p].str, NULL, 0);
-      *success = true;
-      return num;
-    } else if (tokens[p].type == TK_REG) {
-      reg_name = tokens[p].str + 1; // 去掉名称前面的 $
-      num = reg_str2val(reg_name, &stat);
-      if (!stat) {
-        *success = false;
-        return 0;
-      }
-      *success = true;
-      return num;
-    } else {
-      *success = false;
-      return 0;
-    }
-  } else if (tokens[p].type == TK_DEREF) {
-    mem_addr = eval(p + 1, q, &stat);
-    if (!stat) {
-      *success = false;
-      return 0;
-    }
-    num = vaddr_read_mtrace(mem_addr, 4, false);
-    *success = true;
-    return num;
-  } else if (check_parentheses(p, q)) {
-    /*
-      The expression is surrounded by a matched pair of parentheses.
-      
-      If that is the case, just throw away the parentheses and
-      evaluate the expression inside them.
-    */
-
-    return eval(p + 1, q - 1, success);
-  } else {
-    op = find_op_index(p, q);
-    if (op < 0) {
-      // No operator found.
-      *success = false;
-      return 0;
-    }
-    val1 = eval(p, op - 1, &stat);
-    if (!stat) {
-      *success = false;
-      return 0;
-    }
-    val2 = eval(op + 1, q, &stat);
-    if (!stat) {
-      *success = false;
-      return 0;
-    }
-
-    switch (tokens[op].type) {
-      case '+':
-        *success = true;
-        return val1 + val2;
-      case '-':
-        *success = true;
-        return val1 - val2;
-      case '*':
-        *success = true;
-        return val1 * val2;
-      case '/':
-        if (val2 == 0) {
-          *success = false;
-          return 0;
-        }
-        *success = true;
-        return val1 / val2;
-      case TK_NEG_MUL:
-        *success = true;
-        return -(val1 * val2);
-      case TK_NEG_DIV:
-        if (val2 == 0) {
-          *success = false;
-          return 0;
-        }
-        *success = true;
-        return -(val1 / val2);
-      case TK_EQ:
-        *success = true;
-        return (val1 == val2) ? 1 : 0;
-      default:
-        // Found a token that is not of any operator type.
-        *success = false;
-        return 0;
+static bool sdb_nemu_resolve_symbol(void *userdata, const char *name, uint64_t *addr, SdbError *err) {
+  (void)userdata;
+  if (!name || !addr) {
+    sdb_error_set(err, SDB_ERR_UNKNOWN_SYMBOL, 0, 0, "unknown symbol", "nemu");
+    return false;
+  }
+#ifdef CONFIG_FTRACE
+  for (size_t i = 0; i < nemu_state.ftrace_func_syms_size; ++i) {
+    if (strcmp(nemu_state.ftrace_func_syms[i].name, name) == 0) {
+      *addr = nemu_state.ftrace_func_syms[i].addr;
+      return true;
     }
   }
+#endif
+  sdb_error_set(err, SDB_ERR_UNKNOWN_SYMBOL, 0, 0, "unknown symbol", "nemu");
+  return false;
+}
+
+static bool sdb_nemu_lookup_symbol(
+  void *userdata, uint64_t addr, char *name, size_t name_len,
+  uint64_t *offset, SdbError *err
+) {
+  (void)userdata;
+  (void)addr;
+  (void)name;
+  (void)name_len;
+  (void)offset;
+  (void)err;
+  return false;
+}
+
+static uint64_t sdb_nemu_get_pc(void *userdata) {
+  (void)userdata;
+  return cpu.pc;
+}
+
+static bool sdb_nemu_set_pc(void *userdata, uint64_t pc, SdbError *err) {
+  (void)userdata;
+  (void)pc;
+  sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "PC write unsupported in NEMU wrapper", "nemu");
+  return false;
+}
+
+static const SdbTargetOps sdb_nemu_ops = {
+  .userdata = NULL,
+  .xlen = sizeof(word_t) * 8,
+  .allow_mmio_read = false,
+  .read_register = sdb_nemu_read_register,
+  .write_register = sdb_nemu_write_register,
+  .read_memory = sdb_nemu_read_memory,
+  .write_memory = sdb_nemu_write_memory,
+  .resolve_symbol = sdb_nemu_resolve_symbol,
+  .lookup_symbol = sdb_nemu_lookup_symbol,
+  .get_pc = sdb_nemu_get_pc,
+  .set_pc = sdb_nemu_set_pc,
+};
+
+const SdbTargetOps *sdb_nemu_target_ops(void) {
+  return &sdb_nemu_ops;
 }
 
 word_t expr(char *e, bool *success) {
-  bool stat;
-  word_t result;
-
-  if (!make_token(e)) {
-    *success = false;
+  SdbEvalResult result = {0};
+  if (!sdb_expr_eval_text(e, &sdb_nemu_ops, &result)) {
+    if (success) {
+      *success = false;
+    }
     return 0;
   }
-
-  result = eval(0, nr_token - 1, &stat);
-  if (!stat) {
-    // Failed to evaluate the expression.
-    *success = false;
-    return 0;
+  if (success) {
+    *success = true;
   }
-
-  *success = true;
-  return result;
+  return (word_t)sdb_value_as_u64(result.value);
 }
