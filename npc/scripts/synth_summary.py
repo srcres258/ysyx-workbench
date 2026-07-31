@@ -3108,6 +3108,7 @@ def render_summary(
                 sdc_file=sdc_file if (sdc_file and Path(sdc_file).is_file()) else None,
                 ieda_bin=ieda_bin,
                 yosys_sta_home=yosys_sta_home,
+                dedicated_qd_query=(view_type != "hierarchy_attribution"),
             )
             timing_result.update(classified)
             # classified warnings are already in timing_result["warnings"]

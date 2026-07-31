@@ -48,6 +48,49 @@ def _normalize_module_keys(d: Dict[str, Any]) -> Dict[str, Any]:
     return {_normalize_module_name(k): v for k, v in d.items()}
 
 
+def _module_stat_cell_count(mod_data: Dict[str, Any]) -> int:
+    """Extract the top-module cell count from a Yosys stat JSON record."""
+    num_cells = mod_data.get("num_cells")
+    raw_count = num_cells.get("count", num_cells.get("local_count")) if isinstance(num_cells, dict) else num_cells
+    if raw_count is None:
+        raise ParseError("JSON stats artifact: missing top-module cell count")
+    try:
+        return int(raw_count)
+    except (TypeError, ValueError) as e:
+        raise ParseError(f"JSON stats artifact: invalid top-module cell count {raw_count!r}") from e
+
+
+def _module_stat_area_um2(mod_data: Dict[str, Any]) -> float:
+    """Extract the top-module area from a Yosys stat JSON record."""
+    raw_area = mod_data.get("area")
+    if raw_area is None:
+        num_cells = mod_data.get("num_cells")
+        if isinstance(num_cells, dict):
+            raw_area = num_cells.get("area", num_cells.get("local_area"))
+    if raw_area is None:
+        raise ParseError("JSON stats artifact: missing top-module area")
+    try:
+        return float(raw_area)
+    except (TypeError, ValueError) as e:
+        raise ParseError(f"JSON stats artifact: invalid top-module area {raw_area!r}") from e
+
+
+def _parse_synth_stat_from_json(json_path: Path, design_name: str) -> Dict[str, object]:
+    """Parse synthesis totals from a sibling ``synth_stat.json`` artifact."""
+    data = parse_synth_json(json_path)
+    modules = data.get("modules", {})
+    module = modules.get(design_name)
+    if module is None:
+        raise ParseError(
+            f"JSON stats artifact {json_path}: top module {design_name!r} not found. "
+            f"Available modules: {sorted(modules.keys())}"
+        )
+    return {
+        "cell_count": _module_stat_cell_count(module),
+        "area_um2": _module_stat_area_um2(module),
+    }
+
+
 # ---------------------------------------------------------------------------
 # STA timing report parsing  (iEDA/iSTA  report_timing  output)
 # ---------------------------------------------------------------------------
@@ -202,7 +245,7 @@ _SYNTH_CANT_FIND_AREA_RE = re.compile(
 )
 
 
-def parse_synth_stat(
+def _parse_synth_stat_legacy(
     stat_path, design_name: str = "ysyx_25070190"
 ) -> Dict[str, object]:
     """Parse Yosys synthesis statistics report.
@@ -365,6 +408,69 @@ def parse_synth_json(json_path) -> Dict:
     data["modules"] = _normalize_module_keys(modules)
 
     return data
+
+
+def parse_synth_stat(
+    stat_path, design_name: str = "ysyx_25070190"
+) -> Dict[str, object]:
+    """Parse Yosys synthesis statistics report.
+
+    Tries the flat text artifact first. If the text artifact is missing or
+    ambiguous because the synthesis preserved hierarchy, falls back to the
+    sibling ``synth_stat.json`` and reads the top-module totals from there.
+    """
+    stat_path = Path(stat_path)
+    if not stat_path.is_file():
+        raise FileNotFoundError(f"Synthesis stats not found: {stat_path}")
+
+    text = stat_path.read_text(encoding="utf-8", errors="replace")
+
+    try:
+        cells_match = _SYNTH_CELLS_CURRENT_RE.search(text) or _SYNTH_CELLS_LEGACY_RE.search(text)
+        if cells_match is None:
+            raise ParseError(
+                f"synth_stat.txt {stat_path}: cannot find a cell-count field. "
+                f"Expected either 'Number of cells:  <count>' or '<count>  <area> cells'."
+            )
+        cells_matches = _SYNTH_CELLS_CURRENT_RE.findall(text) or _SYNTH_CELLS_LEGACY_RE.findall(text)
+        if len(cells_matches) > 1:
+            raise ParseError(
+                f"synth_stat.txt {stat_path}: ambiguous — found {len(cells_matches)} cell-count fields. Expected exactly one."
+            )
+        cell_count = int(cells_match.group(1).replace(",", ""))
+
+        if _SYNTH_CANT_FIND_AREA_RE.search(text):
+            raise ParseError(
+                f"synth_stat.txt {stat_path}: yosys reports 'Don't know how to get chip area from liberty cell'. "
+                f"This usually means the liberty file lacks area data. Cannot proceed — area is required for the synth summary."
+            )
+
+        area_match = _SYNTH_AREA_RE.search(text)
+        if area_match is None:
+            raise ParseError(
+                f"synth_stat.txt {stat_path}: cannot find the chip-area line. "
+                f"Expected either 'Chip area for top module \'{design_name}\':  <value>' "
+                f"or 'Chip area for module \'{design_name}\':  <value>'."
+            )
+        area_matches = _SYNTH_AREA_RE.findall(text)
+        if len(area_matches) > 1:
+            raise ParseError(
+                f"synth_stat.txt {stat_path}: ambiguous — found {len(area_matches)} chip-area fields. Expected exactly one."
+            )
+
+        top_name = area_match.group(1).strip("\\'\"")
+        if top_name != design_name:
+            raise ParseError(
+                f"synth_stat.txt {stat_path}: chip area references '{top_name}', but expected design is '{design_name}'. Mismatch — possibly the wrong RTL was synthesized."
+            )
+
+        area_um2 = float(area_match.group(2))
+        return {"cell_count": cell_count, "area_um2": area_um2}
+    except (ParseError, FileNotFoundError) as text_error:
+        json_fallback = stat_path.with_suffix(".json")
+        if not json_fallback.is_file():
+            raise text_error
+        return _parse_synth_stat_from_json(json_fallback, design_name)
 
 
 # ---------------------------------------------------------------------------

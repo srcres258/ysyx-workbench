@@ -2,6 +2,8 @@
 """Fixture-based tests for report_parser.py — happy-path and fail-closed."""
 
 import unittest
+import tempfile
+from pathlib import Path
 
 from tests import fixture
 from report_parser import (
@@ -82,6 +84,18 @@ class TestParseSynthStat(unittest.TestCase):
     def test_custom_design_name_mismatch(self):
         with self.assertRaises(ParseError):
             parse_synth_stat(fixture("synth_stat_typical.txt"), design_name="wrong_top")
+
+    def test_hierarchical_text_falls_back_to_json(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmp = Path(tmpdir)
+            stat_path = tmp / "synth_stat.txt"
+            json_path = tmp / "synth_stat.json"
+            stat_path.write_text("=== hierarchy-attribution output ===\n  1  2.0 cells\n  3  4.0 cells\n")
+            json_path.write_text(fixture("synth_stat_typical.json").read_text())
+
+            result = parse_synth_stat(stat_path)
+            self.assertEqual(result["cell_count"], 9876)
+            self.assertEqual(round(result["area_um2"], 3), 12345.678)  # type: ignore[arg-type]
 
 
 class TestParseSynthJson(unittest.TestCase):
