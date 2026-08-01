@@ -64,7 +64,7 @@ static MemRegion regions[] = {
   { 0x20000000, 0x1000,     NULL },  /* MROM */
   { 0x30000000, 0x1000000,  NULL },  /* FLASH */
   { 0x80000000, 0x400000,   NULL },  /* PSRAM */
-  { 0xa0000000, 0x2000000,  NULL },  /* SDRAM */
+  { 0xa0000000, 0x8000000,  NULL },  /* SDRAM */
 };
 
 #define NR_REGIONS (sizeof(regions) / sizeof(regions[0]))
@@ -133,7 +133,7 @@ void init_mem() {
   Log("  MROM  [0x20000000, 0x20000fff] 4KB");
   Log("  FLASH [0x30000000, 0x30ffffff] 16MB");
   Log("  PSRAM [0x80000000, 0x803fffff] 4MB");
-  Log("  SDRAM [0xa0000000, 0xa1ffffff] 32MB");
+  Log("  SDRAM [0xa0000000, 0xa7ffffff] 128MB");
 }
 
 #endif
