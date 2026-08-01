@@ -36,10 +36,11 @@ int dpi_pmem_read(int addr) {
         trace_record_dtrace(0, "vga", false, a, 4, (word_t) value, "standalone", "VGA");
         return value;
     }
-    if (!addr_valid(a))
+    uint32_t word_addr = a & ~0x3u;
+    if (!addr_valid(word_addr))
         return 0;
     uint32_t val;
-    memcpy(&val, &pmem[a - PMEM_BASE], 4);
+    memcpy(&val, &pmem[word_addr - PMEM_BASE], 4);
     return (int) val;
 }
 
@@ -60,10 +61,11 @@ void dpi_pmem_write(int addr, int data, char strb) {
     if (rtc_is_in_range(a))      { rtc_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "rtc", true, a, 4, (word_t) data, "standalone", "RTC"); return; }
     if (keyboard_is_in_range(a)) { keyboard_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "keyboard", true, a, 4, (word_t) data, "standalone", "KBD"); return; }
     if (vga_is_in_range(a))      { vga_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "vga", true, a, 4, (word_t) data, "standalone", "VGA"); return; }
-    if (!addr_valid(a)) return;
+    uint32_t word_addr = a & ~0x3u;
+    if (!addr_valid(word_addr)) return;
     uint32_t wdata = (uint32_t)data;
     uint8_t  wstrb = (uint8_t)strb;
-    uint32_t off = a - PMEM_BASE;
+    uint32_t off = word_addr - PMEM_BASE;
     if (wstrb & 0x1) pmem[off + 0] = (wdata >>  0) & 0xFF;
     if (wstrb & 0x2) pmem[off + 1] = (wdata >>  8) & 0xFF;
     if (wstrb & 0x4) pmem[off + 2] = (wdata >> 16) & 0xFF;

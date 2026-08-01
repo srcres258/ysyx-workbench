@@ -13,6 +13,13 @@
 #include <utils.hpp>
 #include <sim_top.hpp>
 
+#ifdef NPC_STANDALONE
+#include <device/keyboard.hpp>
+#include <device/rtc.hpp>
+#include <device/serial.hpp>
+#include <device/vga.hpp>
+#endif
+
 // ----------- state -----------
 
 SimConfig sim_config = {
