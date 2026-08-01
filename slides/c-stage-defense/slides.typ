@@ -28,7 +28,7 @@
 // - Main point: 这不是通用 RISC-V 介绍，而是当前仓库的真实实现与优化证据。
 // - Time: 20 s
 // - Likely question: 现在到底处于什么阶段？
-// - Answer: C6 之后，已进入 B1/B2/B3，I-cache 之前。
+// - Answer: C6 之后，已进入 B1/B2/B3，正在做局部性分析与 I-cache 初步定调。
 //
 ]
 
@@ -39,13 +39,13 @@
 - 工程构建与验证
 - 考核题目与个人特色
 
-- 当前进度：B3 性能瓶颈分析完成，简易 I-cache 设计之前
+- 当前进度：B3 性能瓶颈分析完成，局部性分析与 I-cache 初步定调中
 
   // Speaker notes:
 // - Main point: 先把整套协同闭环讲清，再讲 NPC 和数据驱动优化。
 // - Time: 30 s
 // - Likely question: 为什么不直接讲 cache？
-// - Answer: 因为当前仓库里 I-cache 还没实现，不能把下一步写成现状。
+// - Answer: 因为现在已经有 locality 数据在收敛 I-cache 候选，不能只写成抽象的下一步。
 //
 
 == 一生一芯软硬件协同架构（1/3）
@@ -79,7 +79,7 @@
 
 == 一生一芯软硬件协同架构（3/3）
 
-#image("assets/architecture_3.svg", width: 98%)
+#image("assets/architecture_3.svg", width: 90%)
 
 - Verilator 把 RTL 变成可执行的 C++ 模型
 - ysyxSoC 把 NPC 放进更接近真实芯片的总线和外设环境
@@ -106,7 +106,7 @@
 
 == 总体微架构
 
-#image("assets/microarch.svg", width: 92%)
+#image("assets/microarch.svg", width: 90%)
 
 - 单发射、顺序执行、多周期状态机式 NPC
 - `IFU / IDU / EXU / MEMU / WBU` 都是独立 FSM
@@ -159,7 +159,7 @@ DecoupledIOConnect(ifu.io.nextStage, idu.io.prevStage, DecoupledIOConnect.Pipeli
 
 == Makefile 包含与调用关系
 
-#image("assets/build_flow.svg", width: 100%)
+#image("assets/build_flow.svg", width: 80%)
 
 ```make
 chisel-gen:
@@ -265,32 +265,48 @@ run: $(BIN) git_commit_sim
 // - Answer: 先释放面积，再为后续 I-cache 留预算。
 //
 
-== 当前阶段与下一步
+== 局部性分析与 I-cache 初步定调
 
-- C6 RT-Thread ✓
-- B1 AXI ✓
-- B2 ysyxSoC ✓
-- 性能评估基础设施 ✓
-- 性能瓶颈分析 ✓
-- 第一轮微结构优化 ✓ / 进行中，以代码为准
-- 简易 I-cache：下一步
-- B4 流水线：尚未开始
+- C6 / B1 / B2 / B3 已完成，进入 I-cache 候选收敛
+- NPC 后端已完成取指与访存局部性分析
+- microbench 的 address-time / reuse interval / spatial utilization / miss-rate curve 已经把设计空间摊开
+- `cache_sweep` 首轮最佳点：4KB / 64B / 4-way，miss rate 0.32%
 
-#box(width: 100%, height: 2.6cm, stroke: 1.5pt + rgb("#94a3b8"), radius: 6pt)[
-  #align(center + horizon)[
-    #text(size: 20pt, weight: "bold")[Next Step / Not Implemented Yet]
-  ]
-]
+// #box(width: 100%, height: 2.6cm, stroke: 1.5pt + rgb("#94a3b8"), radius: 6pt)[
+//   #align(center + horizon)[
+//     #text(size: 20pt, weight: "bold")[Locality Analysis / I-cache Initial Tuning]
+//   ]
+// ]
 
-- 先测量、再优化、最后加入缓存
-- cache line / 容量 / 组相联度 / refill FSM / miss penalty 仍是下一阶段问题
+- Current process: Locality Analysis / I-cache Initial Tuning
+
+- 64B line utilization 98.1%，说明大 line 依然不浪费
+- 结论：I-cache 先从高 locality 热路径定 line size / capacity，再落 RTL 验证
+- 下一步补充 itrace / basic-block 热点分析
 
   // Speaker notes:
-// - Main point: I-cache 之前不要画成已完成。
+// - Main point: locality sweep 已经给出 I-cache 的首轮候选和数量级。
 // - Time: 60 s
-// - Likely question: 为什么不先加 cache？
-// - Answer: 因为当前先要把面积与关键路径预算算清楚。
-//
+// - Likely question: 为什么这个 I-cache 方向可信？
+// - Answer: 因为 hit rate、line utilization 和 reuse distance 三类证据都指向同一结论。
+
+== Locality state
+
+`microbench` 程序 (`test` 规模)
+
+#v(0.12cm)
+#grid(
+  columns: (1fr, 1fr, 1fr),
+  gutter: 0.12cm, 
+  image("solid-assets/address_time_ifetch.png", width: 100%),
+  image("solid-assets/address_time_data.png", width: 100%),
+  image("solid-assets/reuse_interval.png", width: 100%),
+  image("solid-assets/spatial_line_utilization.png", width: 100%),
+  image("solid-assets/cache_miss_rate_curve.png", width: 100%),
+  image("solid-assets/working_set_over_time.png", width: 100%),
+  image("solid-assets/stride_distribution.png", width: 100%),
+  image("solid-assets/region_cache_value.png", width: 100%)
+)
 
 == 考核题目
 
@@ -388,15 +404,15 @@ PLACEHOLDER — 根据后续 agent 工作结果补充
 
 1. 建立了 AM、NEMU、NPC 与 ysyxSoC 的完整协同闭环
 2. NPC 已支持复杂软件运行，并具备系统化的性能观测能力
-3. 已从“凭感觉优化”转向“前后端数据共同驱动”，下一步进入 I-cache
+3. 已从“凭感觉优化”转向“前后端数据共同驱动”，局部性分析正在收敛 I-cache 候选
 
 正确性决定“能不能运行”，性能证据决定“下一步该优化什么”。
 
   // Speaker notes:
 // - Main point: 结论只保留三条，不再堆模块名。
 // - Time: 30 s
-// - Likely question: 下一步最关键的风险是什么？
-// - Answer: cache 设计空间和面积预算之间的权衡。
+// - Likely question: I-cache 定调后下一步最关键的风险是什么？
+// - Answer: cache 参数与面积 / 关键路径预算之间的权衡。
 //
 
 == 附录：CSR 与异常寄存器表
