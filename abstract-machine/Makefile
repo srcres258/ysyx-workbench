@@ -168,6 +168,27 @@ image-dep: $(IMAGE).elf
 force:
 .PHONY: force
 
+### Memory-locality analysis for AM programs (requires NPC_HOME and a trace-logs-capable platform)
+LOCALITY_ANALYZER       ?= $(abspath $(NPC_HOME)/scripts/mtrace_analyzer.py)
+LOCALITY_INPUT          ?= $(abspath $(TRACE_LOG_DIR)/mtrace.jsonl)
+LOCALITY_OUT_DIR        ?= $(abspath $(WORK_DIR)/build/locality)
+LOCALITY_LINE_SIZES     ?= 4,8,16,32,64
+LOCALITY_WINDOW_ACCESSES ?= 10000
+LOCALITY_CACHE_SIZES    ?= 64,128,256,512,1024,2048,4096
+LOCALITY_ASSOCIATIVITIES ?= 1,2,4
+
+locality:
+	@python3 $(LOCALITY_ANALYZER) \
+		--input $(LOCALITY_INPUT) \
+		--output-dir $(LOCALITY_OUT_DIR) \
+		--line-sizes $(LOCALITY_LINE_SIZES) \
+		--window-accesses $(LOCALITY_WINDOW_ACCESSES) \
+		--cache-sizes $(LOCALITY_CACHE_SIZES) \
+		--associativities $(LOCALITY_ASSOCIATIVITIES)
+
+locality-report: run locality
+.PHONY: locality locality-report
+
 ### Clean a single project (remove `build/`)
 clean:
 	rm -rf Makefile.html $(WORK_DIR)/build/
