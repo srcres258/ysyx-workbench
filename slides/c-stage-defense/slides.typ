@@ -356,48 +356,35 @@ PLACEHOLDER — 题目收到后再填入
 
 == 个人特色展示
 
-方向 A：复杂应用
-
-- 应用名称
-- 软件栈
-- 运行路径
-- 关键设备
-- 性能表现
-- 最困难的问题
-
 方向 B：工具 / 优化 / Bug
 
-- 109 项性能计数器系统
-- TUI 性能面板
-- perf JSON schema
-- 自动闭合检查
-- 综合与 STA 报告聚合
-- 数据驱动的面积—性能优化
+- 前端性能观测：109 项计数器按 `core / state / stall / inst / mem / trap` 分层，TUI 面板和 `perf.json` 一起看
+- 后端综合链路：`make synth` / `synth-search` / `synth-exp-*` / `synth-flow-diff`，统一产出 `synth_summary.json`、`synth_summary.txt` 和热点报告
+- 报告阅读顺序：先看面积预算与 WNS / TNS，再看 Top Contributors、Cell Class、High-Fanout Nets、Constraint Coverage
+- 结论落点：把“哪里慢、哪里大、哪里不闭合”翻成微结构动作，比如补流水、收敛高扇出、压缩上下文宽度、调整访存组织
+- 自动闭合检查：把计数器守恒和报告一致性做成工具约束，避免“看起来对、实际不对”
 
   // Speaker notes:
-// - Main point: 先保留结构，等后续再决定故事线。
+// - Main point: 这一页只讲方向 B，突出我做的工具链和它如何反过来指导优化。
 // - Time: 20 s
-// - Likely question: 最终选哪条线？
-// - Answer: 先不定，留给后续 agent / 实际材料。
+// - Likely question: 为什么不选复杂应用？
+// - Answer: 这个阶段我更有可验证的成果是工具、分析和优化闭环，适合做成主线。
 //
 
-== 证据与复盘
+== 证据链与复盘
 
-- 问题现象
-- 原因定位
-- 使用的工具
-- 关键证据
-- 修复方案
-- 修复前后对比
-- 经验总结
-
-PLACEHOLDER — 根据后续 agent 工作结果补充
+- 现象：IPC 下降、面积超预算、WNS 为负，或者某类 stall 占比异常偏高
+- 定位：用 `perf.json`、`synth_summary.json`、`optimization_hotspots.txt` 和 locality 报告交叉确认
+- 证据：看 counter 闭合、Top Contributors、Worst Path、High-Fanout Net、Constraint Coverage
+- 方案：按证据选择补流水、拆长路径、减少无效状态、调整寄存器/缓存/总线组织
+- 对比：优化前后对比 CPI / IPC、Fmax、面积、stall 分布和热点排序
+- 复盘：先让工具说话，再决定改结构；每次改动都保留可复查的文本证据
 
   // Speaker notes:
-// - Main point: 这页是复盘框架，不写虚构 bug。
+// - Main point: 复盘不讲空泛结论，只讲“现象—证据—决策”三段式。
 // - Time: 20 s
-// - Likely question: 有什么典型 bug 可讲？
-// - Answer: 目前先留空，等后续证据补齐。
+// - Likely question: 这页和前一页有什么区别？
+// - Answer: 前一页讲能力，这一页讲怎么把能力变成可验证的优化判断。
 //
 
 == 总结
