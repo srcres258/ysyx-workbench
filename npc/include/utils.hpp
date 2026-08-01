@@ -28,6 +28,7 @@ enum SimStateEnum { SIM_RUNNING, SIM_STOP, SIM_END, SIM_ABORT, SIM_QUIT };
 #define DEFAULT_DIFFTEST_PAYLOAD_LOAD_ADDR PSRAM_ADDR
 #define DEFAULT_DIFFTEST_MEM_MODE "auto"
 #define DEFAULT_ITRACE_OUT_FILE_PATH "build/itrace.log"
+#define DEFAULT_ITRACE_JSONL_OUT_FILE_PATH "build/itrace.jsonl"
 #define DEFAULT_MTRACE_OUT_FILE_PATH "build/mtrace.log"
 #define DEFAULT_FTRACE_OUT_FILE_PATH "build/ftrace.log"
 #define DEFAULT_DTRACE_OUT_FILE_PATH "build/dtrace.log"
@@ -77,6 +78,7 @@ struct SimConfig {
     std::string config_difftestMemMode;
 
     std::string config_itraceOutFilePath;
+    std::string config_itraceJsonlOutFilePath;
     std::string config_mtraceOutFilePath;
     std::string config_mtraceJsonlOutFilePath;
     std::string config_ftraceOutFilePath;
@@ -100,6 +102,7 @@ struct SimState {
     std::stack<CallFrameInfo> ftrace_callStack;
 
     std::ofstream itrace_ofs;
+    std::ofstream itrace_jsonl_ofs;
     std::ofstream mtrace_ofs;
     std::ofstream mtrace_jsonl_ofs;
     std::ofstream ftrace_ofs;
@@ -152,6 +155,8 @@ bool sim_state_ftrace_funcSyms_init();
 void trace_record_mtrace(
     addr_t pc, bool isWrite, addr_t addr, int len, word_t data, uint8_t strobe, uint32_t resp
 );
+
+void trace_record_itrace(addr_t pc, word_t inst);
 
 void trace_record_dtrace(
     addr_t pc, const char *device, bool isWrite, addr_t addr, int len, word_t data,

@@ -56,6 +56,15 @@ def analyze_fixture(name: str, **kwargs) -> TraceAnalyzer:
     return analyzer
 
 
+def analyze_fixtures(*names: str, **kwargs) -> TraceAnalyzer:
+    args = make_args(**kwargs)
+    analyzer = TraceAnalyzer(args)
+    for record in load_trace([fixture(name) for name in names]):
+        analyzer.observe(record)
+    analyzer.finalize()
+    return analyzer
+
+
 class TestLocalityPatterns(unittest.TestCase):
 
     def test_linear_access_has_high_spatial_and_stride(self):
@@ -71,6 +80,17 @@ class TestLocalityPatterns(unittest.TestCase):
         reuse_score = next(row for row in reuse.region_rows() if row["region_id"] == "psram")["temporal_score"]
         rnd_score = next(row for row in rnd.region_rows() if row["region_id"] == "psram")["temporal_score"]
         self.assertGreater(float(reuse_score), float(rnd_score))
+
+    def test_itrace_records_populate_ifetch_plot_inputs(self):
+        analyzer = analyze_fixtures(
+            "mtrace_linear.jsonl",
+            "itrace_linear.jsonl",
+            line_sizes=[16],
+            cache_sizes=[8],
+            associativities=[1],
+        )
+        self.assertGreater(len(analyzer.address_time_ifetch), 0)
+        self.assertGreater(analyzer.kind_counts["ifetch"], 0)
 
     def test_temporal_score_handles_long_reuse_buckets(self):
         region = RegionAccumulator(
@@ -114,7 +134,7 @@ class TestLocalityPatterns(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             out = Path(tmpdir)
             main([
-                "--input", str(fixture("mtrace_linear.jsonl")),
+                "--input", str(fixture("mtrace_linear.jsonl")), str(fixture("itrace_linear.jsonl")),
                 "--output-dir", str(out),
                 "--line-sizes", "16",
                 "--cache-sizes", "8",
@@ -127,8 +147,11 @@ class TestLocalityPatterns(unittest.TestCase):
             self.assertTrue((out / "region_summary.csv").is_file())
             self.assertTrue((out / "cache_sweep.csv").is_file())
             self.assertTrue((out / "line_utilization.csv").is_file())
+            self.assertTrue((out / "address_time_ifetch.png").is_file())
+            self.assertTrue((out / "address_time_ifetch.svg").is_file())
             self.assertTrue((out / "address_time_data.png").is_file())
             self.assertTrue((out / "address_time_data.svg").is_file())
+            self.assertNotIn("No IFetch records were collected", (out / "address_time_ifetch.svg").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

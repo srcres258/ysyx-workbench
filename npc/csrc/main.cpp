@@ -122,6 +122,14 @@ static void loadConfig() {
             sim_config.config_itraceOutFilePath << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_ITRACE_JSONL_OUT_FILE_PATH");
+    if (env) {
+        sim_config.config_itraceJsonlOutFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] itrace JSONL 输出路径已指定为: " <<
+            sim_config.config_itraceJsonlOutFilePath << std::endl;
+    }
+
     env = std::getenv("NPC_CONFIG_MTRACE_OUT_FILE_PATH");
     if (env) {
         sim_config.config_mtraceOutFilePath =

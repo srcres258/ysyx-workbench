@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from heapq import heappop, heappush
 import json
 import math
 import statistics
@@ -760,7 +761,7 @@ class TraceAnalyzer:
         return rows
 
 
-def load_trace(path: Path) -> Iterator[TraceRecord]:
+def iter_trace_file(path: Path) -> Iterator[TraceRecord]:
     if not path.is_file():
         fail(f"input trace not found: {path}")
     with path.open("r", encoding="utf-8") as fh:
@@ -772,6 +773,32 @@ def load_trace(path: Path) -> Iterator[TraceRecord]:
             except json.JSONDecodeError as exc:
                 fail(f"line {line_no}: invalid JSON: {exc}")
             yield TraceRecord.from_json(obj, line_no)
+
+
+def load_trace(paths: Path | Sequence[Path]) -> Iterator[TraceRecord]:
+    if isinstance(paths, Path):
+        paths = [paths]
+    iterators = [iter_trace_file(path) for path in paths]
+    if len(iterators) == 1:
+        yield from iterators[0]
+        return
+
+    heap: List[Tuple[int, int, int, int, TraceRecord, Iterator[TraceRecord]]] = []
+    for order, it in enumerate(iterators):
+        try:
+            record = next(it)
+        except StopIteration:
+            continue
+        heappush(heap, (record.cycle, record.instret, record.seq, order, record, it))
+
+    while heap:
+        _, _, _, order, record, it = heappop(heap)
+        yield record
+        try:
+            next_record = next(it)
+        except StopIteration:
+            continue
+        heappush(heap, (next_record.cycle, next_record.instret, next_record.seq, order, next_record, it))
 
 
 def write_csv(path: Path, rows: List[Dict[str, Any]]) -> None:
@@ -1073,7 +1100,7 @@ def ensure_output_dir(path: Path) -> None:
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description="Trace-driven locality analysis for NPC JSONL traces")
-    ap.add_argument("--input", required=True, type=Path, help="JSONL trace input path")
+    ap.add_argument("--input", required=True, nargs="+", type=Path, help="JSONL trace input path(s)")
     ap.add_argument("--output-dir", required=True, type=Path, help="Output directory")
     ap.add_argument("--line-sizes", default="4,8,16,32,64", help="Comma-separated line sizes")
     ap.add_argument("--window-accesses", default=DEFAULT_WINDOW_ACCESSES, type=int, help="Sliding window length in accesses")
@@ -1148,7 +1175,7 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
         args.x_axis,
         empty_message=(
             "No IFetch records were collected in this trace set. "
-            "This locality run currently analyzes mtrace load/store JSONL only."
+            "Enable itrace.jsonl generation to populate this plot."
         ),
     )
     plot_address_time_data(analyzer.address_time_data, args.output_dir / "address_time_data", args.x_axis)

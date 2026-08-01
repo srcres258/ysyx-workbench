@@ -186,7 +186,7 @@ bool simExecOnce() {
             std::setw(8) << std::hex << simExecInfo.inst << std::endl;
     }
 
-    if (sim_config.config_itrace) {
+    if (sim_state.itrace_ofs.is_open()) {
         char pbuf[128];
         char *p = pbuf;
         p += snprintf(p, sizeof(pbuf), FMT_WORD ":", simExecInfo.pc);
@@ -214,6 +214,7 @@ bool simExecOnce() {
 
         sim_state.itrace_ofs << str;
         std::flush(sim_state.itrace_ofs);
+        trace_record_itrace(simExecInfo.pc, simExecInfo.inst);
 
         if (sim_config.config_debugOutput) {
             std::cout << str;

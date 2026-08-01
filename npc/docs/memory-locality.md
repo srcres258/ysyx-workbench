@@ -7,13 +7,14 @@ used by `npc/scripts/mtrace_analyzer.py`.
 
 Current NPC tracing is split into three layers:
 
+- `itrace` — retired instruction-flow events, exported as JSONL for instruction-fetch locality plots
 - `mtrace` — architecture-level load/store events from `dpi_onMemAccess()`
 - `dtrace` — device/bus events from IOMap and direct DPI device backends
 - `etrace` — trap events
 
-For locality analysis, the primary input is `build/mtrace.jsonl`.
-The JSONL stream is emitted by NPC when `NPC_CONFIG_TRACE_FORMAT=jsonl` or
-`both` is enabled.
+For locality analysis, the primary inputs are `build/mtrace.jsonl` and
+`build/itrace.jsonl`. The JSONL streams are emitted by NPC when
+`NPC_CONFIG_TRACE_FORMAT=jsonl` or `both` is enabled.
 
 ## 2. Event levels
 
@@ -128,7 +129,7 @@ make -C npc locality-report IMG=build/your-benchmark.elf
 make -C npc test-locality
 ```
 
-`make locality` reads an existing JSONL file and writes:
+`make locality` reads existing JSONL files and writes:
 
 - `locality_summary.json`
 - `locality_summary.txt`
@@ -140,6 +141,10 @@ make -C npc test-locality
 - `working_set.csv`
 
 It also writes PNG and SVG plots for the locality figures.
+
+`locality-report` now combines load/store locality from `mtrace.jsonl` with
+instruction-fetch locality from `itrace.jsonl`, so the IFetch plot is populated
+when the simulator is run with `CONFIG_ITRACE=on`.
 
 ## 10. Interpreting the plots
 

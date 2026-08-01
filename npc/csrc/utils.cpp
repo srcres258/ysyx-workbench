@@ -53,6 +53,8 @@ SimConfig sim_config = {
 
     .config_itraceOutFilePath =
         std::move(std::string(DEFAULT_ITRACE_OUT_FILE_PATH)),
+    .config_itraceJsonlOutFilePath =
+        std::move(std::string(DEFAULT_ITRACE_JSONL_OUT_FILE_PATH)),
     .config_mtraceOutFilePath =
         std::move(std::string(DEFAULT_MTRACE_OUT_FILE_PATH)),
     .config_mtraceJsonlOutFilePath =
@@ -84,6 +86,7 @@ SimState sim_state = {
     .haltPC = 0,
 
     .itrace_iringbuf = nullptr,
+    .itrace_jsonl_ofs = std::ofstream{},
     .mtrace_jsonl_ofs = std::ofstream{},
     .dtrace_jsonl_ofs = std::ofstream{},
     .etrace_jsonl_ofs = std::ofstream{}
@@ -135,6 +138,9 @@ void sim_state_ofstream_init() {
     if (sim_config.config_itrace && traceFormatWantsHuman()) {
         sim_state.itrace_ofs.open(sim_config.config_itraceOutFilePath);
     }
+    if (sim_config.config_itrace && traceFormatWantsJsonl()) {
+        sim_state.itrace_jsonl_ofs.open(sim_config.config_itraceJsonlOutFilePath);
+    }
     if (sim_config.config_mtrace && traceFormatWantsHuman()) {
         sim_state.mtrace_ofs.open(sim_config.config_mtraceOutFilePath);
     }
@@ -165,6 +171,10 @@ void sim_state_ofstream_finalise() {
     if (sim_config.config_itrace && sim_state.itrace_ofs.is_open()) {
         sim_state.itrace_ofs.flush();
         sim_state.itrace_ofs.close();
+    }
+    if (sim_config.config_itrace && sim_state.itrace_jsonl_ofs.is_open()) {
+        sim_state.itrace_jsonl_ofs.flush();
+        sim_state.itrace_jsonl_ofs.close();
     }
     if (sim_config.config_mtrace && sim_state.mtrace_ofs.is_open()) {
         sim_state.mtrace_ofs.flush();
@@ -247,6 +257,7 @@ namespace {
 
 static constexpr uint64_t kTraceFlushBatch = 1024;
 static uint64_t g_traceSeq = 0;
+static uint64_t g_itraceWrites = 0;
 static uint64_t g_mtraceWrites = 0;
 static uint64_t g_dtraceWrites = 0;
 static uint64_t g_etraceWrites = 0;
@@ -649,6 +660,19 @@ static std::string buildMtraceJson(
     );
 }
 
+static std::string buildItraceJson(addr_t pc, word_t inst) {
+    const auto &region = lookupRegion(pc, "", "");
+    const uint64_t seq = ++g_traceSeq;
+    const uint64_t cycle = getExecCountClockPeriod();
+    const uint64_t instret = getExecCount();
+    const bool dataEnabled = traceDataModeKeepValue(false);
+    std::string dataField = hexValue(static_cast<uint64_t>(inst));
+    return buildTraceJson(
+        "mtrace", "architecture_access", "itrace", seq, cycle, instret, pc,
+        "ifetch", "read", "ifu", pc, 4, dataField, "", region, 0, 0, -1, 0, 1, "cpu", dataEnabled
+    );
+}
+
 static std::string buildDtraceJson(
     addr_t pc, const char *device, bool isWrite, addr_t addr, int len, word_t data,
     const char *bus, const char *regionName
@@ -744,6 +768,16 @@ void trace_record_mtrace(
     }
     if (sim_config.config_debugOutput) {
         std::cout << "[sim] mtrace: " << message << std::endl;
+    }
+}
+
+void trace_record_itrace(addr_t pc, word_t inst) {
+    if (!sim_config.config_itrace) {
+        return;
+    }
+
+    if (sim_state.itrace_jsonl_ofs.is_open()) {
+        writeJsonLine(sim_state.itrace_jsonl_ofs, buildItraceJson(pc, inst), g_itraceWrites);
     }
 }
 

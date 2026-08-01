@@ -171,6 +171,7 @@ force:
 ### Memory-locality analysis for AM programs (requires NPC_HOME and a trace-logs-capable platform)
 LOCALITY_ANALYZER       ?= $(abspath $(NPC_HOME)/scripts/mtrace_analyzer.py)
 LOCALITY_INPUT          ?= $(abspath $(TRACE_LOG_DIR)/mtrace.jsonl)
+LOCALITY_ITRACE_INPUT   ?= $(abspath $(TRACE_LOG_DIR)/itrace.jsonl)
 LOCALITY_OUT_DIR        ?= $(abspath $(WORK_DIR)/build/locality)
 LOCALITY_LINE_SIZES     ?= 4,8,16,32,64
 LOCALITY_WINDOW_ACCESSES ?= 10000
@@ -178,15 +179,20 @@ LOCALITY_CACHE_SIZES    ?= 64,128,256,512,1024,2048,4096
 LOCALITY_ASSOCIATIVITIES ?= 1,2,4
 
 locality:
-	@python3 $(LOCALITY_ANALYZER) \
-		--input $(LOCALITY_INPUT) \
+	@LOCALITY_INPUTS="$(LOCALITY_INPUT)"; \
+	if [ -f "$(LOCALITY_ITRACE_INPUT)" ]; then LOCALITY_INPUTS="$$LOCALITY_INPUTS $(LOCALITY_ITRACE_INPUT)"; fi; \
+	python3 $(LOCALITY_ANALYZER) \
+		--input $$LOCALITY_INPUTS \
 		--output-dir $(LOCALITY_OUT_DIR) \
 		--line-sizes $(LOCALITY_LINE_SIZES) \
 		--window-accesses $(LOCALITY_WINDOW_ACCESSES) \
 		--cache-sizes $(LOCALITY_CACHE_SIZES) \
 		--associativities $(LOCALITY_ASSOCIATIVITIES)
 
-locality-report: run locality
+locality-report:
+	@$(MAKE) run CONFIG_ITRACE=on CONFIG_MTRACE=on CONFIG_FTRACE=off CONFIG_DTRACE=off CONFIG_ETRACE=off \
+		CONFIG_TRACE_FORMAT=both CONFIG_TRACE_DATA_MODE=stores
+	@$(MAKE) locality
 .PHONY: locality locality-report
 
 ### Clean a single project (remove `build/`)
