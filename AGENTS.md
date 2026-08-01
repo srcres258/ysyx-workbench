@@ -56,7 +56,10 @@ make -C am-kernels/benchmarks/microbench ARCH=riscv32e-ysyxsoc
 ### NPC
 
 ```
-make -C npc [run|gdb|chisel-gen|synth|synth-search|perf|clean]
+make -C npc [run|gdb|default|chisel-gen|chisel-gen-standalone|gen_header|
+            synth|synth-search|synth-clean|perf|perf-clean|chisel-clean|clean|
+            synth-exp-a|synth-exp-b|synth-exp-c|synth-exp-d|synth-exp-all|synth-flow-diff|
+            mtrace|locality|locality-report|test-locality]
 ```
 
 - **Select program**: Use `IMG=<path>` to specify the binary/ELF to run (e.g., `make -C npc run IMG=build/flash.bin`).
@@ -64,16 +67,19 @@ make -C npc [run|gdb|chisel-gen|synth|synth-search|perf|clean]
 - **Make-level `RUN_CONFIG_*` vars**: `RUN_CONFIG_SIM_MODE` and `RUN_CONFIG_DPI=on` (default) are processed at Make level. All other `RUN_CONFIG_*` vars are passed as `NPC_CONFIG_*` env vars (default `off` unless noted):
   - `RUN_CONFIG_NVBOARD=on` (default), `RUN_CONFIG_PERF=on` (default)
   - `RUN_CONFIG_DIFFTEST`, `RUN_CONFIG_WAVE`, `RUN_CONFIG_ITRACE`/`MTRACE`/`FTRACE`/`DTRACE`/`ETRACE`
-  - `RUN_CONFIG_TUI`, `RUN_CONFIG_DEVICE`, `RUN_CONFIG_MROM`
+  - `RUN_CONFIG_TUI`, `RUN_CONFIG_DEVICE`, `RUN_CONFIG_MROM`, `RUN_CONFIG_DEBUG_OUTPUT`
   - Path overrides: `RUN_CONFIG_WAVE_FILE_PATH` (default `build/sim.fst`), `RUN_CONFIG_DIFFTEST_SO_FILE_PATH`, `RUN_CONFIG_FLASH_BIN_FILE_PATH`, etc.
 - **C++ and ASAN**: Simulator builds with `-std=c++26` and links with `-fsanitize=address` (LDFLAGS only; CXXFLAGS does NOT include `-fsanitize=address`, so ASAN instrumentation may be incomplete). Runs with `ASAN_OPTIONS=detect_leaks=0:exitcode=0`. For NPC code changes, code must compile under C++26.
-- `chisel-gen` rebuilds `npc/vsrc-chisel/` → `npc/vsrc/generated/`. It is an **automatic prerequisite** of Verilator builds — running `make` or `make run` triggers it.
-- `synth` runs ASIC synthesis + STA via yosys-sta at 100 MHz. Key synth knobs:
+- `chisel-gen` rebuilds `npc/vsrc-chisel/` → `npc/vsrc/generated/`. It is an **automatic prerequisite** of Verilator builds — running `make` or `make run` triggers it. Use `chisel-gen-standalone` for standalone mode RTL; use `chisel-clean` to force regeneration.
+- **Note**: `gdb` and `chisel-gen-standalone` are valid targets but are NOT listed in `.PHONY`. If files with those names exist in the npc/ directory, `make` will skip them.
+- `synth` runs ASIC synthesis + STA via yosys-sta at 100 MHz. **It auto-rebuilds DPI-free RTL** (chisel-clean → chisel-gen with DPI off) before running STA to reflect the physical netlist boundary. Key synth knobs:
   - `SYNTH_CLK_MHZ` (default 100), `SYNTH_QOR_VIEW` (default `canonical_flat`), `SYNTH_AREA_BUDGET_UM2` (default 23000)
   - `YOSYS_STA_AUTO_INIT=on` (default, auto-bootstraps on first synth), `SYNTH_EXPERIMENT` (empty=canonical)
 - `synth-search` does binary frequency search (1–500 MHz). Output: `build/synth/synth_summary.json`.
 - `synth-exp-a|b|c|d` run controlled synthesis experiments; `synth-exp-all` runs all four; `synth-flow-diff` generates a comparison report.
 - `perf` orchestrates the full profiling pipeline: synth → build microbench → simulate with all noisy knobs disabled → aggregate `perf.json` + `synth_summary.json`. Use `PERF_CHECK_STRICT=on` to fail on counter contract violations.
+- `mtrace` runs simulation with memory-trace output; `locality` runs cache locality analysis on the resulting JSONL traces; `locality-report` combines both in one step; `test-locality` runs the locality analyzer's unit tests.
+- `default` builds the simulator binary without running; `gen_header` generates C++ Verilator headers for custom testbench development.
 
 ### ysyxSoC
 
