@@ -358,14 +358,14 @@ PLACEHOLDER — 题目收到后再填入
 
 方向 B：工具 / 优化 / Bug
 
-- 前端性能观测：109 项计数器按 `core / state / stall / inst / mem / trap` 分层，TUI 面板和 `perf.json` 一起看
-- 后端综合链路：`make synth` / `synth-search` / `synth-exp-*` / `synth-flow-diff`，统一产出 `synth_summary.json`、`synth_summary.txt` 和热点报告
-- 报告阅读顺序：先看面积预算与 WNS / TNS，再看 Top Contributors、Cell Class、High-Fanout Nets、Constraint Coverage
-- 结论落点：把“哪里慢、哪里大、哪里不闭合”翻成微结构动作，比如补流水、收敛高扇出、压缩上下文宽度、调整访存组织
-- 自动闭合检查：把计数器守恒和报告一致性做成工具约束，避免“看起来对、实际不对”
+- 前端性能观测：109 项计数器按 `core / state / stall / inst / mem / trap` 分层；在 microbench 上退休了 `202,571,599` 条指令，`IPC = 0.0327`，`93.4%` 周期都落在 stall 里
+- 后端综合链路：`make synth` / `synth-search` / `synth-exp-*` / `synth-flow-diff`，当前 `100 MHz` 约束下做到 `150 MHz` 的 `Fmax`，`WNS = +3.36 ns`、`TNS = 0`
+- 报告阅读顺序：先看面积预算 `14,761.4 / 23,000 µm² = 64.2%`，再看 `Top Contributors`、`Cell Class`、`High-Fanout Nets`、`Constraint Coverage`
+- 结论落点：把“哪里慢、哪里大、哪里不闭合”翻成微结构动作，比如 `ifetch wait_resp = 47.6%`、`mem wait_resp = 9.0%`，优先补流水和优化访存组织
+- 自动闭合检查：`perf` 侧还能看 `RS2` 有 `56.4%` 未使用、`0` 个结构/`muldiv` stall；工具把这些守恒关系固定住，避免“看起来对、实际不对”
 
   // Speaker notes:
-// - Main point: 这一页只讲方向 B，突出我做的工具链和它如何反过来指导优化。
+// - Main point: 这一页只讲方向 B，用具体数字说明工具链如何把性能和综合结果串起来。
 // - Time: 20 s
 // - Likely question: 为什么不选复杂应用？
 // - Answer: 这个阶段我更有可验证的成果是工具、分析和优化闭环，适合做成主线。
@@ -373,15 +373,15 @@ PLACEHOLDER — 题目收到后再填入
 
 == 证据链与复盘
 
-- 现象：IPC 下降、面积超预算、WNS 为负，或者某类 stall 占比异常偏高
-- 定位：用 `perf.json`、`synth_summary.json`、`optimization_hotspots.txt` 和 locality 报告交叉确认
-- 证据：看 counter 闭合、Top Contributors、Worst Path、High-Fanout Net、Constraint Coverage
-- 方案：按证据选择补流水、拆长路径、减少无效状态、调整寄存器/缓存/总线组织
-- 对比：优化前后对比 CPI / IPC、Fmax、面积、stall 分布和热点排序
-- 复盘：先让工具说话，再决定改结构；每次改动都保留可复查的文本证据
+- 现象：microbench 只有 `IPC = 0.0327`，而且 `93.4%` 的周期都在 stall；另一方面综合后 `Fmax = 150 MHz`、`WNS = +3.36 ns`，说明问题主要不在“跑不起来”，而在“跑得慢”
+- 定位：用 `perf.txt`（microbench 主证据）、`perf.json`（补充回归）、`synth_summary.json`、`optimization_hotspots.txt` 和 locality 报告交叉确认，优先盯 `ifetch wait_resp = 47.6%`、`mem wait_resp = 9.0%`、`in2out` 最坏路径
+- 证据：`14,761.4 µm²` 面积里，顺序逻辑占 `59.1%`，组合逻辑占 `32.8%`；`Top 3` 高扇出网分别是 `70 / 32 / 32`
+- 方案：按证据选择补流水、拆长路径、减少无效状态、调整寄存器 / 缓存 / 总线组织；例如 `RS2` `56.4%` 未使用、`ALU+PC` 约 `19.0%` 并发，能直接指导算术和发射组织
+- 对比：优化前后对比 CPI / IPC、Fmax、面积、stall 分布和热点排序；当前已经做到 `100 MHz -> 150 MHz` 的 timing headroom 和 `64.2%` 面积利用率
+- 复盘：先让工具说话，再决定改结构；每次改动都保留可复查的文本证据，便于把一次修复沉淀成下次优化的判断标准
 
   // Speaker notes:
-// - Main point: 复盘不讲空泛结论，只讲“现象—证据—决策”三段式。
+// - Main point: 复盘不讲空泛结论，只讲“现象—证据—决策”三段式，并把数字写进结论里。
 // - Time: 20 s
 // - Likely question: 这页和前一页有什么区别？
 // - Answer: 前一页讲能力，这一页讲怎么把能力变成可验证的优化判断。
