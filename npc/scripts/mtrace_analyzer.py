@@ -794,7 +794,13 @@ def save_figure(fig, base_path: Path) -> None:
     fig.savefig(base_path.with_suffix(".svg"), bbox_inches="tight")
 
 
-def plot_address_time(points: List[Tuple[int, int, str]], title: str, output: Path, x_axis: str) -> None:
+def plot_address_time(
+    points: List[Tuple[int, int, str]],
+    title: str,
+    output: Path,
+    x_axis: str,
+    empty_message: str = "No matching records",
+) -> None:
     if plt is None:
         return
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -803,7 +809,7 @@ def plot_address_time(points: List[Tuple[int, int, str]], title: str, output: Pa
         ys = [y for _, y, _ in points]
         ax.scatter(xs, ys, s=8, alpha=0.7, marker="o", color="black", edgecolors="none")
     else:
-        ax.text(0.5, 0.5, "No matching records", ha="center", va="center", transform=ax.transAxes)
+        ax.text(0.5, 0.5, empty_message, ha="center", va="center", transform=ax.transAxes, wrap=True)
     ax.set_xlabel(x_axis)
     ax.set_ylabel("address")
     ax.set_title(title + " (measured)")
@@ -1135,7 +1141,16 @@ def main(argv: Optional[Sequence[str]] = None) -> None:
     (args.output_dir / "locality_summary.json").write_text(json.dumps(summary_json, indent=2, sort_keys=True), encoding="utf-8")
     (args.output_dir / "locality_summary.txt").write_text(build_summary_text(analyzer, region_rows, cache_rows), encoding="utf-8")
 
-    plot_address_time(analyzer.address_time_ifetch, "IFetch address-time trace", args.output_dir / "address_time_ifetch", args.x_axis)
+    plot_address_time(
+        analyzer.address_time_ifetch,
+        "IFetch address-time trace",
+        args.output_dir / "address_time_ifetch",
+        args.x_axis,
+        empty_message=(
+            "No IFetch records were collected in this trace set. "
+            "This locality run currently analyzes mtrace load/store JSONL only."
+        ),
+    )
     plot_address_time_data(analyzer.address_time_data, args.output_dir / "address_time_data", args.x_axis)
     plot_reuse_histogram(reuse_rows, args.output_dir / "reuse_interval")
     plot_spatial_utilization(line_util_rows, analyzer.line_sizes, args.output_dir / "spatial_line_utilization")
