@@ -273,12 +273,17 @@ RUN_CONFIG_NVBOARD ?= on
 RUN_CONFIG_DEBUG_OUTPUT ?= off
 RUN_CONFIG_PERF ?= on
 PERF_CHECK_STRICT ?= off
+RUN_CONFIG_TRACE_FORMAT ?= human
+RUN_CONFIG_TRACE_DATA_MODE ?= stores
 RUN_CONFIG_DIFFTEST_PORT ?= 12345
 RUN_CONFIG_ITRACE_OUT_FILE_PATH ?= build/itrace.log
 RUN_CONFIG_MTRACE_OUT_FILE_PATH ?= build/mtrace.log
+RUN_CONFIG_MTRACE_JSONL_OUT_FILE_PATH ?= build/mtrace.jsonl
 RUN_CONFIG_FTRACE_OUT_FILE_PATH ?= build/ftrace.log
 RUN_CONFIG_DTRACE_OUT_FILE_PATH ?= build/dtrace.log
+RUN_CONFIG_DTRACE_JSONL_OUT_FILE_PATH ?= build/dtrace.jsonl
 RUN_CONFIG_ETRACE_OUT_FILE_PATH ?= build/etrace.log
+RUN_CONFIG_ETRACE_JSONL_OUT_FILE_PATH ?= build/etrace.jsonl
 RUN_CONFIG_FLASH_BIN_FILE_PATH ?= build/flash.bin
 RUN_CONFIG_FLASH_ELF_FILE_PATH ?= build/flash.elf
 RUN_CONFIG_MROM_BIN_FILE_PATH ?= build/mrom.bin
@@ -304,6 +309,8 @@ RUN_ARGS = NPC_SDB_ENABLED=$(RUN_SDB_ENABLED) \
 	NPC_CONFIG_NVBOARD=$(RUN_CONFIG_NVBOARD) \
 	NPC_CONFIG_MROM=$(RUN_CONFIG_MROM) \
 	NPC_CONFIG_PERF=$(RUN_CONFIG_PERF) \
+	NPC_CONFIG_TRACE_FORMAT=$(RUN_CONFIG_TRACE_FORMAT) \
+	NPC_CONFIG_TRACE_DATA_MODE=$(RUN_CONFIG_TRACE_DATA_MODE) \
 	NPC_CONFIG_TUI=$(RUN_CONFIG_TUI) \
 	NPC_CONFIG_TUI_CONFIG_FILE_PATH=$(RUN_CONFIG_TUI_CONFIG_FILE_PATH) \
 	NPC_CONFIG_TUI_GENERATE_CONFIG=$(RUN_CONFIG_TUI_GENERATE_CONFIG) \
@@ -314,9 +321,12 @@ RUN_ARGS = NPC_SDB_ENABLED=$(RUN_SDB_ENABLED) \
 	NPC_CONFIG_DIFFTEST_PORT=$(RUN_CONFIG_DIFFTEST_PORT) \
 	NPC_CONFIG_ITRACE_OUT_FILE_PATH=$(RUN_CONFIG_ITRACE_OUT_FILE_PATH) \
 	NPC_CONFIG_MTRACE_OUT_FILE_PATH=$(RUN_CONFIG_MTRACE_OUT_FILE_PATH) \
+	NPC_CONFIG_MTRACE_JSONL_OUT_FILE_PATH=$(RUN_CONFIG_MTRACE_JSONL_OUT_FILE_PATH) \
 	NPC_CONFIG_FTRACE_OUT_FILE_PATH=$(RUN_CONFIG_FTRACE_OUT_FILE_PATH) \
 	NPC_CONFIG_DTRACE_OUT_FILE_PATH=$(RUN_CONFIG_DTRACE_OUT_FILE_PATH) \
+	NPC_CONFIG_DTRACE_JSONL_OUT_FILE_PATH=$(RUN_CONFIG_DTRACE_JSONL_OUT_FILE_PATH) \
 	NPC_CONFIG_ETRACE_OUT_FILE_PATH=$(RUN_CONFIG_ETRACE_OUT_FILE_PATH) \
+	NPC_CONFIG_ETRACE_JSONL_OUT_FILE_PATH=$(RUN_CONFIG_ETRACE_JSONL_OUT_FILE_PATH) \
 	NPC_CONFIG_FLASH_BIN_FILE_PATH=$(RUN_CONFIG_FLASH_BIN_FILE_PATH) \
 	NPC_CONFIG_FLASH_ELF_FILE_PATH=$(RUN_CONFIG_FLASH_ELF_FILE_PATH) \
 	NPC_CONFIG_MROM_BIN_FILE_PATH=$(RUN_CONFIG_MROM_BIN_FILE_PATH) \
@@ -345,6 +355,8 @@ GDB_ARGS = -ex "set debuginfod enabled on" \
 	-ex "set env NPC_CONFIG_DEBUG_OUTPUT $(RUN_CONFIG_DEBUG_OUTPUT)" \
 	-ex "set env NPC_CONFIG_NVBOARD $(RUN_CONFIG_NVBOARD)" \
 	-ex "set env NPC_CONFIG_PERF $(RUN_CONFIG_PERF)" \
+	-ex "set env NPC_CONFIG_TRACE_FORMAT $(RUN_CONFIG_TRACE_FORMAT)" \
+	-ex "set env NPC_CONFIG_TRACE_DATA_MODE $(RUN_CONFIG_TRACE_DATA_MODE)" \
 	-ex "set env NPC_CONFIG_TUI $(RUN_CONFIG_TUI)" \
 	-ex "set env NPC_CONFIG_TUI_CONFIG_FILE_PATH $(RUN_CONFIG_TUI_CONFIG_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_TUI_GENERATE_CONFIG $(RUN_CONFIG_TUI_GENERATE_CONFIG)" \
@@ -355,9 +367,12 @@ GDB_ARGS = -ex "set debuginfod enabled on" \
 	-ex "set env NPC_CONFIG_DIFFTEST_PORT $(RUN_CONFIG_DIFFTEST_PORT)" \
 	-ex "set env NPC_CONFIG_ITRACE_OUT_FILE_PATH $(RUN_CONFIG_ITRACE_OUT_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_MTRACE_OUT_FILE_PATH $(RUN_CONFIG_MTRACE_OUT_FILE_PATH)" \
+	-ex "set env NPC_CONFIG_MTRACE_JSONL_OUT_FILE_PATH $(RUN_CONFIG_MTRACE_JSONL_OUT_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_FTRACE_OUT_FILE_PATH $(RUN_CONFIG_FTRACE_OUT_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_DTRACE_OUT_FILE_PATH $(RUN_CONFIG_DTRACE_OUT_FILE_PATH)" \
+	-ex "set env NPC_CONFIG_DTRACE_JSONL_OUT_FILE_PATH $(RUN_CONFIG_DTRACE_JSONL_OUT_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_ETRACE_OUT_FILE_PATH $(RUN_CONFIG_ETRACE_OUT_FILE_PATH)" \
+	-ex "set env NPC_CONFIG_ETRACE_JSONL_OUT_FILE_PATH $(RUN_CONFIG_ETRACE_JSONL_OUT_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_FLASH_BIN_FILE_PATH $(RUN_CONFIG_FLASH_BIN_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_FLASH_ELF_FILE_PATH $(RUN_CONFIG_FLASH_ELF_FILE_PATH)" \
 	-ex "set env NPC_CONFIG_MROM_BIN_FILE_PATH $(RUN_CONFIG_MROM_BIN_FILE_PATH)" \
@@ -395,6 +410,32 @@ PERF_AGGREGATOR    = $(abspath ./scripts/perf_aggregator.py)
 MICROBENCH_DIR     = $(abspath ../am-kernels/benchmarks/microbench)
 MICROBENCH_BIN     = $(MICROBENCH_DIR)/build/microbench-riscv32e-ysyxsoc.bin
 MICROBENCH_ELF     = $(MICROBENCH_DIR)/build/microbench-riscv32e-ysyxsoc.elf
+LOCALITY_ANALYZER  = $(abspath ./scripts/mtrace_analyzer.py)
+LOCALITY_INPUT     ?= $(BUILD_DIR)/mtrace.jsonl
+LOCALITY_OUT_DIR   ?= $(BUILD_DIR)/locality
+LOCALITY_LINE_SIZES ?= 4,8,16,32,64
+LOCALITY_WINDOW_ACCESSES ?= 10000
+LOCALITY_CACHE_SIZES ?= 64,128,256,512,1024,2048,4096
+LOCALITY_ASSOCIATIVITIES ?= 1,2,4
+
+mtrace:
+	@$(MAKE) run RUN_CONFIG_MTRACE=on RUN_CONFIG_DTRACE=off RUN_CONFIG_ETRACE=off \
+		RUN_CONFIG_TRACE_FORMAT=both RUN_CONFIG_TRACE_DATA_MODE=stores \
+		RUN_CONFIG_MTRACE_JSONL_OUT_FILE_PATH=$(LOCALITY_INPUT)
+
+locality:
+	@python3 $(LOCALITY_ANALYZER) \
+		--input $(LOCALITY_INPUT) \
+		--output-dir $(LOCALITY_OUT_DIR) \
+		--line-sizes $(LOCALITY_LINE_SIZES) \
+		--window-accesses $(LOCALITY_WINDOW_ACCESSES) \
+		--cache-sizes $(LOCALITY_CACHE_SIZES) \
+		--associativities $(LOCALITY_ASSOCIATIVITIES)
+
+locality-report: mtrace locality
+
+test-locality:
+	@python3 -m unittest discover -s scripts/tests -p 'test_locality_analyzer.py'
 
 # Perf overrides: disable all interactive/UI/noisy knobs for deterministic
 # counter collection while keeping the ysyxsoc latency model intact.
@@ -482,4 +523,4 @@ synth-flow-diff:
 		--target-mhz $(SYNTH_CLK_MHZ) \
 		|| echo "[Synth] WARNING: Flow diff generation failed (some experiments may not have run yet)"
 
-.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff
+.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean mtrace locality locality-report test-locality synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff

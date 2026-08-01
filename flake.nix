@@ -33,6 +33,8 @@
 
       openjdk21
       python313
+      python313Packages.matplotlib
+      python313Packages.numpy
 
       verilator
       gtkwave

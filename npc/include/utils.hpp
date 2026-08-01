@@ -32,6 +32,11 @@ enum SimStateEnum { SIM_RUNNING, SIM_STOP, SIM_END, SIM_ABORT, SIM_QUIT };
 #define DEFAULT_FTRACE_OUT_FILE_PATH "build/ftrace.log"
 #define DEFAULT_DTRACE_OUT_FILE_PATH "build/dtrace.log"
 #define DEFAULT_ETRACE_OUT_FILE_PATH "build/etrace.log"
+#define DEFAULT_TRACE_FORMAT "human"
+#define DEFAULT_TRACE_DATA_MODE "stores"
+#define DEFAULT_MTRACE_JSONL_OUT_FILE_PATH "build/mtrace.jsonl"
+#define DEFAULT_DTRACE_JSONL_OUT_FILE_PATH "build/dtrace.jsonl"
+#define DEFAULT_ETRACE_JSONL_OUT_FILE_PATH "build/etrace.jsonl"
 #define DEFAULT_FLASH_BIN_FILE_PATH "build/flash.bin"
 #define DEFAULT_FLASH_ELF_FILE_PATH "build/flash.elf"
 #define DEFAULT_MROM_BIN_FILE_PATH "build/mrom.bin"
@@ -54,6 +59,8 @@ struct SimConfig {
 
     bool config_tui;
     bool config_perf;
+    std::string config_traceFormat;
+    std::string config_traceDataMode;
     std::string config_tuiConfigFilePath;
     bool config_tuiGenerateConfig;
     bool config_tuiGenerateFullConfig;
@@ -71,9 +78,12 @@ struct SimConfig {
 
     std::string config_itraceOutFilePath;
     std::string config_mtraceOutFilePath;
+    std::string config_mtraceJsonlOutFilePath;
     std::string config_ftraceOutFilePath;
     std::string config_dtraceOutFilePath;
+    std::string config_dtraceJsonlOutFilePath;
     std::string config_etraceOutFilePath;
+    std::string config_etraceJsonlOutFilePath;
     std::string config_flashBinFilePath;
     std::string config_flashElfFilePath;
     std::string config_mromBinFilePath;
@@ -91,9 +101,12 @@ struct SimState {
 
     std::ofstream itrace_ofs;
     std::ofstream mtrace_ofs;
+    std::ofstream mtrace_jsonl_ofs;
     std::ofstream ftrace_ofs;
     std::ofstream dtrace_ofs;
+    std::ofstream dtrace_jsonl_ofs;
     std::ofstream etrace_ofs;
+    std::ofstream etrace_jsonl_ofs;
 };
 
 extern SimConfig sim_config;

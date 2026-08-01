@@ -25,6 +25,30 @@ static void loadConfig() {
         std::cout << "[config] mtrace 已启用" << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_TRACE_FORMAT");
+    if (env) {
+        std::string format(env);
+        if (format != "human" && format != "jsonl" && format != "both") {
+            std::cerr << "[config] 无效的 trace 格式: " << format
+                      << " (必须为 human, jsonl 或 both)" << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+        sim_config.config_traceFormat = std::move(format);
+    }
+    std::cout << "[config] trace 格式: " << sim_config.config_traceFormat << std::endl;
+
+    env = std::getenv("NPC_CONFIG_TRACE_DATA_MODE");
+    if (env) {
+        std::string mode(env);
+        if (mode != "none" && mode != "stores" && mode != "all") {
+            std::cerr << "[config] 无效的 trace 数据模式: " << mode
+                      << " (必须为 none, stores 或 all)" << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
+        sim_config.config_traceDataMode = std::move(mode);
+    }
+    std::cout << "[config] trace 数据模式: " << sim_config.config_traceDataMode << std::endl;
+
     env = std::getenv("NPC_CONFIG_FTRACE");
     sim_config.config_ftrace = env && strcmp(env, "on") == 0;
     if (sim_config.config_ftrace) {
@@ -106,6 +130,14 @@ static void loadConfig() {
             sim_config.config_mtraceOutFilePath << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_MTRACE_JSONL_OUT_FILE_PATH");
+    if (env) {
+        sim_config.config_mtraceJsonlOutFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] mtrace JSONL 输出路径已指定为: " <<
+            sim_config.config_mtraceJsonlOutFilePath << std::endl;
+    }
+
     env = std::getenv("NPC_CONFIG_FTRACE_OUT_FILE_PATH");
     if (env) {
         sim_config.config_ftraceOutFilePath =
@@ -122,12 +154,28 @@ static void loadConfig() {
             sim_config.config_dtraceOutFilePath << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_DTRACE_JSONL_OUT_FILE_PATH");
+    if (env) {
+        sim_config.config_dtraceJsonlOutFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] dtrace JSONL 输出路径已指定为: " <<
+            sim_config.config_dtraceJsonlOutFilePath << std::endl;
+    }
+
     env = std::getenv("NPC_CONFIG_ETRACE_OUT_FILE_PATH");
     if (env) {
         sim_config.config_etraceOutFilePath =
             std::move(std::string(env));
         std::cout << "[config] etrace 输出路径已指定为: " <<
             sim_config.config_etraceOutFilePath << std::endl;
+    }
+
+    env = std::getenv("NPC_CONFIG_ETRACE_JSONL_OUT_FILE_PATH");
+    if (env) {
+        sim_config.config_etraceJsonlOutFilePath =
+            std::move(std::string(env));
+        std::cout << "[config] etrace JSONL 输出路径已指定为: " <<
+            sim_config.config_etraceJsonlOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_FLASH_BIN_FILE_PATH");
