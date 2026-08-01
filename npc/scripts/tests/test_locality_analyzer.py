@@ -4,6 +4,7 @@
 import argparse
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 from tests import fixture
@@ -12,6 +13,7 @@ from mtrace_analyzer import (
     CacheSimulator,
     TraceAnalyzer,
     TraceRecord,
+    RegionAccumulator,
     build_line_util_rows,
     build_reuse_rows,
     build_stride_rows,
@@ -69,6 +71,20 @@ class TestLocalityPatterns(unittest.TestCase):
         reuse_score = next(row for row in reuse.region_rows() if row["region_id"] == "psram")["temporal_score"]
         rnd_score = next(row for row in rnd.region_rows() if row["region_id"] == "psram")["temporal_score"]
         self.assertGreater(float(reuse_score), float(rnd_score))
+
+    def test_temporal_score_handles_long_reuse_buckets(self):
+        region = RegionAccumulator(
+            region_id="psram",
+            region_name="PSRAM",
+            region_base=0x80000000,
+            region_end=0x80001000,
+            memory_class="ram",
+            cache_policy="cacheable",
+            cache_eligibility=1.0,
+            cacheability_reason="",
+        )
+        region.reuse_access_hist = Counter({">256": 3})
+        self.assertEqual(region.temporal_score(), 0.0)
 
     def test_uncacheable_mmio_can_be_hot_but_not_eligible(self):
         analyzer = analyze_fixture("mtrace_mmio_hot.jsonl", line_sizes=[16], cache_sizes=[8], associativities=[1])

@@ -416,12 +416,14 @@ class RegionAccumulator:
         if not total:
             return 0.0
 
+        order = ["<=1", "<=2", "<=4", "<=8", "<=16", "<=32", "<=64", "<=128", "<=256", ">256"]
+        rank = {bucket: idx for idx, bucket in enumerate(order)}
+
         def rate(threshold: str) -> float:
-            order = ["<=1", "<=2", "<=4", "<=8", "<=16", "<=32", "<=64", "<=128", "<=256"]
-            idx = order.index(threshold)
+            idx = rank[threshold]
             accepted = 0
             for bucket, count in self.reuse_access_hist.items():
-                if order.index(bucket) <= idx:
+                if rank.get(bucket, len(order)) <= idx:
                     accepted += count
             return accepted / total
 
