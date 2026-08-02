@@ -3,6 +3,7 @@
 #include <riscv/riscv.h>
 
 void __am_timer_init();
+void __am_gpu_init();
 
 void __am_uart_config(AM_UART_CONFIG_T *);
 void __am_uart_tx(AM_UART_TX_T *);
