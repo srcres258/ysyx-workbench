@@ -2,6 +2,9 @@
 #include <cstring>
 #include <fstream>
 #include <iostream>
+#include <cerrno>
+#include <fcntl.h>
+#include <unistd.h>
 #include <utils.hpp>
 #include <macro-def.hpp>
 #include <difftest/dut.hpp>
@@ -15,6 +18,32 @@
 #define PMEM_BASE 0x80000000UL
 static uint8_t pmem[PMEM_SIZE];
 static size_t pmem_loaded_size = 0;
+
+static bool serial_stdin_nonblock_initialized = false;
+
+static void serial_init_stdin_nonblock() {
+    if (serial_stdin_nonblock_initialized) {
+        return;
+    }
+    serial_stdin_nonblock_initialized = true;
+
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    if (flags < 0) {
+        return;
+    }
+    (void) fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+}
+
+static int serial_read_stdin_byte() {
+    serial_init_stdin_nonblock();
+
+    uint8_t ch = 0;
+    ssize_t n = ::read(STDIN_FILENO, &ch, 1);
+    if (n == 1) {
+        return (int) ch;
+    }
+    return -1;
+}
 
 static inline bool addr_valid(uint32_t addr) {
     return addr >= PMEM_BASE && addr < PMEM_BASE + PMEM_SIZE - 3;
@@ -40,6 +69,12 @@ int dpi_pmem_read(int addr) {
         difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
         int value = (int) vga_read(a);
         trace_record_dtrace(0, "vga", false, a, 4, (word_t) value, "standalone", "VGA");
+        return value;
+    }
+    if (serial_is_in_range(a)) {
+        difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
+        int value = serial_read_stdin_byte();
+        trace_record_dtrace(0, "serial", false, a, 1, (word_t) value, "standalone", "UART");
         return value;
     }
     uint32_t word_addr = a & ~0x3u;
