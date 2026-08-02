@@ -64,15 +64,13 @@ void vga_cleanup() {
 
 uint32_t vga_read(uint32_t addr) {
     if (addr >= VGA_CTL_BASE && addr < VGA_CTL_BASE + 8) {
-        auto byteOff = addr & 3u;
         auto wordIdx  = (addr - VGA_CTL_BASE) / 4;
-        return vga_ctl[wordIdx] >> (byteOff * 8);
+        return vga_ctl[wordIdx];
     }
     if (addr >= VGA_FB_BASE && addr < VGA_FB_BASE + VGA_FB_SIZE) {
-        auto byteOff  = addr & 3u;
         auto base     = addr & ~3u;
         auto pixelIdx = (base - VGA_FB_BASE) / 4;
-        return vga_fb[pixelIdx] >> (byteOff * 8);
+        return vga_fb[pixelIdx];
     }
     return 0;
 }
