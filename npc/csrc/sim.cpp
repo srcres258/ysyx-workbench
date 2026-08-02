@@ -247,6 +247,9 @@ static void traceAndDiffTest() {
             return;
         }
         if (s_difftestActive) {
+            if (sim_halt) {
+                return;
+            }
             difftest_dut_step(simExecInfo.pc, getDPIModule()->core_pc);
         }
     }

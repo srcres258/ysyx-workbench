@@ -22,21 +22,27 @@ using ref_difftest_regcpy_f_t = void (*)(
 );
 using ref_difftest_exec_f_t = void (*)(uint64_t n);
 using ref_difftest_raise_intr_f_t = void (*)(word_t NO);
+using ref_difftest_set_mem_map_f_t = void (*)(const DiffTestMemRegion *regions, size_t nr_regions);
+using ref_difftest_get_mem_map_f_t = size_t (*)(DiffTestMemRegion *regions, size_t max_regions);
+using ref_difftest_set_reset_vector_f_t = void (*)(uint64_t reset_vector);
 using ref_difftest_init_f_t = void (*)(int port);
 
 static ref_difftest_memcpy_f_t ref_difftest_memcpy = nullptr;
 static ref_difftest_regcpy_f_t ref_difftest_regcpy = nullptr;
 static ref_difftest_exec_f_t ref_difftest_exec = nullptr;
 static ref_difftest_raise_intr_f_t ref_difftest_raise_intr = nullptr;
+static ref_difftest_set_mem_map_f_t ref_difftest_set_mem_map = nullptr;
+static ref_difftest_get_mem_map_f_t ref_difftest_get_mem_map = nullptr;
+static ref_difftest_set_reset_vector_f_t ref_difftest_set_reset_vector = nullptr;
 static ref_difftest_init_f_t ref_difftest_init = nullptr;
 
-static std::deque<addr_t> pendingSkipRefPcs;
+static std::deque<DiffTestSkipEvent> pendingSkipRefPcs;
 static int skipDutNrInst = 0;
 
-void difftest_dut_skipRef(addr_t pc) {
+void difftest_dut_skipRef(addr_t pc, DiffTestSkipReason reason) {
     skipDutNrInst = 0;
-    if (pendingSkipRefPcs.empty() || pendingSkipRefPcs.back() != pc) {
-        pendingSkipRefPcs.push_back(pc);
+    if (pendingSkipRefPcs.empty() || pendingSkipRefPcs.back().pc != pc) {
+        pendingSkipRefPcs.push_back({ .pc = pc, .reason = reason });
     }
 }
 
@@ -67,6 +73,18 @@ static void loadRefSymbols(void *dlHandle) {
     ref_difftest_raise_intr = (ref_difftest_raise_intr_f_t) dlsym(dlHandle, "difftest_raise_intr");
     assert(ref_difftest_raise_intr);
 
+    std::cout << "正在加载 difftest_set_mem_map ..." << std::endl;
+    ref_difftest_set_mem_map = (ref_difftest_set_mem_map_f_t) dlsym(dlHandle, "difftest_set_mem_map");
+    assert(ref_difftest_set_mem_map);
+
+    std::cout << "正在加载 difftest_get_mem_map ..." << std::endl;
+    ref_difftest_get_mem_map = (ref_difftest_get_mem_map_f_t) dlsym(dlHandle, "difftest_get_mem_map");
+    assert(ref_difftest_get_mem_map);
+
+    std::cout << "正在加载 difftest_set_reset_vector ..." << std::endl;
+    ref_difftest_set_reset_vector = (ref_difftest_set_reset_vector_f_t) dlsym(dlHandle, "difftest_set_reset_vector");
+    assert(ref_difftest_set_reset_vector);
+
     std::cout << "正在加载 difftest_init ..." << std::endl;
     ref_difftest_init = (ref_difftest_init_f_t) dlsym(dlHandle, "difftest_init");
     assert(ref_difftest_init);
@@ -92,9 +110,36 @@ void difftest_dut_init(const char *refSoFile, int port) {
     std::println("[difftest] REF 加载完毕! 正在初始化 REF...");
     ref_difftest_init(port);
 
+    const DiffTestMemRegion memMap[] = {
+#ifdef NPC_STANDALONE
+        { PSRAM_ADDR, standalone_mem_getPmemSize(), DIFFTEST_MEM_REGION_RAM },
+#else
+        { SRAM_ADDR,  SRAM_LEN,  DIFFTEST_MEM_REGION_RAM },
+        { MROM_ADDR,  MROM_LEN,  DIFFTEST_MEM_REGION_RAM },
+        { FLASH_ADDR, FLASH_LEN, DIFFTEST_MEM_REGION_RAM },
+        { PSRAM_ADDR, PSRAM_LEN, DIFFTEST_MEM_REGION_RAM },
+        { SDRAM_ADDR, SDRAM_LEN, DIFFTEST_MEM_REGION_RAM },
+#endif
+    };
+
+    ref_difftest_set_mem_map(memMap, sizeof(memMap) / sizeof(memMap[0]));
+    ref_difftest_set_reset_vector(sim_config.config_difftestStartPC);
+
+    if (ref_difftest_get_mem_map) {
+        DiffTestMemRegion debugMap[sizeof(memMap) / sizeof(memMap[0])] = {};
+        size_t mapCount = ref_difftest_get_mem_map(debugMap, sizeof(debugMap) / sizeof(debugMap[0]));
+        Assert(mapCount == sizeof(memMap) / sizeof(memMap[0]));
+    }
+
     std::println("[difftest] 正在将初始数据同步给 REF...");
-    ref_difftest_memcpy(FLASH_ADDR, flash_io_base, FLASH_LEN, DIFFTEST_TO_REF);
-    ref_difftest_memcpy(MROM_ADDR, mrom_io_base, MROM_LEN, DIFFTEST_TO_REF);
+#ifdef NPC_STANDALONE
+    ref_difftest_memcpy(
+        PSRAM_ADDR,
+        standalone_mem_getPmemBase(),
+        standalone_mem_getLoadedSize(),
+        DIFFTEST_TO_REF
+    );
+#endif
     difftest_dut_syncCurrentProcessorState();
 }
 
@@ -134,12 +179,16 @@ void difftest_dut_step(addr_t pc, addr_t npc) {
         return;
     }
 
-    if (!pendingSkipRefPcs.empty() && pendingSkipRefPcs.front() == pc) {
+    if (!pendingSkipRefPcs.empty() && pendingSkipRefPcs.front().pc == pc) {
+        auto skipEvent = pendingSkipRefPcs.front();
         pendingSkipRefPcs.pop_front();
         // to skip the checking of an instruction,
         // just copy the reg state to reference design
         ProcessorState dutState = getProcessorState();
         ref_difftest_regcpy(&dutState, DIFFTEST_TO_REF);
+        if (sim_config.config_debugOutput) {
+            std::println("[difftest] skipRef at pc=0x{:08x}, reason={}", pc, (int) skipEvent.reason);
+        }
         return;
     }
 
@@ -159,6 +208,9 @@ void difftest_dut_clearSkipRef() {
 }
 
 void difftest_dut_syncPayloadMemoryToRef() {
+#ifdef NPC_STANDALONE
+    return;
+#else
     const auto &cfg = sim_config;
     std::println("[difftest] 正在将 payload 内存区域同步到 REF (mem_mode={})...", cfg.config_difftestMemMode);
 
@@ -185,6 +237,7 @@ void difftest_dut_syncPayloadMemoryToRef() {
         device_sram_syncShadowFromDUT(SRAM_ADDR, SRAM_LEN);
         syncRegion(SRAM_ADDR, SRAM_LEN, "SRAM", sram_io_base);
     }
+#endif
 }
 
 bool difftest_dut_loadPayloadToBackingStore(const char *binFilePath, addr_t loadAddr) {

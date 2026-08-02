@@ -25,15 +25,20 @@ void (*ref_difftest_memcpy)(paddr_t addr, void *buf, size_t n, bool direction) =
 void (*ref_difftest_regcpy)(void *dut, bool direction) = NULL;
 void (*ref_difftest_exec)(uint64_t n) = NULL;
 void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
+void (*ref_difftest_set_mem_map)(const DiffTestMemRegion *regions, size_t nr_regions) = NULL;
+size_t (*ref_difftest_get_mem_map)(DiffTestMemRegion *regions, size_t max_regions) = NULL;
+void (*ref_difftest_set_reset_vector)(uint64_t reset_vector) = NULL;
 
 #ifdef CONFIG_DIFFTEST
 
 static bool is_skip_ref = false;
 static int skip_dut_nr_inst = 0;
+static DiffTestSkipReason skip_ref_reason = DIFFTEST_SKIP_REASON_NONDETERMINISTIC;
 
 // this is used to let ref skip instructions which
 // can not produce consistent behavior with NEMU
-void difftest_skip_ref() {
+void difftest_skip_ref_with_reason(DiffTestSkipReason reason) {
+  skip_ref_reason = reason;
   is_skip_ref = true;
   // If such an instruction is one of the instruction packing in QEMU
   // (see below), we end the process of catching up with QEMU's pc to
@@ -78,6 +83,15 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
   ref_difftest_raise_intr = dlsym(handle, "difftest_raise_intr");
   assert(ref_difftest_raise_intr);
 
+  ref_difftest_set_mem_map = dlsym(handle, "difftest_set_mem_map");
+  assert(ref_difftest_set_mem_map);
+
+  ref_difftest_get_mem_map = dlsym(handle, "difftest_get_mem_map");
+  assert(ref_difftest_get_mem_map);
+
+  ref_difftest_set_reset_vector = dlsym(handle, "difftest_set_reset_vector");
+  assert(ref_difftest_set_reset_vector);
+
   void (*ref_difftest_init)(int) = dlsym(handle, "difftest_init");
   assert(ref_difftest_init);
 
@@ -87,7 +101,20 @@ void init_difftest(char *ref_so_file, long img_size, int port) {
       "If it is not necessary, you can turn it off in menuconfig.", ref_so_file);
 
   ref_difftest_init(port);
-  ref_difftest_memcpy(RESET_VECTOR, guest_to_host(RESET_VECTOR), img_size, DIFFTEST_TO_REF);
+  const DiffTestMemRegion mem_map[] = {
+#ifdef CONFIG_TARGET_SHARE
+    { 0x0f000000, 0x2000, DIFFTEST_MEM_REGION_RAM },
+    { 0x20000000, 0x1000, DIFFTEST_MEM_REGION_RAM },
+    { 0x30000000, 0x1000000, DIFFTEST_MEM_REGION_RAM },
+    { 0x80000000, 0x400000, DIFFTEST_MEM_REGION_RAM },
+    { 0xa0000000, 0x8000000, DIFFTEST_MEM_REGION_RAM },
+#else
+    { PMEM_LEFT, CONFIG_MSIZE, DIFFTEST_MEM_REGION_RAM },
+#endif
+  };
+  ref_difftest_set_mem_map(mem_map, sizeof(mem_map) / sizeof(mem_map[0]));
+  ref_difftest_set_reset_vector(cpu.pc);
+  ref_difftest_memcpy(cpu.pc, guest_to_host(cpu.pc), img_size, DIFFTEST_TO_REF);
   ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
 }
 
@@ -123,6 +150,7 @@ void difftest_step(vaddr_t pc, vaddr_t npc) {
   if (is_skip_ref) {
     // to skip the checking of an instruction, just copy the reg state to reference design
     ref_difftest_regcpy(&cpu, DIFFTEST_TO_REF);
+    (void) skip_ref_reason;
     is_skip_ref = false;
     return;
   }

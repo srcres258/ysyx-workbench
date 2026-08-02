@@ -4,13 +4,18 @@
 #include <common.hpp>
 #include <difftest-def.hpp>
 
+struct DiffTestSkipEvent {
+    addr_t pc;
+    DiffTestSkipReason reason;
+};
+
 /**
  * @brief DiffTest dut: 跳过在 DUT 上能执行但在 REF 上不能执行的一条指令。
  * 
  * 调用此函数后，下次调用 difftest_dut_step 函数时将仅在 DUT 上执行指令，
  * 跳过 REF 上相同指令的执行。
  */
-void difftest_dut_skipRef(addr_t pc);
+void difftest_dut_skipRef(addr_t pc, DiffTestSkipReason reason);
 
 /**
  * @brief difftest dut: 校准 DUT 与 REF 上的指令执行情况。由于某些 REF

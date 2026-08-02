@@ -13,6 +13,10 @@
 #include <device/psram.hpp>
 #include <device/sdram.hpp>
 #include <device/sram.hpp>
+#include <device/serial.hpp>
+#include <device/rtc.hpp>
+#include <device/keyboard.hpp>
+#include <device/vga.hpp>
 #include <macro-def.hpp>
 #include <difftest/dut.hpp>
 #include <tui/tui_events.hpp>
@@ -147,6 +151,10 @@ static inline uint8_t dpiLogicVecToU8(const svLogicVecVal *value, uint8_t mask) 
  * executed by the NEMU REF and must trigger difftest_dut_skipRef().
  */
 static bool isMMIOAccess(addr_t addr) {
+    if (serial_is_in_range(addr) || rtc_is_in_range(addr) ||
+        keyboard_is_in_range(addr) || vga_is_in_range(addr)) {
+        return true;
+    }
     // SRAM
     if (addr >= SRAM_ADDR && addr < SRAM_ADDR + SRAM_LEN) return false;
     // MROM
@@ -176,7 +184,7 @@ extern "C" void dpi_onMemAccess(
     // MMIO access: the NEMU REF cannot independently model peripheral devices.
     // Trigger skipRef so the REF synchronises with DUT instead of re-executing.
     if (sim_config.config_difftest && isMMIOAccess(memAddrVal)) {
-        difftest_dut_skipRef(dpiLogicVecToAddr(pc));
+        difftest_dut_skipRef(dpiLogicVecToAddr(pc), DIFFTEST_SKIP_REASON_MMIO);
     }
 
     const bool isWrite = memWriteEnable == sv_1;

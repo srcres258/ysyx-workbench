@@ -16,6 +16,9 @@
 #include <memory/host.h>
 #include <memory/paddr.h>
 #include <device/mmio.h>
+#include <difftest-def.h>
+#include <inttypes.h>
+#include <stdlib.h>
 #include <isa.h>
 #include <utils.h>
 
@@ -54,25 +57,36 @@ void init_mem() {
 #else
 
 typedef struct {
-  paddr_t  base;
-  size_t   size;
+  uint64_t base;
+  uint64_t size;
+  DiffTestMemRegionType type;
   uint8_t *buf;
 } MemRegion;
 
-static MemRegion regions[] = {
-  { 0x0f000000, 0x2000,     NULL },  /* SRAM */
-  { 0x20000000, 0x1000,     NULL },  /* MROM */
-  { 0x30000000, 0x1000000,  NULL },  /* FLASH */
-  { 0x80000000, 0x400000,   NULL },  /* PSRAM */
-  { 0xa0000000, 0x8000000,  NULL },  /* SDRAM */
-};
+static MemRegion *regions = NULL;
+static size_t nr_regions = 0;
 
-#define NR_REGIONS (sizeof(regions) / sizeof(regions[0]))
+static void free_regions(void) {
+  size_t i;
+
+  if (regions == NULL) {
+    return;
+  }
+
+  for (i = 0; i < nr_regions; i++) {
+    free(regions[i].buf);
+    regions[i].buf = NULL;
+  }
+  free(regions);
+  regions = NULL;
+  nr_regions = 0;
+}
 
 static MemRegion *find_region(paddr_t paddr) {
   size_t i;
-  for (i = 0; i < NR_REGIONS; i++) {
-    if (paddr >= regions[i].base && paddr < regions[i].base + regions[i].size) {
+  for (i = 0; i < nr_regions; i++) {
+    if (regions[i].type == DIFFTEST_MEM_REGION_RAM &&
+        paddr >= regions[i].base && paddr < regions[i].base + regions[i].size) {
       return &regions[i];
     }
   }
@@ -81,12 +95,73 @@ static MemRegion *find_region(paddr_t paddr) {
 
 static MemRegion *find_region_by_host(uint8_t *haddr) {
   size_t i;
-  for (i = 0; i < NR_REGIONS; i++) {
-    if (haddr >= regions[i].buf && haddr < regions[i].buf + regions[i].size) {
+  for (i = 0; i < nr_regions; i++) {
+    if (regions[i].type == DIFFTEST_MEM_REGION_RAM &&
+        haddr >= regions[i].buf && haddr < regions[i].buf + regions[i].size) {
       return &regions[i];
     }
   }
   return NULL;
+}
+
+__EXPORT void difftest_set_mem_map(const DiffTestMemRegion *new_regions, size_t new_nr_regions) {
+  size_t i;
+
+  assert(new_regions || new_nr_regions == 0);
+  free_regions();
+  if (new_nr_regions == 0) {
+    return;
+  }
+
+  regions = (MemRegion *) calloc(new_nr_regions, sizeof(MemRegion));
+  assert(regions);
+  nr_regions = new_nr_regions;
+
+  for (i = 0; i < nr_regions; i++) {
+    regions[i].base = new_regions[i].base;
+    regions[i].size = new_regions[i].size;
+    regions[i].type = new_regions[i].type;
+    if (regions[i].size == 0) {
+      panic("memory region %zu has zero size", i);
+    }
+    if (i > 0) {
+      size_t j;
+      for (j = 0; j < i; j++) {
+        uint64_t left = regions[i].base;
+        uint64_t right = regions[i].base + regions[i].size - 1;
+        uint64_t other_left = regions[j].base;
+        uint64_t other_right = regions[j].base + regions[j].size - 1;
+        if (left <= other_right && right >= other_left) {
+          panic(
+            "memory region %zu [0x%016" PRIx64 ", 0x%016" PRIx64 "] overlaps with region %zu [0x%016" PRIx64 ", 0x%016" PRIx64 "]",
+            i, left, right, j, other_left, other_right
+          );
+        }
+      }
+    }
+    if (regions[i].type == DIFFTEST_MEM_REGION_RAM) {
+      regions[i].buf = (uint8_t *) calloc(1, regions[i].size);
+      assert(regions[i].buf);
+    }
+  }
+}
+
+__EXPORT size_t difftest_get_mem_map(DiffTestMemRegion *out, size_t max_regions) {
+  size_t ncopy;
+  size_t i;
+
+  ncopy = nr_regions;
+  if (out && max_regions < ncopy) {
+    ncopy = max_regions;
+  }
+  if (out) {
+    for (i = 0; i < ncopy; i++) {
+      out[i].base = regions[i].base;
+      out[i].size = regions[i].size;
+      out[i].type = regions[i].type;
+    }
+  }
+  return nr_regions;
 }
 
 uint8_t* guest_to_host(paddr_t paddr) {
@@ -120,20 +195,12 @@ bool in_pmem(paddr_t addr) {
 }
 
 void init_mem() {
-  size_t i;
-  for (i = 0; i < NR_REGIONS; i++) {
-    regions[i].buf = malloc(regions[i].size);
-    assert(regions[i].buf);
-  }
-  IFDEF(CONFIG_MEM_RANDOM,
-    for (i = 0; i < NR_REGIONS; i++) memset(regions[i].buf, rand(), regions[i].size);
-  );
-  Log("Initialized %zu ysyxSoC memory regions", NR_REGIONS);
-  Log("  SRAM  [0x0f000000, 0x0f001fff] 8KB");
-  Log("  MROM  [0x20000000, 0x20000fff] 4KB");
-  Log("  FLASH [0x30000000, 0x30ffffff] 16MB");
-  Log("  PSRAM [0x80000000, 0x803fffff] 4MB");
-  Log("  SDRAM [0xa0000000, 0xa7ffffff] 128MB");
+  free_regions();
+  Log("Initialized REF memory map (runtime-configured)");
+}
+
+__EXPORT void difftest_set_reset_vector(uint64_t reset_vector) {
+  cpu.pc = reset_vector;
 }
 
 #endif
@@ -189,6 +256,9 @@ word_t paddr_read_mtrace(paddr_t addr, int len, bool mtrace_on) {
 #endif
   return res;
 #endif
+  if (find_region(addr) != NULL) {
+    panic("MMIO access to " FMT_PADDR " requires difftest skip on the DUT side", addr);
+  }
   out_of_bound(addr);
   return 0;
 }
@@ -204,6 +274,9 @@ void paddr_write_mtrace(paddr_t addr, int len, word_t data, bool mtrace_on) {
   }
 #endif
   if (likely(in_pmem(addr))) { pmem_write(addr, len, data); return; }
+  if (find_region(addr) != NULL) {
+    panic("MMIO write to " FMT_PADDR " requires difftest skip on the DUT side", addr);
+  }
   IFDEF(CONFIG_DEVICE, mmio_write(addr, len, data); return);
   out_of_bound(addr);
 }

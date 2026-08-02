@@ -1,6 +1,7 @@
 #ifndef __SIM_TOP_HPP__
 #define __SIM_TOP_HPP__ 1
 
+#include <cstddef>
 #include <cstdint>
 #include <verilated.h>
 #include <common.hpp>
@@ -10,6 +11,9 @@
 extern Vysyx_25070190 *top;
 Vysyx_25070190_GeneralDPIAdapter *getDPIModule();
 void standalone_mem_loadBin(const char *path);
+uint8_t *standalone_mem_getPmemBase();
+size_t standalone_mem_getPmemSize();
+size_t standalone_mem_getLoadedSize();
 #else
 #include "VysyxSoCFull__Syms.h"
 extern VysyxSoCFull *top;
