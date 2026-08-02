@@ -3,6 +3,10 @@
 #include <cstring>
 #include <device/io.hpp>
 #include <macro-def.hpp>
+#include <difftest/dut.hpp>
+#ifndef NPC_STANDALONE
+#include <sim_top.hpp>
+#endif
 
 void *sdram_io_base = nullptr;
 
@@ -80,6 +84,12 @@ void device_sdram_write(addr_t addr, int len, word_t data) {
         sdramMemory[addr - baseAddr + 2] = (data >> 16) & 0xff;
         sdramMemory[addr - baseAddr + 3] = (data >> 24) & 0xff;
     }
+
+#ifndef NPC_STANDALONE
+    if (isDifftestActive()) {
+        difftest_dut_syncMemoryToRef(addr, sdramMemory + (addr - baseAddr), (size_t) len);
+    }
+#endif
 
     trace_record_dtrace(0, "sdram", true, addr, len, data, "dpi", "SDRAM");
 

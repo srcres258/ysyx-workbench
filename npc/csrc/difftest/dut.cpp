@@ -139,6 +139,13 @@ void difftest_dut_init(const char *refSoFile, int port) {
         standalone_mem_getLoadedSize(),
         DIFFTEST_TO_REF
     );
+#else
+    if (mrom_io_base != nullptr) {
+        ref_difftest_memcpy(MROM_ADDR, mrom_io_base, MROM_LEN, DIFFTEST_TO_REF);
+    }
+    if (flash_io_base != nullptr) {
+        ref_difftest_memcpy(FLASH_ADDR, flash_io_base, FLASH_LEN, DIFFTEST_TO_REF);
+    }
 #endif
     difftest_dut_syncCurrentProcessorState();
 }
@@ -201,6 +208,19 @@ void difftest_dut_step(addr_t pc, addr_t npc) {
 void difftest_dut_syncCurrentProcessorState() {
     ProcessorState state = getProcessorState();
     ref_difftest_regcpy(&state, DIFFTEST_TO_REF);
+}
+
+void difftest_dut_syncMemoryToRef(addr_t addr, const void *buf, size_t len) {
+#ifdef NPC_STANDALONE
+    (void) addr;
+    (void) buf;
+    (void) len;
+#else
+    if (ref_difftest_memcpy == nullptr || len == 0) {
+        return;
+    }
+    ref_difftest_memcpy(addr, const_cast<void *>(buf), len, DIFFTEST_TO_REF);
+#endif
 }
 
 void difftest_dut_clearSkipRef() {

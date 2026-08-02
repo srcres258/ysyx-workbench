@@ -63,6 +63,13 @@ void difftest_dut_step(addr_t pc, addr_t npc);
 void difftest_dut_syncCurrentProcessorState();
 
 /**
+ * @brief DiffTest dut: 将一段 DUT 内存内容同步到 REF 的对应地址。
+ *
+ * 适用于在 DiffTest 激活后仍可能发生的内存写入（例如 SDRAM/PSRAM 两阶段加载）。
+ */
+void difftest_dut_syncMemoryToRef(addr_t addr, const void *buf, size_t len);
+
+/**
  * @brief DiffTest dut: 清除待处理的 skipRef 标志。
  *
  * 在 difftest 激活边界处使用, 以确保激活后的第一条指令不会被误判为需要跳过。
