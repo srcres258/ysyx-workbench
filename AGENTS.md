@@ -11,7 +11,7 @@
 - NEMU build/run/gdb and NPC run/gdb auto-commit on the `tracer-ysyx` branch; expect git history churn. NEMU commits "compile NEMU" on build and "run NEMU"/"gdb NEMU" on run/gdb; NPC commits "sim RTL" on run/gdb only (NPC binary build does not auto-commit).
 - Root `.gitignore` is whitelist-based (`*.*` and `*` ignore everything, then `!` patterns re-include), so new root files usually need an explicit `.gitignore` entry.
 - No OpenCode, Cursor, or Copilot config files exist — `AGENTS.md` is the sole agent-facing instruction file.
-- Check `.sisyphus/plans/` before related feature work (29 plans covering NPC features, peripherals, synthesis tooling, memory/boot, RT-Thread integration, and ChipLink).
+- Check `.sisyphus/plans/` before related feature work (32 plans covering NPC features, peripherals, synthesis tooling, memory/boot, RT-Thread integration, GPIO/PS2/VGA, and ChipLink).
 
 ## Boundaries
 
@@ -30,9 +30,9 @@ make -C nemu menuconfig|savedefconfig|%defconfig|run|gdb|clean|clean-all|distcle
 ```
 
 - `run` expects `build/program.elf` (override with `IMG=<path>`).
-- When `CONFIG_TARGET_AM=y` (menuconfig), NEMU switches to AM integration mode — `run`/`gdb` targets from `scripts/native.mk` are disabled, replaced by `$(AM_HOME)/Makefile` targets.
+- When `CONFIG_TARGET_AM=y` (menuconfig), NEMU switches to AM integration mode — `run`/`gdb` targets from `scripts/native.mk` are disabled, replaced by `$(AM_HOME)/Makefile` targets. Use defconfigs in `configs/` (`*-am_defconfig`) to set this.
 - **ENGINE**: Only `interpreter` exists (no JIT or other options). Passing `ENGINE=interpreter` is the default and sole valid value.
-- **GUEST_ISA shortcut**: You can override from the command line without menuconfig: `make -C nemu GUEST_ISA=riscv64`. Valid values: `riscv32`, `riscv64`, `x86`, `mips32`, `loongarch32r`.
+- **GUEST_ISA shortcut**: You can override from the command line without menuconfig: `make -C nemu GUEST_ISA=riscv64`. Valid values: `riscv32`, `riscv64`, `x86`, `mips32`, `loongarch32r`. Note: `riscv64` reuses `src/isa/riscv32/` source directory (no separate riscv64 dir).
 - **Clean scope**: `clean` removes `build/` only; `distclean` removes `build/` + `.config`; `clean-all` does both + cleans all tools subdirectories.
 - **Difftest (NEMU as REF)**: set `TARGET_SHARE=y` in menuconfig → builds NEMU as a shared object (`.so`) with devices disabled. Build the SO: `make -C nemu GUEST_ISA=riscv32 SHARE=1 ENGINE=interpreter`. Output: `build/riscv32-nemu-interpreter-so`. NPC consumes this via `RUN_CONFIG_DIFFTEST_SO_FILE_PATH`.
 - **Difftest (NEMU as DUT)**: NEMU can also compare against external refs — QEMU (any ISA), Spike (riscv only), KVM (x86 only). Enable via menuconfig (`CONFIG_DIFFTEST=y`, pick ref design); the ref SO auto-builds on first `make run`.
@@ -72,12 +72,14 @@ make -C npc [run|gdb|default|chisel-gen|chisel-gen-standalone|gen_header|
 - **C++ and ASAN**: Simulator builds with `-std=c++26` and links with `-fsanitize=address` (LDFLAGS only; CXXFLAGS does NOT include `-fsanitize=address`, so ASAN instrumentation may be incomplete). Runs with `ASAN_OPTIONS=detect_leaks=0:exitcode=0`. For NPC code changes, code must compile under C++26.
 - `chisel-gen` rebuilds `npc/vsrc-chisel/` → `npc/vsrc/generated/`. It is an **automatic prerequisite** of Verilator builds — running `make` or `make run` triggers it. Use `chisel-gen-standalone` for standalone mode RTL; use `chisel-clean` to force regeneration.
 - **Note**: `gdb` and `chisel-gen-standalone` are valid targets but are NOT listed in `.PHONY`. If files with those names exist in the npc/ directory, `make` will skip them.
+- `clean` removes `build/` + `vsrc/generated/` (generated RTL), not just build artifacts.
 - `synth` runs ASIC synthesis + STA via yosys-sta at 100 MHz. **It auto-rebuilds DPI-free RTL** (chisel-clean → chisel-gen with DPI off) before running STA to reflect the physical netlist boundary. Key synth knobs:
   - `SYNTH_CLK_MHZ` (default 100), `SYNTH_QOR_VIEW` (default `canonical_flat`), `SYNTH_AREA_BUDGET_UM2` (default 23000)
   - `YOSYS_STA_AUTO_INIT=on` (default, auto-bootstraps on first synth), `SYNTH_EXPERIMENT` (empty=canonical)
 - `synth-search` does binary frequency search (1–500 MHz). Output: `build/synth/synth_summary.json`.
 - `synth-exp-a|b|c|d` run controlled synthesis experiments; `synth-exp-all` runs all four; `synth-flow-diff` generates a comparison report.
 - `perf` orchestrates the full profiling pipeline: synth → build microbench → simulate with all noisy knobs disabled → aggregate `perf.json` + `synth_summary.json`. Use `PERF_CHECK_STRICT=on` to fail on counter contract violations.
+- **perf target quirk**: The `perf` target sets `NPC_CONFIG_*` env vars directly, bypassing the `RUN_CONFIG_*` → `NPC_CONFIG_*` translation — passing `RUN_CONFIG_*=X` on the `make perf` command line has **no effect**. Override via `NPC_CONFIG_*=X` instead.
 - `mtrace` runs simulation with memory-trace output; `locality` runs cache locality analysis on the resulting JSONL traces; `locality-report` combines both in one step; `test-locality` runs the locality analyzer's unit tests.
 - `default` builds the simulator binary without running; `gen_header` generates C++ Verilator headers for custom testbench development.
 
@@ -91,6 +93,9 @@ make -C ysyxSoC clean
 
 - `ysyxSoC/src/CPU.scala` wraps the student CPU as `ysyx_25070190`.
 - Firtool is pinned to version **1.105.0** via `patch/update-firtool.sh`. If firtool updates upstream, this pin may need adjustment.
+- `dev-init` runs `git submodule update --init --recursive` then applies `patch/rocket-chip.patch` (zeros AXI4 lock/cache/prot/qos bits that the student CPU doesn't implement).
+- Build system: Mill **0.12.4**, Chisel **7.0.0-M2**, Scala **2.13.14**. Entry point: `mill -i ysyxsoc.runMain ysyx.Elaborate` → `build/ysyxSoCTop.sv` → sed post-processing → `build/ysyxSoCFull.v`.
+- `ready-to-run/D-stage/` contains a pre-built reference SoC verilog; note that the D-stage CPU interface uses **SimpleBus** (not AXI4) and differs from the current SoC spec.
 
 ### fceux-am
 
