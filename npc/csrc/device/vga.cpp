@@ -9,11 +9,17 @@ static SDL_Texture  *vga_texture  = nullptr;
 
 static uint32_t vga_ctl[2];
 static uint32_t vga_fb[VGA_FB_COUNT];
+static bool vga_windowEnabled = false;
 
-void vga_init() {
+void vga_init(bool showWindow) {
     vga_ctl[0] = (VGA_SCREEN_W << 16) | VGA_SCREEN_H;
     vga_ctl[1] = 0;
     std::memset(vga_fb, 0, sizeof(vga_fb));
+
+    vga_windowEnabled = showWindow;
+    if (!vga_windowEnabled) {
+        return;
+    }
 
     SDL_Init(SDL_INIT_VIDEO);
     SDL_CreateWindowAndRenderer(
@@ -38,7 +44,8 @@ void vga_init() {
  * unusably slow.
  */
 void vga_update() {
-    if (vga_ctl[1] == 0) return;
+    if (!vga_windowEnabled || vga_ctl[1] == 0)
+        return;
 
     static uint64_t lastRender = 0;
     uint64_t now = timer_getTimeElapsedUSec();
@@ -56,10 +63,14 @@ void vga_update() {
 }
 
 void vga_cleanup() {
+    if (!vga_windowEnabled) {
+        return;
+    }
     if (vga_texture)  { SDL_DestroyTexture(vga_texture);  vga_texture  = nullptr; }
     if (vga_renderer) { SDL_DestroyRenderer(vga_renderer); vga_renderer = nullptr; }
     if (vga_window)   { SDL_DestroyWindow(vga_window);     vga_window   = nullptr; }
     SDL_Quit();
+    vga_windowEnabled = false;
 }
 
 uint32_t vga_read(uint32_t addr) {

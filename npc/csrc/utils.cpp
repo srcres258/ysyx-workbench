@@ -33,6 +33,7 @@ SimConfig sim_config = {
     .config_wave = false,
     .config_debugOutput = false,
     .config_nvboard = false,
+    .config_vga = false,
     .config_mrom = false,
 
     .config_tui = false,

@@ -56,6 +56,7 @@ struct SimConfig {
     bool config_wave;
     bool config_debugOutput;
     bool config_nvboard;
+    bool config_vga;
     bool config_mrom;
 
     bool config_tui;

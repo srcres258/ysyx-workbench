@@ -18,10 +18,10 @@ extern "C" {
 #endif
 
 /**
- * @brief Initialize VGA device: allocate framebuffer, init control registers,
- *        create SDL2 window and texture.
+ * @brief Initialize VGA device: allocate framebuffer and init control registers.
+ *        When showWindow is true, also create the SDL2 window and texture.
  */
-void vga_init();
+void vga_init(bool showWindow);
 
 /**
  * @brief Check sync register. If set, render the framebuffer via SDL2 and

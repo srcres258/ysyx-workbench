@@ -97,6 +97,12 @@ static void loadConfig() {
         std::cout << "[config] NVBoard 已启用" << std::endl;
     }
 
+    env = std::getenv("NPC_CONFIG_VGA");
+    sim_config.config_vga = env && strcmp(env, "on") == 0;
+    if (sim_config.config_vga) {
+        std::cout << "[config] VGA 窗口已启用" << std::endl;
+    }
+
     env = std::getenv("NPC_CONFIG_MROM");
     sim_config.config_mrom = env && strcmp(env, "on") == 0;
     if (sim_config.config_mrom) {

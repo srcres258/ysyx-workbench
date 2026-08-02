@@ -112,7 +112,9 @@ void simStepClockPeriod() {
 #ifdef NPC_STANDALONE
     if (!top->reset) {
         keyboard_update();
-        vga_update();
+        if (sim_config.config_vga) {
+            vga_update();
+        }
     }
 #endif
 
@@ -607,7 +609,7 @@ bool simulate(bool sdbEnabled) {
     simReset(15);
 
 #ifdef NPC_STANDALONE
-    vga_init();
+    vga_init(sim_config.config_vga);
 #endif
 
     if (sim_config.config_debugOutput)
@@ -981,7 +983,9 @@ sim_cleanup:
         nvboard_quit();
     }
 #else
-    vga_cleanup();
+    if (sim_config.config_vga) {
+        vga_cleanup();
+    }
 #endif
     if (tfp) {
         tfp->close();
