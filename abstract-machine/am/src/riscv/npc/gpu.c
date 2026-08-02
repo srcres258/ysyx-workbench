@@ -31,17 +31,17 @@ static void read_gpu_config(AM_GPU_CONFIG_T *cfg) {
 }
 
 void __am_gpu_init() {
-    int i, w, h;
-    volatile uint32_t *fb;
+    // int i, w, h;
+    // volatile uint32_t *fb;
 
     read_gpu_config(NULL);
-    w = cached_gpu_config.width;
-    h = cached_gpu_config.height;
-    fb = (uint32_t *) (uintptr_t) VGA_FB_MMIO_ADDR;
-    for (i = 0; i < w * h; i++) {
-        fb[i] = i;
-        outl(SYNC_ADDR, 1);
-    }
+    // w = cached_gpu_config.width;
+    // h = cached_gpu_config.height;
+    // fb = (uint32_t *) (uintptr_t) VGA_FB_MMIO_ADDR;
+    // for (i = 0; i < w * h; i++) {
+    //     fb[i] = i;
+    //     outl(SYNC_ADDR, 1);
+    // }
 }
 
 void __am_gpu_config(AM_GPU_CONFIG_T *cfg) {
