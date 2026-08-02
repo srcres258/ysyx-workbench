@@ -6,10 +6,11 @@
 #include <device/io/map.hpp>
 #include <cstring>
 #include <device/mrom.hpp>
-
-void *mrom_io_base = nullptr;
+#include "../npc/simulator_impl.hpp"
 
 #define IFDBG if (sim_config.config_debugOutput)
+
+static inline void*& mrom_io_base() { return getActiveSimulator()->mrom_io_base; }
 
 static bool initMROMMemory(std::string filename, size_t *fileSize) {
     size_t size;
@@ -29,7 +30,7 @@ static bool initMROMMemory(std::string filename, size_t *fileSize) {
         return false;
     }
     f.seekg(0, std::ios::beg);
-    if (f.read((char *) mrom_io_base, size)) {
+    if (f.read((char *) mrom_io_base(), size)) {
         IFDBG std::cout << "Successfully loaded MROM from file." << std::endl;
     } else {
         std::cerr << "Failed to read MROM from file!" << std::endl;
@@ -47,11 +48,11 @@ static void mrom_io_handler(addr_t offset, int len, bool isWrite) {
 }
 
 bool device_mrom_init() {
-    mrom_io_base = device_io_map_newSpace(MROM_LEN);
-    if (mrom_io_base) {
-        memset(mrom_io_base, 0, MROM_LEN);
+    mrom_io_base() = device_io_map_newSpace(MROM_LEN);
+    if (mrom_io_base()) {
+        memset(mrom_io_base(), 0, MROM_LEN);
     }
-    device_io_addMMIOMap("mrom", MROM_ADDR, mrom_io_base, MROM_LEN, mrom_io_handler);
+    device_io_addMMIOMap("mrom", MROM_ADDR, mrom_io_base(), MROM_LEN, mrom_io_handler);
 
     if (sim_config.config_mrom) {
         IFDBG std::cout << "Initializing MROM from bin file..." << std::endl;
@@ -84,7 +85,7 @@ word_t device_mrom_read(addr_t addr, int len) {
         len
     );
 
-    uint8_t *mromMemory = (uint8_t *) mrom_io_base;
+    uint8_t *mromMemory = (uint8_t *) mrom_io_base();
     result = mromMemory[addr - baseAddr];
     if (len >= 2) {
         result |= mromMemory[addr - baseAddr + 1] << 8;

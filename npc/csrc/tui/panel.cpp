@@ -776,7 +776,9 @@ public:
 
         // ── Drain ring buffer (itrace enabled) ──
         if (sim_config.config_itrace) {
-            auto entries = drainTraceRingBuffer(bufMax);
+            auto entries = drainTraceRingBuffer(
+                sim_state.itrace_iringbuf, sim_config.config_itrace, bufMax
+            );
             for (auto &e : entries) {
                 if (e.line[0]) {
                     m_lines.push_back(e.line);

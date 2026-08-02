@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <verilated.h>
+#include <verilated_fst_c.h>
 #include <common.hpp>
 
 #ifdef NPC_STANDALONE
@@ -27,8 +28,14 @@ struct ExecInfo {
 
 extern ExecInfo simExecInfo;
 
+// ── Transitional compatibility: ownership lives in npc/csrc/npc/simulator.cpp ──
 extern VerilatedContext *verContext;
-extern volatile bool sim_halt;
+extern VerilatedFstC    *tfp;
+extern volatile bool     sim_halt;
+
+extern uint64_t execCount;
+extern uint64_t execCountClockPeriod;
+extern bool     s_difftestActive;
 
 #define DEFAULT_BIN_PATH "build/program.bin"
 
@@ -36,6 +43,9 @@ extern volatile bool sim_halt;
 uint64_t getExecCount();
 uint64_t getExecCountClockPeriod();
 bool isDifftestActive();
+
+// ---- Signal handler (ownership in simulator.cpp) ----
+void install_signal_handlers();
 
 void simStepClockPeriod();
 void simStep();

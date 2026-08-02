@@ -7,21 +7,22 @@
 #ifndef NPC_STANDALONE
 #include <sim_top.hpp>
 #endif
-
-void *sdram_io_base = nullptr;
+#include "../npc/simulator_impl.hpp"
 
 #define IFDBG if (sim_config.config_debugOutput)
+
+static inline void*& sdram_io_base() { return getActiveSimulator()->sdram_io_base; }
 
 static void sdram_io_handler(addr_t offset, int len, bool isWrite) {
     // TODO
 }
 
 bool device_sdram_init() {
-    sdram_io_base = device_io_map_newSpace(SDRAM_LEN);
-    if (sdram_io_base) {
-        memset(sdram_io_base, 0, SDRAM_LEN);
+    sdram_io_base() = device_io_map_newSpace(SDRAM_LEN);
+    if (sdram_io_base()) {
+        memset(sdram_io_base(), 0, SDRAM_LEN);
     }
-    device_io_addMMIOMap("sdram", SDRAM_ADDR, sdram_io_base, SDRAM_LEN, sdram_io_handler);
+    device_io_addMMIOMap("sdram", SDRAM_ADDR, sdram_io_base(), SDRAM_LEN, sdram_io_handler);
 
     return true;
 }
@@ -43,7 +44,7 @@ word_t device_sdram_read(addr_t addr, int len) {
         len
     );
 
-    uint8_t *sdramMemory = (uint8_t *) sdram_io_base;
+    uint8_t *sdramMemory = (uint8_t *) sdram_io_base();
     result = sdramMemory[addr - baseAddr];
     if (len >= 2) {
         result |= sdramMemory[addr - baseAddr + 1] << 8;
@@ -73,7 +74,7 @@ void device_sdram_write(addr_t addr, int len, word_t data) {
         len
     );
 
-    uint8_t *sdramMemory = (uint8_t *) sdram_io_base;
+    uint8_t *sdramMemory = (uint8_t *) sdram_io_base();
     if (len >= 1) {
         sdramMemory[addr - baseAddr] = data & 0xff;
     }

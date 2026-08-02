@@ -511,9 +511,9 @@ private:
     bool         m_strict{false};
 };
 
-/// Global singleton — instantiated at static-init time, lives for the
-/// entire simulation process.
-extern PerfMonitor g_perfMonitor;
+/// Resolve the active perf monitor from the simulator instance.
+/// Ownership was moved from perf.cpp → SimulatorImpl (Task 6).
+PerfMonitor& getPerfMonitor();
 
 } // namespace perf
 

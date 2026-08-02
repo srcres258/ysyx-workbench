@@ -6,10 +6,11 @@
 #include <device/io/map.hpp>
 #include <cstring>
 #include <device/flash.hpp>
-
-void *flash_io_base = nullptr;
+#include "../npc/simulator_impl.hpp"
 
 #define IFDBG if (sim_config.config_debugOutput)
+
+static inline void*& flash_io_base() { return getActiveSimulator()->flash_io_base; }
 
 static bool initFlashMemory(std::string filename, size_t *fileSize) {
     size_t size;
@@ -29,7 +30,7 @@ static bool initFlashMemory(std::string filename, size_t *fileSize) {
         return false;
     }
     f.seekg(0, std::ios::beg);
-    if (f.read((char *) flash_io_base, size)) {
+    if (f.read((char *) flash_io_base(), size)) {
         IFDBG std::cout << "Successfully loaded flash from file." << std::endl;
     } else {
         std::cerr << "Failed to read flash from file!" << std::endl;
@@ -47,11 +48,11 @@ static void flash_io_handler(addr_t offset, int len, bool isWrite) {
 }
 
 bool device_flash_init() {
-    flash_io_base = device_io_map_newSpace(FLASH_LEN);
-    if (flash_io_base) {
-        memset(flash_io_base, 0, FLASH_LEN);
+    flash_io_base() = device_io_map_newSpace(FLASH_LEN);
+    if (flash_io_base()) {
+        memset(flash_io_base(), 0, FLASH_LEN);
     }
-    device_io_addMMIOMap("flash", FLASH_ADDR, flash_io_base, FLASH_LEN, flash_io_handler);
+    device_io_addMMIOMap("flash", FLASH_ADDR, flash_io_base(), FLASH_LEN, flash_io_handler);
 
     IFDBG std::cout << "Initializing flash from bin file..." << std::endl;
     std::string filename(sim_config.config_flashBinFilePath);
@@ -82,7 +83,7 @@ word_t device_flash_read(addr_t addr, int len) {
         len
     );
 
-    uint8_t *flashMemory = (uint8_t *) flash_io_base;
+    uint8_t *flashMemory = (uint8_t *) flash_io_base();
     result = flashMemory[addr - baseAddr];
     if (len >= 2) {
         result |= flashMemory[addr - baseAddr + 1] << 8;

@@ -7,6 +7,7 @@
 #include <sstream>
 #include <system_error>
 #include <cstring>
+#include "npc/simulator_impl.hpp"
 
 namespace perf {
 
@@ -390,7 +391,12 @@ std::vector<PerfCounterView> PerfCounters::view() const {
 }
 
 // ── PerfMonitor lifecycle ────────────────────────────────────────────────
-PerfMonitor g_perfMonitor;
+// Ownership moved to SimulatorImpl (Task 6); this accessor resolves through
+// the active simulator instance so all consumers (simulator lifecycle, TUI
+// snapshot, dump paths) obtain the same monitor without owning it here.
+PerfMonitor& getPerfMonitor() {
+    return getActiveSimulator()->perfMonitor;
+}
 
 void PerfMonitor::onResetBegin() {
     m_counters.clear();

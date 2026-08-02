@@ -11,6 +11,10 @@
 !*.sh
 !*.sdc
 !*.py
+!csrc/
+!csrc/npc/
+!csrc/npc/*.cpp
+!csrc/npc/*.hpp
 !scripts/tests/**/*.rpt
 !scripts/tests/**/*.txt
 !scripts/tests/**/*.json

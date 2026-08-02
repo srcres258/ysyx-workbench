@@ -2,65 +2,72 @@
 #include <cstring>
 #include <tui/npc_snapshot.hpp>
 #include <tui/tui_events.hpp>
-#include <sim_top.hpp>
 #include <isa.hpp>
 #include <macro-def.hpp>
 
 namespace tui {
 
-static std::vector<CallFrameInfo> snapshotCallFrames() {
-    std::vector<CallFrameInfo> frames;
-    auto stack = sim_state.ftrace_callStack;
-    frames.reserve(stack.size());
-    while (!stack.empty()) {
-        frames.push_back(stack.top());
-        stack.pop();
-    }
-    return frames;
-}
-
-NpcSnapshot makeNpcSnapshot() {
+NpcSnapshot makeNpcSnapshot(const SnapshotInput &input) {
     NpcSnapshot snap{};
-    auto *dpi = getDPIModule();
 
-    snap.retiredPc   = simExecInfo.pc;
-    snap.retiredInst = simExecInfo.inst;
-    snap.nextPc      = dpi->core_pc;
-    snap.procState   = getProcessorState();
-    snap.simState    = sim_state.state;
-    snap.haltPc      = sim_state.haltPC;
-    snap.simHalt     = sim_halt;
-    snap.callFrames  = snapshotCallFrames();
+    snap.retiredPc   = input.retiredPc;
+    snap.retiredInst = input.retiredInst;
+    snap.nextPc      = input.nextPc;
+    snap.procState   = input.procState;
+    snap.simState    = input.simState;
+    snap.haltPc      = input.haltPc;
+    snap.simHalt     = input.simHalt;
+    snap.callFrames  = input.callFrames;
 
-    // These require accessors declared in sim_top.hpp — see wiring task
-    snap.execCount      = getExecCount();
-    snap.execCountClock = getExecCountClockPeriod();
-    snap.difftestActive = isDifftestActive();
+    snap.execCount      = input.execCount;
+    snap.execCountClock = input.execCountClock;
+    snap.difftestActive = input.difftestActive;
 
-    if (sim_config.config_perf) {
-        snap.perfCounters = perf::g_perfMonitor.view();
+    if (input.perfEnabled) {
+        snap.perfCounters = input.perfCounters;
     }
 
-    // Tail of event feed
-    snap.numRecentEvents = g_eventFeed.getRecentEvents(
-        snap.recentEvents,
-        NpcSnapshot::kMaxRecentEvents
-    );
+    snap.numRecentEvents = input.eventFeed
+        ? input.eventFeed->getRecentEvents(
+              snap.recentEvents, NpcSnapshot::kMaxRecentEvents)
+        : 0;
 
-    auto appendInstMark = [&snap](const char *name, addr_t pc, bool valid, bool hasPc) {
+    auto appendInstMark = [&snap](
+        const char *name, addr_t pc,
+        bool valid, bool hasPc
+    ) {
         if (snap.numInstMarks >= NpcSnapshot::kMaxInstMarks) return;
         auto &mark = snap.instMarks[snap.numInstMarks++];
         std::snprintf(mark.name, sizeof(mark.name), "%s", name);
-        mark.pc = pc;
+        mark.pc    = pc;
         mark.valid = valid;
         mark.hasPc = hasPc;
     };
 
-    appendInstMark("IF",  dpi->core_pc,    dpi->ifu_if_nextStage_valid,  true);
-    appendInstMark("ID",  0,               dpi->idu_id_nextStage_valid,  false);
-    appendInstMark("EX",  dpi->exu_exPc,   dpi->exu_ex_nextStage_valid,  true);
-    appendInstMark("MEM", dpi->memu_memPc, dpi->memu_mem_nextStage_valid, true);
-    appendInstMark("WB",  dpi->wbu_pc,     dpi->wbu_wb_nextStage_valid,  true);
+    // IF  stage
+    appendInstMark(
+        "IF",  input.nextPc,
+        input.stages[0].valid, input.stages[0].hasPc
+    );
+    // ID  stage — computed later from DPI, not passed upstream
+    appendInstMark(
+        "ID",  0,
+        input.stages[1].valid, input.stages[1].hasPc
+    );
+    // EX  stage
+    appendInstMark("EX",  input.stages[2].pc,
+        input.stages[2].valid, input.stages[2].hasPc
+    );
+    // MEM stage
+    appendInstMark(
+        "MEM", input.stages[3].pc,
+        input.stages[3].valid, input.stages[3].hasPc
+    );
+    // WB  stage
+    appendInstMark(
+        "WB",  input.stages[4].pc,
+        input.stages[4].valid, input.stages[4].hasPc
+    );
 
     return snap;
 }
@@ -76,7 +83,10 @@ static const char *stateString(SimStateEnum s) {
     }
 }
 
-TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
+TuiFrameModel makeFrameModel(
+    const NpcSnapshot &snap,
+    const NpcSnapshot *prev
+) {
     TuiFrameModel fm{};
     const auto &st = snap.procState;
 
@@ -84,8 +94,10 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     for (size_t i = 0; i < RISCV_GPR_NUM; i++) {
         auto &entry = fm.gprs[i];
         std::snprintf(entry.name, sizeof(entry.name), "x%zu", i);
-        std::snprintf(entry.valueStr, sizeof(entry.valueStr),
-                      "0x%08x", st.gpr[i]);
+        std::snprintf(
+            entry.valueStr, sizeof(entry.valueStr),
+            "0x%08x", st.gpr[i]
+        );
         entry.value = st.gpr[i];
         entry.changed = prev && (st.gpr[i] != prev->procState.gpr[i]);
     }
@@ -103,8 +115,10 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
         auto &entry = fm.csrs[i];
         word_t val = st.csr[csrIds[i]];
         std::snprintf(entry.name, sizeof(entry.name), "%s", csrNames[i]);
-        std::snprintf(entry.valueStr, sizeof(entry.valueStr),
-                      "0x%08x", val);
+        std::snprintf(
+            entry.valueStr, sizeof(entry.valueStr),
+            "0x%08x", val
+        );
         entry.value = val;
         entry.changed = prev && (val != prev->procState.csr[csrIds[i]]);
     }
@@ -123,7 +137,7 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     fm.retiredPcRaw   = snap.retiredPc;
     fm.retiredInstRaw = snap.retiredInst;
     fm.pcRaw          = snap.nextPc;
-    fm.spRaw          = st.gpr[2];   // x2 = sp, for callerSp verification
+    fm.spRaw          = st.gpr[2];
 
     if (snap.execCount > 0) {
         uint8_t instBytes[4];
@@ -141,14 +155,18 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     fm.execCount      = snap.execCount;
     fm.execCountClock = snap.execCountClock;
     fm.ipc = (snap.execCountClock > 0) ?
-        static_cast<double>(snap.execCount) / static_cast<double>(snap.execCountClock) :
+        static_cast<double>(snap.execCount) /
+            static_cast<double>(snap.execCountClock) :
         0.0;
 
     // ---- Perf counter snapshot ----
     fm.perfValid = false;
     if (!snap.perfCounters.empty()) {
-        // Copy all 26 counter values into the frame model indexed by table position
-        for (size_t i = 0; i < TuiFrameModel::kNumPerfCounters && i < snap.perfCounters.size(); i++) {
+        for (
+            size_t i = 0;
+            i < TuiFrameModel::kNumPerfCounters && i < snap.perfCounters.size();
+            i++
+        ) {
             fm.perfValues[i] = snap.perfCounters[i].value;
         }
 
@@ -204,17 +222,19 @@ TuiFrameModel makeFrameModel(const NpcSnapshot &snap, const NpcSnapshot *prev) {
     return fm;
 }
 
-std::vector<TraceEntry> drainTraceRingBuffer(size_t maxLines) {
+std::vector<TraceEntry> drainTraceRingBuffer(
+    RingBuffer *iringbuf,
+    bool itraceEnabled,
+    size_t maxLines
+) {
     std::vector<TraceEntry> result;
-    if (!sim_config.config_itrace || !sim_state.itrace_iringbuf)
+    if (!itraceEnabled || !iringbuf)
         return result;
-
-    auto *rb = sim_state.itrace_iringbuf;
-    if (rb->availableData() == 0)
+    if (iringbuf->availableData() == 0)
         return result;
 
     static std::string s_partial;
-    s_partial += rb->read(rb->availableData());
+    s_partial += iringbuf->read(iringbuf->availableData());
 
     size_t pos = 0;
     size_t nl;

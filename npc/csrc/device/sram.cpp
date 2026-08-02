@@ -4,8 +4,9 @@
 #include <device/io.hpp>
 #include <macro-def.hpp>
 #include <cstring>
+#include "../npc/simulator_impl.hpp"
 
-void *sram_io_base = nullptr;
+static inline void*& sram_io_base() { return getActiveSimulator()->sram_io_base; }
 
 #ifndef NPC_STANDALONE
 static inline auto &dutSramMemory() {
@@ -16,7 +17,7 @@ static inline auto &dutSramMemory() {
 void device_sram_syncShadowFromDUT(addr_t addr, size_t len) {
 #ifndef NPC_STANDALONE
     auto &dutMemory = dutSramMemory();
-    uint8_t *shadow = (uint8_t *) sram_io_base;
+    uint8_t *shadow = (uint8_t *) sram_io_base();
     Assert(addr >= SRAM_ADDR && addr - SRAM_ADDR <= SRAM_LEN - len);
     for (size_t i = 0; i < len; ++i) {
         const size_t byteOffset = (size_t) (addr - SRAM_ADDR) + i;
@@ -33,7 +34,7 @@ void device_sram_syncShadowFromDUT(addr_t addr, size_t len) {
 void device_sram_syncDUTFromShadow(addr_t addr, size_t len) {
 #ifndef NPC_STANDALONE
     auto &dutMemory = dutSramMemory();
-    uint8_t *shadow = (uint8_t *) sram_io_base;
+    uint8_t *shadow = (uint8_t *) sram_io_base();
     Assert(addr >= SRAM_ADDR && addr - SRAM_ADDR <= SRAM_LEN - len);
     for (size_t i = 0; i < len; ++i) {
         const size_t byteOffset = (size_t) (addr - SRAM_ADDR) + i;
@@ -58,11 +59,11 @@ static void sram_io_handler(addr_t offset, int len, bool isWrite) {
 }
 
 bool device_sram_init() {
-    sram_io_base = device_io_map_newSpace(SRAM_LEN);
-    device_io_addMMIOMap("sram", SRAM_ADDR, sram_io_base, SRAM_LEN, sram_io_handler);
+    sram_io_base() = device_io_map_newSpace(SRAM_LEN);
+    device_io_addMMIOMap("sram", SRAM_ADDR, sram_io_base(), SRAM_LEN, sram_io_handler);
 
-    if (sram_io_base) {
-        memset(sram_io_base, 0, SRAM_LEN);
+    if (sram_io_base()) {
+        memset(sram_io_base(), 0, SRAM_LEN);
     }
 
     return true;
@@ -85,7 +86,7 @@ word_t device_sram_read(addr_t addr, int len) {
         len
     );
 
-    uint8_t *sramMemory = (uint8_t *) sram_io_base;
+    uint8_t *sramMemory = (uint8_t *) sram_io_base();
     result = sramMemory[addr - baseAddr];
     if (len >= 2) {
         result |= sramMemory[addr - baseAddr + 1] << 8;
@@ -115,7 +116,7 @@ void device_sram_write(addr_t addr, int len, word_t data) {
         len
     );
 
-    uint8_t *sramMemory = (uint8_t *) sram_io_base;
+    uint8_t *sramMemory = (uint8_t *) sram_io_base();
     if (len >= 1) {
         sramMemory[addr - baseAddr] = data & 0xff;
     }

@@ -7,21 +7,22 @@
 #ifndef NPC_STANDALONE
 #include <sim_top.hpp>
 #endif
-
-void *psram_io_base = nullptr;
+#include "../npc/simulator_impl.hpp"
 
 #define IFDBG if (sim_config.config_debugOutput)
+
+static inline void*& psram_io_base() { return getActiveSimulator()->psram_io_base; }
 
 static void psram_io_handler(addr_t offset, int len, bool isWrite) {
     // TODO
 }
 
 bool device_psram_init() {
-    psram_io_base = device_io_map_newSpace(PSRAM_LEN);
-    if (psram_io_base) {
-        memset(psram_io_base, 0, PSRAM_LEN);
+    psram_io_base() = device_io_map_newSpace(PSRAM_LEN);
+    if (psram_io_base()) {
+        memset(psram_io_base(), 0, PSRAM_LEN);
     }
-    device_io_addMMIOMap("psram", PSRAM_ADDR, psram_io_base, PSRAM_LEN, psram_io_handler);
+    device_io_addMMIOMap("psram", PSRAM_ADDR, psram_io_base(), PSRAM_LEN, psram_io_handler);
 
     return true;
 }
@@ -43,7 +44,7 @@ word_t device_psram_read(addr_t addr, int len) {
         len
     );
 
-    uint8_t *psramMemory = (uint8_t *) psram_io_base;
+    uint8_t *psramMemory = (uint8_t *) psram_io_base();
     result = psramMemory[addr - baseAddr];
     if (len >= 2) {
         result |= psramMemory[addr - baseAddr + 1] << 8;
@@ -73,7 +74,7 @@ void device_psram_write(addr_t addr, int len, word_t data) {
         len
     );
 
-    uint8_t *psramMemory = (uint8_t *) psram_io_base;
+    uint8_t *psramMemory = (uint8_t *) psram_io_base();
     if (len >= 1) {
         psramMemory[addr - baseAddr] = data & 0xff;
     }

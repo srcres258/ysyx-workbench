@@ -21,84 +21,9 @@
 #endif
 
 // ----------- state -----------
-
-SimConfig sim_config = {
-    .config_itrace = false,
-    .config_mtrace = false,
-    .config_ftrace = false,
-    .config_dtrace = false,
-    .config_etrace = false,
-    .config_difftest = false,
-    .config_device = false,
-    .config_wave = false,
-    .config_debugOutput = false,
-    .config_nvboard = false,
-    .config_vga = false,
-    .config_mrom = false,
-
-    .config_tui = false,
-    .config_perf = false,
-    .config_traceFormat = std::move(std::string(DEFAULT_TRACE_FORMAT)),
-    .config_traceDataMode = std::move(std::string(DEFAULT_TRACE_DATA_MODE)),
-    .config_tuiConfigFilePath =
-        std::move(std::string(DEFAULT_TUI_CONFIG_FILE_PATH)),
-    .config_tuiGenerateConfig = false,
-    .config_tuiGenerateFullConfig = false,
-    .config_tuiForceOverwriteConfig = false,
-    .config_tuiPrintConfigSchema = false,
-    .config_tuiPrintDefaultConfig = false,
-
-    .config_difftestPort = DEFAULT_DIFFTEST_PORT,
-
-    .config_difftestStartMode =
-        std::move(std::string(DEFAULT_DIFFTEST_START_MODE)),
-    .config_difftestStartPC = DEFAULT_DIFFTEST_START_PC,
-    .config_difftestPayloadBinFilePath =
-        std::move(std::string(DEFAULT_DIFFTEST_PAYLOAD_BIN_FILE_PATH)),
-    .config_difftestPayloadLoadAddr = DEFAULT_DIFFTEST_PAYLOAD_LOAD_ADDR,
-    .config_difftestMemMode =
-        std::move(std::string(DEFAULT_DIFFTEST_MEM_MODE)),
-
-    .config_itraceOutFilePath =
-        std::move(std::string(DEFAULT_ITRACE_OUT_FILE_PATH)),
-    .config_itraceJsonlOutFilePath =
-        std::move(std::string(DEFAULT_ITRACE_JSONL_OUT_FILE_PATH)),
-    .config_mtraceOutFilePath =
-        std::move(std::string(DEFAULT_MTRACE_OUT_FILE_PATH)),
-    .config_mtraceJsonlOutFilePath =
-        std::move(std::string(DEFAULT_MTRACE_JSONL_OUT_FILE_PATH)),
-    .config_ftraceOutFilePath =
-        std::move(std::string(DEFAULT_FTRACE_OUT_FILE_PATH)),
-    .config_dtraceOutFilePath =
-        std::move(std::string(DEFAULT_DTRACE_OUT_FILE_PATH)),
-    .config_dtraceJsonlOutFilePath =
-        std::move(std::string(DEFAULT_DTRACE_JSONL_OUT_FILE_PATH)),
-    .config_etraceOutFilePath =
-        std::move(std::string(DEFAULT_ETRACE_OUT_FILE_PATH)),
-    .config_etraceJsonlOutFilePath =
-        std::move(std::string(DEFAULT_ETRACE_JSONL_OUT_FILE_PATH)),
-    .config_flashBinFilePath =
-        std::move(std::string(DEFAULT_FLASH_BIN_FILE_PATH)),
-    .config_flashElfFilePath =
-        std::move(std::string(DEFAULT_FLASH_ELF_FILE_PATH)),
-    .config_mromBinFilePath =
-        std::move(std::string(DEFAULT_MROM_BIN_FILE_PATH)),
-    .config_difftestSoFilePath =
-        std::move(std::string(DEFAULT_DIFFTEST_SO_FILE_PATH)),
-    .config_waveFilePath =
-        std::move(std::string(DEFAULT_WAVE_FILE_PATH))
-};
-
-SimState sim_state = {
-    .state = SIM_RUNNING,
-    .haltPC = 0,
-
-    .itrace_iringbuf = nullptr,
-    .itrace_jsonl_ofs = std::ofstream{},
-    .mtrace_jsonl_ofs = std::ofstream{},
-    .dtrace_jsonl_ofs = std::ofstream{},
-    .etrace_jsonl_ofs = std::ofstream{}
-};
+// Authoritative sim_config and sim_state ownership moved to
+// npc/csrc/npc/simulator.cpp (Task 3).  Existing consumers continue
+// to access them through extern declarations in utils.hpp.
 
 static bool traceFormatWantsHuman() {
     return sim_config.config_traceFormat == "human" || sim_config.config_traceFormat == "both";

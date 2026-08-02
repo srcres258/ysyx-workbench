@@ -4,24 +4,36 @@
 #include <sim_top.hpp>
 #include <utils.hpp>
 #include <tui/tui_config.hpp>
+#include <npc/simulator.hpp>
 
-VerilatedContext *verContext = nullptr;
+// ── Task 5: verContext lifecycle ownership moved into npc::Simulator ──
+//   verContext is now created in Simulator::initialize() and destroyed
+//   in Simulator::run() cleanup / ~Simulator().
+//   sim_config / sim_state authoritative ownership is in
+//   npc/csrc/npc/simulator.cpp (Task 3).
+//   Runner builds npc::SimulatorConfig from env vars and hands it
+//   to the library via Simulator::initialize() — no direct sim_config
+//   mutation in main.cpp.
 
 /**
- * @brief 从环境变量读取配置并加载进来。
+ * @brief 从环境变量读取配置并构建 SimulatorConfig 对象。
+ *
+ * 环境变量解析完全留在运行器侧。
+ * 返回值中的字段包含所有环境变量覆盖后的最终配置。
  */
-static void loadConfig() {
+static npc::SimulatorConfig buildConfigFromEnv() {
+    npc::SimulatorConfig config;
     char *env;
 
     env = std::getenv("NPC_CONFIG_ITRACE");
-    sim_config.config_itrace = env && strcmp(env, "on") == 0;
-    if (sim_config.config_itrace) {
+    config.itraceEnabled = env && strcmp(env, "on") == 0;
+    if (config.itraceEnabled) {
         std::cout << "[config] itrace 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_MTRACE");
-    sim_config.config_mtrace = env && strcmp(env, "on") == 0;
-    if (sim_config.config_mtrace) {
+    config.mtraceEnabled = env && strcmp(env, "on") == 0;
+    if (config.mtraceEnabled) {
         std::cout << "[config] mtrace 已启用" << std::endl;
     }
 
@@ -33,9 +45,9 @@ static void loadConfig() {
                       << " (必须为 human, jsonl 或 both)" << std::endl;
             std::exit(EXIT_FAILURE);
         }
-        sim_config.config_traceFormat = std::move(format);
+        config.traceFormat = std::move(format);
     }
-    std::cout << "[config] trace 格式: " << sim_config.config_traceFormat << std::endl;
+    std::cout << "[config] trace 格式: " << config.traceFormat << std::endl;
 
     env = std::getenv("NPC_CONFIG_TRACE_DATA_MODE");
     if (env) {
@@ -45,183 +57,170 @@ static void loadConfig() {
                       << " (必须为 none, stores 或 all)" << std::endl;
             std::exit(EXIT_FAILURE);
         }
-        sim_config.config_traceDataMode = std::move(mode);
+        config.traceDataMode = std::move(mode);
     }
-    std::cout << "[config] trace 数据模式: " << sim_config.config_traceDataMode << std::endl;
+    std::cout << "[config] trace 数据模式: " << config.traceDataMode << std::endl;
 
     env = std::getenv("NPC_CONFIG_FTRACE");
-    sim_config.config_ftrace = env && strcmp(env, "on") == 0;
-    if (sim_config.config_ftrace) {
+    config.ftraceEnabled = env && strcmp(env, "on") == 0;
+    if (config.ftraceEnabled) {
         std::cout << "[config] ftrace 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DTRACE");
-    sim_config.config_dtrace = env && strcmp(env, "on") == 0;
-    if (sim_config.config_dtrace) {
+    config.dtraceEnabled = env && strcmp(env, "on") == 0;
+    if (config.dtraceEnabled) {
         std::cout << "[config] dtrace 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_ETRACE");
-    sim_config.config_etrace = env && strcmp(env, "on") == 0;
-    if (sim_config.config_etrace) {
+    config.etraceEnabled = env && strcmp(env, "on") == 0;
+    if (config.etraceEnabled) {
         std::cout << "[config] etrace 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DIFFTEST");
-    sim_config.config_difftest = env && strcmp(env, "on") == 0;
-    if (sim_config.config_difftest) {
+    config.difftestEnabled = env && strcmp(env, "on") == 0;
+    if (config.difftestEnabled) {
         std::cout << "[config] DiffTest 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DEVICE");
-    sim_config.config_device = env && strcmp(env, "on") == 0;
-    if (sim_config.config_device) {
+    config.deviceEnabled = env && strcmp(env, "on") == 0;
+    if (config.deviceEnabled) {
         std::cout << "[config] 外部设备已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_WAVE");
-    sim_config.config_wave = env && strcmp(env, "on") == 0;
-    if (sim_config.config_wave) {
+    config.waveEnabled = env && strcmp(env, "on") == 0;
+    if (config.waveEnabled) {
         std::cout << "[config] 波形文件输出已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DEBUG_OUTPUT");
-    sim_config.config_debugOutput = env && strcmp(env, "on") == 0;
-    if (sim_config.config_debugOutput) {
+    config.debugOutputEnabled = env && strcmp(env, "on") == 0;
+    if (config.debugOutputEnabled) {
         std::cout << "[config] 调试信息输出已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_NVBOARD");
-    sim_config.config_nvboard = env && strcmp(env, "on") == 0;
-    if (sim_config.config_nvboard) {
+    config.nvboardEnabled = env && strcmp(env, "on") == 0;
+    if (config.nvboardEnabled) {
         std::cout << "[config] NVBoard 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_VGA");
-    sim_config.config_vga = env && strcmp(env, "on") == 0;
-    if (sim_config.config_vga) {
+    config.vgaEnabled = env && strcmp(env, "on") == 0;
+    if (config.vgaEnabled) {
         std::cout << "[config] VGA 窗口已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_MROM");
-    sim_config.config_mrom = env && strcmp(env, "on") == 0;
-    if (sim_config.config_mrom) {
+    config.mromEnabled = env && strcmp(env, "on") == 0;
+    if (config.mromEnabled) {
         std::cout << "[config] MROM 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_PORT");
     try {
-        sim_config.config_difftestPort = env ? std::stoi(env) : 0;
+        config.difftestPort = env ? std::stoi(env) : 0;
         std::cout << "[config] DiffTest 端口已指定为 " <<
-            std::dec << sim_config.config_difftestPort << std::endl;
+            std::dec << config.difftestPort << std::endl;
     } catch (const std::exception &e) {
         std::cout << "[config] DiffTest 端口设置失败！将使用默认端口 " <<
             std::dec << DEFAULT_DIFFTEST_PORT << std::endl;
-        sim_config.config_difftestPort = DEFAULT_DIFFTEST_PORT;
+        config.difftestPort = DEFAULT_DIFFTEST_PORT;
     }
 
     env = std::getenv("NPC_CONFIG_ITRACE_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_itraceOutFilePath =
-            std::move(std::string(env));
+        config.itraceOutFilePath = std::move(std::string(env));
         std::cout << "[config] itrace 输出路径已指定为: " <<
-            sim_config.config_itraceOutFilePath << std::endl;
+            config.itraceOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_ITRACE_JSONL_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_itraceJsonlOutFilePath =
-            std::move(std::string(env));
+        config.itraceJsonlOutFilePath = std::move(std::string(env));
         std::cout << "[config] itrace JSONL 输出路径已指定为: " <<
-            sim_config.config_itraceJsonlOutFilePath << std::endl;
+            config.itraceJsonlOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_MTRACE_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_mtraceOutFilePath =
-            std::move(std::string(env));
+        config.mtraceOutFilePath = std::move(std::string(env));
         std::cout << "[config] mtrace 输出路径已指定为: " <<
-            sim_config.config_mtraceOutFilePath << std::endl;
+            config.mtraceOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_MTRACE_JSONL_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_mtraceJsonlOutFilePath =
-            std::move(std::string(env));
+        config.mtraceJsonlOutFilePath = std::move(std::string(env));
         std::cout << "[config] mtrace JSONL 输出路径已指定为: " <<
-            sim_config.config_mtraceJsonlOutFilePath << std::endl;
+            config.mtraceJsonlOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_FTRACE_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_ftraceOutFilePath =
-            std::move(std::string(env));
+        config.ftraceOutFilePath = std::move(std::string(env));
         std::cout << "[config] ftrace 输出路径已指定为: " <<
-            sim_config.config_ftraceOutFilePath << std::endl;
+            config.ftraceOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DTRACE_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_dtraceOutFilePath =
-            std::move(std::string(env));
+        config.dtraceOutFilePath = std::move(std::string(env));
         std::cout << "[config] dtrace 输出路径已指定为: " <<
-            sim_config.config_dtraceOutFilePath << std::endl;
+            config.dtraceOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DTRACE_JSONL_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_dtraceJsonlOutFilePath =
-            std::move(std::string(env));
+        config.dtraceJsonlOutFilePath = std::move(std::string(env));
         std::cout << "[config] dtrace JSONL 输出路径已指定为: " <<
-            sim_config.config_dtraceJsonlOutFilePath << std::endl;
+            config.dtraceJsonlOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_ETRACE_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_etraceOutFilePath =
-            std::move(std::string(env));
+        config.etraceOutFilePath = std::move(std::string(env));
         std::cout << "[config] etrace 输出路径已指定为: " <<
-            sim_config.config_etraceOutFilePath << std::endl;
+            config.etraceOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_ETRACE_JSONL_OUT_FILE_PATH");
     if (env) {
-        sim_config.config_etraceJsonlOutFilePath =
-            std::move(std::string(env));
+        config.etraceJsonlOutFilePath = std::move(std::string(env));
         std::cout << "[config] etrace JSONL 输出路径已指定为: " <<
-            sim_config.config_etraceJsonlOutFilePath << std::endl;
+            config.etraceJsonlOutFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_FLASH_BIN_FILE_PATH");
     if (env) {
-        sim_config.config_flashBinFilePath =
-            std::move(std::string(env));
+        config.flashBinFilePath = std::move(std::string(env));
         std::cout << "[config] FLASH BIN 文件路径已指定为: " <<
-            sim_config.config_flashBinFilePath << std::endl;
+            config.flashBinFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_FLASH_ELF_FILE_PATH");
     if (env) {
-        sim_config.config_flashElfFilePath =
-            std::move(std::string(env));
+        config.flashElfFilePath = std::move(std::string(env));
         std::cout << "[config] FLASH ELF 文件路径已指定为: " <<
-            sim_config.config_flashElfFilePath << std::endl;
+            config.flashElfFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_MROM_BIN_FILE_PATH");
     if (env) {
-        sim_config.config_mromBinFilePath =
-            std::move(std::string(env));
+        config.mromBinFilePath = std::move(std::string(env));
         std::cout << "[config] MROM BIN 文件路径已指定为: " <<
-            sim_config.config_mromBinFilePath << std::endl;
+            config.mromBinFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_SO_FILE_PATH");
     if (env) {
-        sim_config.config_difftestSoFilePath =
-            std::move(std::string(env));
+        config.difftestSoFilePath = std::move(std::string(env));
         std::cout << "[config] DiffTest 动态链接库文件路径已指定为: " <<
-            sim_config.config_difftestSoFilePath << std::endl;
+            config.difftestSoFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_START_MODE");
@@ -232,18 +231,18 @@ static void loadConfig() {
                       << " (必须为 reset 或 payload)" << std::endl;
             std::exit(EXIT_FAILURE);
         }
-        sim_config.config_difftestStartMode = std::move(mode);
+        config.difftestStartMode = std::move(mode);
     }
     std::cout << "[config] DiffTest 起始模式: "
-              << sim_config.config_difftestStartMode << std::endl;
+              << config.difftestStartMode << std::endl;
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_START_PC");
     try {
-        sim_config.config_difftestStartPC = env
-            ? static_cast<addr_t>(std::stoul(std::string(env), nullptr, 0))
-            : DEFAULT_DIFFTEST_START_PC;
+        config.difftestStartPC = env
+            ? static_cast<std::uint32_t>(std::stoul(std::string(env), nullptr, 0))
+            : static_cast<std::uint32_t>(DEFAULT_DIFFTEST_START_PC);
         std::cout << "[config] DiffTest 起始 PC: 0x" << std::hex
-                  << sim_config.config_difftestStartPC << std::dec << std::endl;
+                  << config.difftestStartPC << std::dec << std::endl;
     } catch (const std::exception &e) {
         std::cerr << "[config] DiffTest 起始 PC 解析失败: " << e.what() << std::endl;
         std::exit(EXIT_FAILURE);
@@ -251,19 +250,18 @@ static void loadConfig() {
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_PAYLOAD_BIN_FILE_PATH");
     if (env) {
-        sim_config.config_difftestPayloadBinFilePath =
-            std::move(std::string(env));
+        config.difftestPayloadBinFilePath = std::move(std::string(env));
         std::cout << "[config] DiffTest Payload BIN 文件路径已指定为: "
-                  << sim_config.config_difftestPayloadBinFilePath << std::endl;
+                  << config.difftestPayloadBinFilePath << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_DIFFTEST_PAYLOAD_LOAD_ADDR");
     try {
-        sim_config.config_difftestPayloadLoadAddr = env
-            ? static_cast<addr_t>(std::stoul(std::string(env), nullptr, 0))
-            : DEFAULT_DIFFTEST_PAYLOAD_LOAD_ADDR;
+        config.difftestPayloadLoadAddr = env
+            ? static_cast<std::uint32_t>(std::stoul(std::string(env), nullptr, 0))
+            : static_cast<std::uint32_t>(DEFAULT_DIFFTEST_PAYLOAD_LOAD_ADDR);
         std::cout << "[config] DiffTest Payload 加载地址: 0x" << std::hex
-                  << sim_config.config_difftestPayloadLoadAddr << std::dec << std::endl;
+                  << config.difftestPayloadLoadAddr << std::dec << std::endl;
     } catch (const std::exception &e) {
         std::cerr << "[config] DiffTest Payload 加载地址解析失败: " << e.what() << std::endl;
         std::exit(EXIT_FAILURE);
@@ -277,105 +275,106 @@ static void loadConfig() {
                       << " (必须为 auto, psram 或 sdram)" << std::endl;
             std::exit(EXIT_FAILURE);
         }
-        sim_config.config_difftestMemMode = std::move(mode);
+        config.difftestMemMode = std::move(mode);
     }
     std::cout << "[config] DiffTest 内存模式: "
-              << sim_config.config_difftestMemMode << std::endl;
+              << config.difftestMemMode << std::endl;
 
     env = std::getenv("NPC_CONFIG_WAVE_FILE_PATH");
     if (env) {
-        sim_config.config_waveFilePath =
-            std::move(std::string(env));
+        config.waveFilePath = std::move(std::string(env));
         std::cout << "[config] 波形文件输出路径已指定为: " <<
-            sim_config.config_waveFilePath << std::endl;
+            config.waveFilePath << std::endl;
     }
 
     // ---- TUI 配置 ----
     env = std::getenv("NPC_CONFIG_TUI");
-    sim_config.config_tui = env && strcmp(env, "on") == 0;
-    if (sim_config.config_tui) {
+    config.tuiEnabled = env && strcmp(env, "on") == 0;
+    if (config.tuiEnabled) {
         std::cout << "[config] TUI 已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_TUI_CONFIG_FILE_PATH");
     if (env) {
-        sim_config.config_tuiConfigFilePath =
-            std::move(std::string(env));
+        config.tuiConfigFilePath = std::move(std::string(env));
     }
     std::cout << "[config] TUI 配置文件路径: "
-              << sim_config.config_tuiConfigFilePath << std::endl;
+              << config.tuiConfigFilePath << std::endl;
 
     env = std::getenv("NPC_CONFIG_TUI_GENERATE_CONFIG");
-    sim_config.config_tuiGenerateConfig = env && strcmp(env, "on") == 0;
-    if (sim_config.config_tuiGenerateConfig) {
+    config.tuiGenerateConfig = env && strcmp(env, "on") == 0;
+    if (config.tuiGenerateConfig) {
         std::cout << "[config] TUI 配置生成模式已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_TUI_GENERATE_FULL_CONFIG");
-    sim_config.config_tuiGenerateFullConfig = env && strcmp(env, "on") == 0;
-    if (sim_config.config_tuiGenerateFullConfig) {
+    config.tuiGenerateFullConfig = env && strcmp(env, "on") == 0;
+    if (config.tuiGenerateFullConfig) {
         std::cout << "[config] TUI 完整配置生成模式已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_TUI_FORCE_OVERWRITE_CONFIG");
-    sim_config.config_tuiForceOverwriteConfig = env && strcmp(env, "on") == 0;
-    if (sim_config.config_tuiForceOverwriteConfig) {
+    config.tuiForceOverwriteConfig = env && strcmp(env, "on") == 0;
+    if (config.tuiForceOverwriteConfig) {
         std::cout << "[config] TUI 配置强制覆盖已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_TUI_PRINT_CONFIG_SCHEMA");
-    sim_config.config_tuiPrintConfigSchema = env && strcmp(env, "on") == 0;
-    if (sim_config.config_tuiPrintConfigSchema) {
+    config.tuiPrintConfigSchema = env && strcmp(env, "on") == 0;
+    if (config.tuiPrintConfigSchema) {
         std::cout << "[config] TUI 打印配置 schema 模式已启用" << std::endl;
     }
 
     env = std::getenv("NPC_CONFIG_TUI_PRINT_DEFAULT_CONFIG");
-    sim_config.config_tuiPrintDefaultConfig = env && strcmp(env, "on") == 0;
-    if (sim_config.config_tuiPrintDefaultConfig) {
+    config.tuiPrintDefaultConfig = env && strcmp(env, "on") == 0;
+    if (config.tuiPrintDefaultConfig) {
         std::cout << "[config] TUI 打印默认配置模式已启用" << std::endl;
     }
 
     // ---- 性能计数器配置 ----
     env = std::getenv("NPC_CONFIG_PERF");
     if (!env) {
-        sim_config.config_perf = true; // default on
+        config.perfEnabled = true; // default on
     } else if (strcmp(env, "on") == 0) {
-        sim_config.config_perf = true;
+        config.perfEnabled = true;
     } else if (strcmp(env, "off") == 0) {
-        sim_config.config_perf = false;
+        config.perfEnabled = false;
     } else {
         std::cerr << "[config] 无效的 RUN_CONFIG_PERF 值: \"" << env
                   << "\" (必须为 on 或 off)" << std::endl;
         std::exit(EXIT_FAILURE);
     }
     std::cout << "[config] 性能计数器已"
-              << (sim_config.config_perf ? "启用" : "禁用") << std::endl;
+              << (config.perfEnabled ? "启用" : "禁用") << std::endl;
 
-    // 跨字段验证: payload 模式下必须指定 payload 二进制文件路径
-    if (sim_config.config_difftest
-        && sim_config.config_difftestStartMode == "payload"
-        && sim_config.config_difftestPayloadBinFilePath.empty()) {
-        std::cerr << "[config] payload 模式已启用，但未指定 NPC_CONFIG_DIFFTEST_PAYLOAD_BIN_FILE_PATH 环境变量!"
-                  << std::endl;
-        std::exit(EXIT_FAILURE);
-    }
+    return config;
 }
 
 /**
- * @brief 检查必需的配置选项是否均已设置。
+ * @brief 对已构建的 SimulatorConfig 做跨字段和必需字段验证。
  *
- * @return true 必需的配置选项已设置
- * @return false 存在未设置的必需配置选项
+ * @return true 通过验证
+ * @return false 验证失败
  */
-static bool checkRequiredConfig() {
-    if (!sim_config.config_device) {
+static bool validateConfig(const npc::SimulatorConfig &config) {
+    // 跨字段验证: payload 模式下必须指定 payload 二进制文件路径
+    if (config.difftestEnabled
+        && config.difftestStartMode == "payload"
+        && config.difftestPayloadBinFilePath.empty()) {
+        std::cerr << "[config] payload 模式已启用，但未指定 NPC_CONFIG_DIFFTEST_PAYLOAD_BIN_FILE_PATH 环境变量!"
+                  << std::endl;
+        return false;
+    }
+
+    // 必需配置验证: 设备模式下需要 flash bin/elf 路径
+    if (!config.deviceEnabled) {
         return true;
     }
-    if (sim_config.config_flashBinFilePath.empty()) {
+    if (config.flashBinFilePath.empty()) {
         std::cerr << "未指定 NPC_CONFIG_FLASH_BIN_FILE_PATH 环境变量, 请指定 FLASH BIN 文件路径!" << std::endl;
         return false;
     }
-    if (sim_config.config_flashElfFilePath.empty()) {
+    if (config.flashElfFilePath.empty()) {
         std::cerr << "未指定 NPC_CONFIG_FLASH_ELF_FILE_PATH 环境变量, 请指定 FLASH ELF 文件路径!" << std::endl;
         return false;
     }
@@ -396,9 +395,6 @@ int main(int argc, const char *argv[]) {
 
     Verilated::commandArgs(argc, argv);
 
-    verContext = new VerilatedContext;
-    verContext->commandArgs(argc, argv);
-
     std::cout << "正在加载配置选项..." << std::endl;
     sdbEnabled = std::getenv("NPC_SDB_ENABLED");
     if (sdbEnabled && strcmp(sdbEnabled, "true") == 0) {
@@ -407,39 +403,51 @@ int main(int argc, const char *argv[]) {
     } else {
         sdb = false;
     }
-    loadConfig();
-    if (!checkRequiredConfig()) {
+
+    // ── Runner-side env parsing → npc::SimulatorConfig ──
+    npc::SimulatorConfig config = buildConfigFromEnv();
+    if (!validateConfig(config)) {
         return EXIT_FAILURE;
     }
 
     // ── TUI 配置操作 (schema / print / generate) ──
-    if (sim_config.config_tuiPrintConfigSchema) {
+    // 这些操作不需要硬件仿真器, 直接使用 runner 构建的 config.
+    if (config.tuiPrintConfigSchema) {
         tui::printTuiConfigSchema(std::cout);
         return EXIT_SUCCESS;
     }
-    if (sim_config.config_tuiPrintDefaultConfig) {
+    if (config.tuiPrintDefaultConfig) {
         tui::printTuiDefaultConfig(std::cout);
         return EXIT_SUCCESS;
     }
-    if (sim_config.config_tuiGenerateConfig) {
-        bool full = sim_config.config_tuiGenerateFullConfig;
-        bool overwrite = sim_config.config_tuiForceOverwriteConfig;
-        if (!tui::generateTuiConfig(sim_config.config_tuiConfigFilePath,
-                                     overwrite, full)) {
+    if (config.tuiGenerateConfig) {
+        if (!tui::generateTuiConfig(
+            config.tuiConfigFilePath,
+            config.tuiForceOverwriteConfig,
+            config.tuiGenerateFullConfig
+        )) {
             return EXIT_FAILURE;
         }
         return EXIT_SUCCESS;
     }
 
     // TUI 和 SDB 不能同时启用
-    if (sim_config.config_tui && sdb) {
+    if (config.tuiEnabled && sdb) {
         std::cerr << "[config] 错误: TUI 模式与 SDB 模式不能同时启用!"
                   << std::endl;
         return EXIT_FAILURE;
     }
 
-    // 加载 / 生成 TUI 配置文件
-    if (sim_config.config_tui) {
+    // ── 将配置交给库端, 库端只接收已构造好的数据 ──
+    // initialize() 内部调用 applySimulatorConfig() 把公共配置
+    // 翻译为内部 SimConfig / SimState, 并创建 VerilatedContext,
+    // 构造顶层模型, 打开波形, 初始化设备和 DiffTest,
+    // 进行处理器重置等完整初始化工作.
+    npc::Simulator sim;
+    sim.initialize(config, argc, argv);
+
+    // ── 加载 / 生成 TUI 配置文件 (sim_config 由 initialize 填充) ──
+    if (config.tuiEnabled) {
         if (!tui::loadOrGenerateTuiConfig(sim_config.config_tuiConfigFilePath)) {
             std::cerr << "[tui] 配置文件加载失败, 退出." << std::endl;
             return EXIT_FAILURE;
@@ -447,8 +455,6 @@ int main(int argc, const char *argv[]) {
     }
 
     result = simulate(sdb);
-
-    delete verContext;
 
     return result ? EXIT_SUCCESS : EXIT_FAILURE;
 }

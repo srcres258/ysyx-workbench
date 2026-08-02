@@ -9,8 +9,50 @@
 #include <utils.hpp>
 #include <perf.hpp>
 #include <tui/tui_events.hpp>
+#include <npc/state.hpp>
 
 namespace tui {
+
+/**
+ * @brief Read-only snapshot seed consumed by makeNpcSnapshot().
+ *
+ * All data that makeNpcSnapshot() needs is packaged here.  The caller
+ * (runner-side code) populates it from the live simulator and DPI
+ * module, so makeNpcSnapshot() no longer touches mutable globals
+ * directly.
+ */
+struct SnapshotInput {
+    /// Pipeline stage metadata (populated by caller from DPI module).
+    struct StageInfo {
+        addr_t pc;
+        bool   valid;
+        bool   hasPc;
+    };
+
+    addr_t        retiredPc;
+    word_t        retiredInst;
+    addr_t        nextPc;             ///< dpi->core_pc
+    StageInfo     stages[5];          ///< IF, ID, EX, MEM, WB in order
+
+    ProcessorState procState;
+
+    SimStateEnum  simState;           ///< sim_state.state
+    addr_t        haltPc;             ///< 0 if not halted
+    bool          simHalt;
+
+    uint64_t      execCount;
+    uint64_t      execCountClock;
+    bool          difftestActive;
+
+    bool          perfEnabled;
+    std::vector<perf::PerfCounterView> perfCounters;  ///< from PerfMonitor::view()
+
+    std::vector<CallFrameInfo> callFrames;            ///< unwound ftrace_callStack
+
+    /// Event feed pointer for getRecentEvents() — caller supplies the
+    /// process-global feed; snapshot code does not touch g_eventFeed.
+    const EventFeed *eventFeed;
+};
 
 /**
  * @brief Complete simulation snapshot at a single point in time.
@@ -117,37 +159,15 @@ struct TuiFrameModel {
     word_t spRaw;              // current stack pointer (x2), for callerSp verification
 };
 
-/**
- * @brief A single formatted trace line for the TracePanel.
- *
- * Produced by drainTraceRingBuffer() from the itrace ring buffer.
- */
 struct TraceEntry {
     char line[256];
 };
 
-/**
- * @brief Drain accumulated trace lines from the itrace ring buffer.
- *
- * Reads all currently available data from `sim_state.itrace_iringbuf`,
- * splits by newlines, and returns up to @p maxLines formatted entries.
- * Partial lines are accumulated internally and completed on subsequent
- * calls.
- *
- * Returns an empty vector when itrace is disabled or the ring buffer
- * is empty.
- *
- * @note This is a consuming read — call it once per frame.
- */
-std::vector<TraceEntry> drainTraceRingBuffer(size_t maxLines);
+std::vector<TraceEntry> drainTraceRingBuffer(
+    RingBuffer *iringbuf, bool itraceEnabled, size_t maxLines
+);
 
-/**
- * @brief Take a complete snapshot of the current simulation state.
- *
- * Must be called when the simulator is in a consistent state
- * (post-eval, DUT idle).
- */
-NpcSnapshot makeNpcSnapshot();
+NpcSnapshot makeNpcSnapshot(const SnapshotInput &input);
 
 /**
  * @brief Build a TuiFrameModel from an NpcSnapshot.
@@ -156,8 +176,10 @@ NpcSnapshot makeNpcSnapshot();
  * @param prev  Optional previous snapshot for register-change detection.
  *              Pass nullptr for the first frame.
  */
-TuiFrameModel makeFrameModel(const NpcSnapshot &snap,
-                             const NpcSnapshot *prev = nullptr);
+TuiFrameModel makeFrameModel(
+    const NpcSnapshot &snap,
+    const NpcSnapshot *prev = nullptr
+);
 
 } // namespace tui
 
