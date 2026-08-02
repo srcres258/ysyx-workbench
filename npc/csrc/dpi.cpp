@@ -6,6 +6,7 @@
 #include <svdpi.h>
 #include <sim_top.hpp>
 #include <utils.hpp>
+#include "npc/simulator_impl.hpp"
 #include <utils/Stage.hpp>
 #include <utils/timer.hpp>
 #include <device/mrom.hpp>

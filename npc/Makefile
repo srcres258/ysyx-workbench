@@ -191,13 +191,37 @@ else
 LIBS = $(VERILATED_LIB) $(NVBOARD_ARCHIVE)
 endif
 
-BIN = $(BUILD_DIR)/$(TOPNAME)
+BIN = $(BUILD_DIR)/npc-runner
+LIBNPC = $(BUILD_DIR)/libnpc_sim.a
+
+# ── Library / Runner split (Task 9) ───────────────────────────────────────
+# Library objects: all compiled .o files except the runner entry point.
+# Exclude csrc/main.cpp (placeholder without main()) from the library.
+LIB_CSRCS := $(filter-out csrc/main.cpp,$(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp"))
+LIB_OBJS := $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(LIB_CSRCS))
+LIB_OBJS += $(SDB_CORE_OBJ)
+# LIB_OBJS is a simply-expanded concrete list — never includes RUNNER_OBJ.
 
 default: $(BIN)
 
+# libnpc: explicitly builds all library .o files via recursive make, then archives.
+libnpc: $(LIBNPC)
+
+$(LIBNPC):
+	@echo "[libnpc] Building library objects..."
+	@$(MAKE) $(LIB_OBJS)
+	@echo "[libnpc] Archiving simulator library... ($(words $(LIB_OBJS)) objects)"
+	ar rcs $@ $(LIB_OBJS)
+
+# npc-runner: thin target that triggers the runner executable build.
+npc-runner: $(BIN)
+
 # C/C++ 源文件对应的 .o 文件路径（放到构建目录下的对应子目录）
+# COBJS is used by COBJS_D for header-dependency tracking only.
+# Use = (recursive) so RUNNER_OBJ, defined later, is resolved lazily.
 COBJS = $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(CSRCS))
 COBJS += $(SDB_CORE_OBJ)
+COBJS += $(RUNNER_OBJ)
 COBJS_D = $(filter %.o,$(COBJS))
 
 # 让头文件变更也能触发对应 C++ 对象重编译，避免旧的 obj_dir/*.o
@@ -224,6 +248,14 @@ VERILATOR_INC_PATH ?= $(abspath ./vsrc) $(VERILATOR_GEN_INC) \
 VERILATOR_INCFLAGS = -I. $(addprefix -I, $(VERILATOR_INC_PATH))
 VERILATOR_CFLAGS += $(VERILATOR_INCFLAGS)
 
+# runner source (Task 8: thin runner extracted from csrc/main.cpp)
+RUNNER_SRC = $(abspath ./npc-runner/main.cpp)
+RUNNER_OBJ = $(OBJ_DIR)/npc-runner/main.o
+
+$(RUNNER_OBJ): $(RUNNER_SRC) | $(VERILATED_LIB)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
 # 规则：将 csrc/.../xxx.cpp -> obj_dir/.../xxx.o
 $(OBJ_DIR)/%.o: csrc/%.cpp | $(VERILATED_LIB)
 	@mkdir -p $(dir $@)
@@ -244,11 +276,18 @@ $(VERILATED_LIB): chisel-gen $(VSRCS)
 		--timescale "1ns/1ns" --no-timing
 	$(MAKE) -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
 
-# 链接所有 .o 文件与 Verilated 库生成最终仿真程序
+# 链接 runner + libnpc_sim.a + Verilated 库生成最终仿真程序
 # NOTE: 对象文件必须放在静态库之前，否则链接器无法解析库中的符号。
 # --start-group/--end-group 处理可能存在的循环依赖。
-$(BIN): $(LIBS) $(COBJS)
-	$(CXX) $(CXXFLAGS) $(COBJS) -Wl,--start-group $(LIBS) -Wl,--end-group -o $@ \
+# auto_bind.cpp is runner-side (NVBoard pin binding); never in the library.
+ifneq ($(RUN_CONFIG_SIM_MODE),standalone)
+RUNNER_EXTRA = $(SRC_AUTO_BIND)
+else
+RUNNER_EXTRA =
+endif
+
+$(BIN): $(LIBNPC) $(RUNNER_OBJ) $(LIBS) $(RUNNER_EXTRA)
+	$(CXX) $(CXXFLAGS) $(RUNNER_OBJ) $(RUNNER_EXTRA) -Wl,--start-group $(LIBNPC) $(LIBS) -Wl,--end-group -o $@ \
 		-L$(VERILATOR_MDIR) -lverilated -lV$(TOPNAME) \
 		$(LDFLAGS)
 
@@ -532,4 +571,4 @@ synth-flow-diff:
 		--target-mhz $(SYNTH_CLK_MHZ) \
 		|| echo "[Synth] WARNING: Flow diff generation failed (some experiments may not have run yet)"
 
-.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean mtrace locality locality-report test-locality synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff
+.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean mtrace locality locality-report test-locality synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff libnpc npc-runner

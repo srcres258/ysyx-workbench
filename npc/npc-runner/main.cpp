@@ -1,26 +1,34 @@
-#include <iostream>
+//
+// npc-runner/main.cpp — Thin CLI runner for the NPC simulator library.
+//
+// Responsibilities (runner-side):
+//   - Parse environment variables into npc::SimulatorConfig
+//   - Validate cross-field and required config constraints
+//   - Process TUI-only config operations (print schema, print default, generate)
+//   - Enforce TUI/SDB mutual-exclusion policy
+//   - Construct npc::Simulator, delegate initialization, and delegate execution
+//
+// NOT in this file:
+//   - VerilatedContext creation / model lifecycle (owned by the library)
+//   - SDB engine / watchpoint evaluation (library capability)
+//   - Difftest activation / perf sampling / trace formats (library internal)
+//
+
+#include <npc/simulator.hpp>
+#include <tui/tui_config.hpp>
+#include <utils.hpp>    // for DEFAULT_DIFFTEST_* macros (transitional)
+
+#include <verilated.h>
+
 #include <cstdlib>
 #include <cstring>
-#include <sim_top.hpp>
-#include <utils.hpp>
-#include <tui/tui_config.hpp>
-#include <npc/simulator.hpp>
+#include <iostream>
+#include <string>
 
-// ── Task 5: verContext lifecycle ownership moved into npc::Simulator ──
-//   verContext is now created in Simulator::initialize() and destroyed
-//   in Simulator::run() cleanup / ~Simulator().
-//   sim_config / sim_state authoritative ownership is in
-//   npc/csrc/npc/simulator.cpp (Task 3).
-//   Runner builds npc::SimulatorConfig from env vars and hands it
-//   to the library via Simulator::initialize() — no direct sim_config
-//   mutation in main.cpp.
+// ---------------------------------------------------------------------------
+//  Env → npc::SimulatorConfig  translation (runner-side; no sim_config access)
+// ---------------------------------------------------------------------------
 
-/**
- * @brief 从环境变量读取配置并构建 SimulatorConfig 对象。
- *
- * 环境变量解析完全留在运行器侧。
- * 返回值中的字段包含所有环境变量覆盖后的最终配置。
- */
 static npc::SimulatorConfig buildConfigFromEnv() {
     npc::SimulatorConfig config;
     char *env;
@@ -350,12 +358,10 @@ static npc::SimulatorConfig buildConfigFromEnv() {
     return config;
 }
 
-/**
- * @brief 对已构建的 SimulatorConfig 做跨字段和必需字段验证。
- *
- * @return true 通过验证
- * @return false 验证失败
- */
+// ---------------------------------------------------------------------------
+//  Cross-field / required config validation (runner-side policy)
+// ---------------------------------------------------------------------------
+
 static bool validateConfig(const npc::SimulatorConfig &config) {
     // 跨字段验证: payload 模式下必须指定 payload 二进制文件路径
     if (config.difftestEnabled
@@ -382,17 +388,15 @@ static bool validateConfig(const npc::SimulatorConfig &config) {
     return true;
 }
 
-/**
- * @brief 程序的入口函数。
- *
- * @param argc 程序参数数量
- * @param argv 程序参数
- * @return int 程序退出状态码
- */
+// ---------------------------------------------------------------------------
+//  Program entry point
+// ---------------------------------------------------------------------------
+
 int main(int argc, const char *argv[]) {
     const char *sdbEnabled;
     bool sdb, result;
 
+    // Process-wide Verilator arg registration (before context creation in library)
     Verilated::commandArgs(argc, argv);
 
     std::cout << "正在加载配置选项..." << std::endl;
@@ -431,7 +435,7 @@ int main(int argc, const char *argv[]) {
         return EXIT_SUCCESS;
     }
 
-    // TUI 和 SDB 不能同时启用
+    // TUI 和 SDB 不能同时启用 (runner-side policy only)
     if (config.tuiEnabled && sdb) {
         std::cerr << "[config] 错误: TUI 模式与 SDB 模式不能同时启用!"
                   << std::endl;
@@ -439,22 +443,20 @@ int main(int argc, const char *argv[]) {
     }
 
     // ── 将配置交给库端, 库端只接收已构造好的数据 ──
-    // initialize() 内部调用 applySimulatorConfig() 把公共配置
-    // 翻译为内部 SimConfig / SimState, 并创建 VerilatedContext,
-    // 构造顶层模型, 打开波形, 初始化设备和 DiffTest,
-    // 进行处理器重置等完整初始化工作.
     npc::Simulator sim;
     sim.initialize(config, argc, argv);
 
-    // ── 加载 / 生成 TUI 配置文件 (sim_config 由 initialize 填充) ──
+    // ── 加载 / 生成 TUI 配置文件 ──
+    // 使用 runner 本地的 config.tuiConfigFilePath (与 initialize 传播的值一致)
     if (config.tuiEnabled) {
-        if (!tui::loadOrGenerateTuiConfig(sim_config.config_tuiConfigFilePath)) {
+        if (!tui::loadOrGenerateTuiConfig(config.tuiConfigFilePath)) {
             std::cerr << "[tui] 配置文件加载失败, 退出." << std::endl;
             return EXIT_FAILURE;
         }
     }
 
-    result = simulate(sdb);
+    // 委托执行给库端
+    result = sim.run(sdb);
 
     return result ? EXIT_SUCCESS : EXIT_FAILURE;
 }

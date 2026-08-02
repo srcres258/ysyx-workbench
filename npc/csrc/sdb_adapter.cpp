@@ -2,19 +2,37 @@
 #include <cstring>
 #include <cstdlib>
 #include <string>
+#include <cstdio>
 
 #include <isa.hpp>
 #include <sim_top.hpp>
 #include <device/io/mmio.hpp>
 #include <sdb.hpp>
+#include "npc/simulator_impl.hpp"
 
 #ifdef NPC_STANDALONE
 extern "C" int dpi_pmem_read(int addr);
 extern "C" void dpi_pmem_write(int addr, int data, char strb);
 #endif
 
+// ── Simulator-backed adapter helper ──
+// All register/memory access paths go through the active simulator bridge.
+// Returns true if the simulator is active and ready; false otherwise.
+static inline bool ensure_sim_active(SdbError *err) {
+    if (getActiveSimulator()) {
+        return true;
+    }
+    sdb_error_set(
+      err, SDB_ERR_UNSUPPORTED, 0, 0,
+      "no active simulator instance — SDB unavailable", "npc"
+    );
+    return false;
+}
+
 static bool read_reg_impl(void *userdata, const char *name, SdbValue *out, SdbError *err) {
   (void)userdata;
+  if (!ensure_sim_active(err))
+    return false;
   bool success = false;
   if (std::strcmp(name, "pc") == 0) {
     *out = sdb_value_make(getDPIModule()->core_pc, sizeof(word_t) * 8, false);
@@ -31,6 +49,8 @@ static bool read_reg_impl(void *userdata, const char *name, SdbValue *out, SdbEr
 
 static bool write_reg_impl(void *userdata, const char *name, SdbValue value, SdbError *err) {
   (void)userdata;
+  if (!ensure_sim_active(err))
+    return false;
   auto *dpi = getDPIModule();
   const uint64_t bits = sdb_value_as_u64(value);
   if (std::strcmp(name, "pc") == 0) {
@@ -107,6 +127,8 @@ static bool read_mem_impl(
 ) {
   (void)userdata;
   (void)is_signed;
+  if (!ensure_sim_active(err))
+    return false;
   const int len = static_cast<int>(width / 8);
   if (len != 1 && len != 2 && len != 4 && len != 8) {
     sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "unsupported memory width", "npc");
@@ -156,6 +178,8 @@ static bool write_mem_impl(
 ) {
   (void)userdata;
   (void)space;
+  if (!ensure_sim_active(err))
+    return false;
   const int len = static_cast<int>(width / 8);
   if (len != 1 && len != 2 && len != 4 && len != 8) {
     sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "unsupported memory width", "npc");
@@ -206,11 +230,15 @@ static bool lookup_symbol_impl(void *userdata, uint64_t addr, char *name, size_t
 
 static uint64_t get_pc_impl(void *userdata) {
   (void)userdata;
+  if (!getActiveSimulator())
+    return 0;
   return getDPIModule()->core_pc;
 }
 
 static bool set_pc_impl(void *userdata, uint64_t pc, SdbError *err) {
   (void)userdata;
+  if (!ensure_sim_active(err))
+    return false;
   getDPIModule()->core_pc = static_cast<addr_t>(pc);
   sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "pc write uses best-effort direct assignment", "npc");
   return true;

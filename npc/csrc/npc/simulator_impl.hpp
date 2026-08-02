@@ -46,6 +46,12 @@ using ref_difftest_get_mem_map_f_t = size_t (*)(
 using ref_difftest_set_reset_vector_f_t = void (*)(uint64_t reset_vector);
 using ref_difftest_init_f_t = void (*)(int port);
 
+// ── Library‑internal lifecycle state ──
+// Authoritative storage lives in npc/csrc/npc/simulator.cpp.
+// dpi.cpp needs direct (volatile) access to sim_halt for the DPI callback
+// dpi_halt(), which is on the critical evaluation path.
+extern volatile bool sim_halt;
+
 // Active-instance bridge: lifecycle fields (VerilatedContext, top, etc.)
 // live as file-scope globals in simulator.cpp; this struct now also holds
 // perf, difftest, and device memory base state so those subsystems no longer
