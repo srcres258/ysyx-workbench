@@ -12,7 +12,9 @@ class Overlay {
 public:
     Overlay();
 
-    bool active() const { return m_active; }
+    bool active() const {
+        return m_active;
+    }
 
     void toggle();
     void open();
@@ -20,7 +22,9 @@ public:
 
     std::string execute();
 
-    std::string inputBuffer() const { return m_input; }
+    std::string inputBuffer() const {
+        return m_input;
+    }
 
     void appendOutput(const std::string &line);
 
@@ -35,8 +39,12 @@ public:
 
     void render(Canvas &canvas, uint16_t rows, uint16_t cols);
 
-    bool quitRequested() const { return m_quitRequested; }
-    void setQuitRequested(bool v) { m_quitRequested = v; }
+    bool quitRequested() const {
+        return m_quitRequested;
+    }
+    void setQuitRequested(bool v) {
+        m_quitRequested = v;
+    }
     void dispatchCommand(const std::string &cmd);
 
 private:

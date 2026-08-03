@@ -38,7 +38,9 @@ std::string toLower(const std::string &s) {
     std::string r;
     r.reserve(s.size());
     for (char c : s)
-        r.push_back(static_cast<char>(std::tolower(static_cast<unsigned char>(c))));
+        r.push_back(static_cast<char>(std::tolower(
+            static_cast<unsigned char>(c)
+        )));
     return r;
 }
 
@@ -123,20 +125,27 @@ KeyChord parseKeyChord(const std::string &spec) {
     }
 
     if (!work.empty() && work[0] == '+') {
-        throw std::runtime_error("keybinding \"" + spec +
-                "\": stray '+' separator — empty key segment");
+        throw std::runtime_error(
+            "keybinding \"" + spec +
+                "\": stray '+' separator — empty key segment"
+        );
     }
     if (work.empty()) {
-        throw std::runtime_error("keybinding \"" + spec +
-                "\": missing key after modifier");
+        throw std::runtime_error(
+            "keybinding \"" + spec +
+                "\": missing key after modifier"
+        );
     }
 
     // Check for named keys first.
     const NamedKeyEntry *named = findNamedKey(work);
     if (named) {
         if ((mod & kModShift) && !named->allowsShift) {
-            throw std::runtime_error("keybinding \"" + spec +
-                    "\": shift modifier not valid for key \"" + named->name + "\"");
+            throw std::runtime_error(
+                "keybinding \"" + spec +
+                    "\": shift modifier not valid for key \"" + named->name +
+                    "\""
+            );
         }
         return KeyChord { mod, named->code };
     }
@@ -151,15 +160,22 @@ KeyChord parseKeyChord(const std::string &spec) {
         }
         if (mod & kModCtrl) {
             if (ch < 'a' || ch > 'z') {
-                throw std::runtime_error("keybinding \"" + spec +
-                        "\": ctrl modifier only valid with lowercase letters a–z");
+                throw std::runtime_error(
+                    "keybinding \"" + spec +
+                        "\": ctrl modifier only valid with lowercase letters a–z"
+                );
             }
         }
-        return KeyChord { mod, static_cast<uint32_t>(static_cast<unsigned char>(ch)) };
+        return KeyChord {
+            mod,
+            static_cast<uint32_t>(static_cast<unsigned char>(ch))
+        };
     }
 
-    throw std::runtime_error("keybinding \"" + spec +
-            "\": unknown key \"" + work + "\"");
+    throw std::runtime_error(
+        "keybinding \"" + spec +
+            "\": unknown key \"" + work + "\""
+    );
 }
 
 bool validateKeyBinding(const std::string &spec, const char *label) {
@@ -183,8 +199,10 @@ namespace {
 std::optional<KeyChord> readKeyChord() {
     unsigned char first;
     int rd = ::read(STDIN_FILENO, &first, 1);
-    if (rd == 0) return std::nullopt;
-    if (rd < 0)  return std::nullopt;
+    if (rd == 0)
+        return std::nullopt;
+    if (rd < 0)
+        return std::nullopt;
 
     if (first != 0x1B) {
         return decodeSingleByte(first);
@@ -206,7 +224,10 @@ KeyChord decodeSingleByte(unsigned char b) {
 
     if (b >= 1 && b <= 26) {
         char ch = static_cast<char>('a' + b - 1);
-        return KeyChord { kModCtrl, static_cast<uint32_t>(static_cast<unsigned char>(ch)) };
+        return KeyChord {
+            kModCtrl,
+            static_cast<uint32_t>(static_cast<unsigned char>(ch))
+        };
     }
 
     if (b >= 32 && b <= 126) {
@@ -249,7 +270,7 @@ std::optional<KeyChord> decodeEscapeSequence() {
                 default: break;
             }
         }
-        return KeyChord{kModNone, SpecialKey::kEsc};
+        return KeyChord { kModNone, SpecialKey::kEsc };
     }
 
     if (n >= 1 && buf[0] == '[') {
@@ -297,7 +318,8 @@ void ActionMap::buildFromConfig(const TuiConfig::Keybindings &kb) {
     m_map.clear();
 
     auto bind = [&](const char *name, const std::string &spec, Action a) {
-        if (spec.empty()) return;
+        if (spec.empty())
+            return;
         try {
             KeyChord chord = parseKeyChord(spec);
             m_map[chord] = a;
@@ -329,7 +351,8 @@ Action ActionMap::lookup(const KeyChord &chord) const {
     }
 
     auto it = m_map.find(chord);
-    if (it != m_map.end()) return it->second;
+    if (it != m_map.end())
+        return it->second;
     return Action::NONE;
 }
 

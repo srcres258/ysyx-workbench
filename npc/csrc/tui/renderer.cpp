@@ -46,9 +46,22 @@ static bool appendSGR(std::string &buf, Style style) {
     std::string seq = "\033[";
     bool first = true;
 
-    if (style.bold)      { seq += "1";  first = false; }
-    if (style.underline) { if (!first) seq += ';'; seq += "4";  first = false; }
-    if (style.reverse)   { if (!first) seq += ';'; seq += "7";  first = false; }
+    if (style.bold) {
+        seq += "1";
+        first = false;
+    }
+    if (style.underline) {
+        if (!first)
+            seq += ';';
+        seq += "4";
+        first = false;
+    }
+    if (style.reverse) {
+        if (!first)
+            seq += ';';
+        seq += "7";
+        first = false;
+    }
     if (style.fg != kColourNone) {
         if (!first)
             seq += ';';
@@ -102,7 +115,9 @@ void Canvas::write(uint16_t row, uint16_t col, const char *text, Style style) {
     }
 }
 
-void Canvas::writeStr(uint16_t row, uint16_t col, const std::string &text, Style style) {
+void Canvas::writeStr(
+    uint16_t row, uint16_t col, const std::string &text, Style style
+) {
     write(row, col, text.c_str(), style);
 }
 
@@ -128,7 +143,9 @@ void Canvas::clear(Style style) {
     fill(0, 0, m_rows, m_cols, ' ', style);
 }
 
-void Canvas::applyStyle(uint16_t row, uint16_t col, uint16_t h, uint16_t w, Style style) {
+void Canvas::applyStyle(
+    uint16_t row, uint16_t col, uint16_t h, uint16_t w, Style style
+) {
     if (row >= m_rows || col >= m_cols)
         return;
     uint16_t endRow = minU16(row + h, m_rows);
@@ -140,7 +157,9 @@ void Canvas::applyStyle(uint16_t row, uint16_t col, uint16_t h, uint16_t w, Styl
     }
 }
 
-void Canvas::writeF(uint16_t row, uint16_t col, Style style, const char *fmt, ...) {
+void Canvas::writeF(
+    uint16_t row, uint16_t col, Style style, const char *fmt, ...
+) {
     char buf[512];
     va_list args;
     va_start(args, fmt);
@@ -228,7 +247,8 @@ void Renderer::flush() {
     if (m_tooSmall) {
         std::fputs("\033[H\033[2J", stdout);
         std::fprintf(stdout,
-            "\033[1;31mTerminal too small (%ux%u). Need at least %ux%u.\033[0m\r\n",
+            "\033[1;31mTerminal too small (%ux%u). Need at least %ux%u."
+                "\033[0m\r\n",
             m_termCols, m_termRows, kMinCols, kMinRows);
         std::fflush(stdout);
         m_lastFrame.clear();
@@ -376,7 +396,9 @@ void primDrawStatusBar(
     if (right && right[0]) {
         size_t rlen = std::strlen(right);
         if (rlen + 2 <= cols) {
-            canvas.write(row, cols - static_cast<uint16_t>(rlen) - 1, right, textStyle);
+            canvas.write(
+                row, cols - static_cast<uint16_t>(rlen) - 1, right, textStyle
+            );
         }
     }
 }
@@ -397,7 +419,8 @@ void primDrawTable(
         for (size_t c = 0; c < nCols; c++) {
             const char *hdr = headers[c] ? headers[c] : "";
             size_t hdrLen = std::strlen(hdr);
-            uint16_t cellW = (canvas.cols() - col) / static_cast<uint16_t>(nCols);
+            uint16_t cellW = (canvas.cols() - col) /
+                static_cast<uint16_t>(nCols);
             uint16_t x = col + static_cast<uint16_t>(c) * cellW;
             canvas.write(r, x, hdr, headerStyle);
             if (c < nCols - 1) {
@@ -412,12 +435,15 @@ void primDrawTable(
             break;
         for (size_t c = 0; c < nCols; c++) {
             const char *cellText = rows[i * nCols + c];
-            if (!cellText) cellText = "";
+            if (!cellText)
+                cellText = "";
             size_t textLen = std::strlen(cellText);
-            uint16_t cellW = (canvas.cols() - col) / static_cast<uint16_t>(nCols);
+            uint16_t cellW = (canvas.cols() - col) /
+                static_cast<uint16_t>(nCols);
             uint16_t x = col + static_cast<uint16_t>(c) * cellW;
             size_t toWrite = textLen;
-            if (toWrite >= cellW) toWrite = cellW - 1;
+            if (toWrite >= cellW)
+                toWrite = cellW - 1;
             char tmp[64];
             std::memcpy(tmp, cellText, toWrite);
             tmp[toWrite] = '\0';
@@ -437,7 +463,9 @@ void primDrawList(
         if (row + i >= canvas.rows())
             break;
         if (items[i])
-            canvas.write(row + static_cast<uint16_t>(i), col, items[i], itemStyle);
+            canvas.write(
+                row + static_cast<uint16_t>(i), col, items[i], itemStyle
+            );
     }
 }
 

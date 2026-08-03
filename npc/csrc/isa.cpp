@@ -120,37 +120,37 @@ void isaRegDisplay() {
 
     std::cout << "Registers (GPRs):" << std::endl;
     for (i = 0; i < LEN_REGS; i++) {
-        std::cout << std::setfill(' ') << std::setw(4) << regs[i] <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << isaRegVal(i) << std::dec << std::endl;
+        std::cout << std::setfill(' ') << std::setw(4) << regs[i]
+            << ": 0x" << std::setfill('0') << std::setw(8)
+            << std::hex << isaRegVal(i) << std::dec << std::endl;
     }
 
     auto *dpi = getDPIModule();
-    std::cout << "PC is currently at 0x" << std::setfill('0') <<
-        std::setw(8) << std::hex << dpi->core_pc << std::dec << std::endl;
+    std::cout << "PC is currently at 0x" << std::setfill('0')
+        << std::setw(8) << std::hex << dpi->core_pc << std::dec << std::endl;
 
     std::cout << "CSRs:" << std::endl;
-    std::cout << std::setfill(' ') << std::setw(4) << "mstatus" <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << dpi->csr_csr_mstatus << std::dec << std::endl;
-    std::cout << std::setfill(' ') << std::setw(4) << "mtvec" <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << dpi->csr_csr_mtvec << std::dec << std::endl;
-    std::cout << std::setfill(' ') << std::setw(4) << "mepc" <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << dpi->csr_csr_mepc << std::dec << std::endl;
-    std::cout << std::setfill(' ') << std::setw(4) << "mcause" <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << dpi->csr_csr_mcause << std::dec << std::endl;
-    std::cout << std::setfill(' ') << std::setw(4) << "mtval" <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << dpi->csr_csr_mtval << std::dec << std::endl;
-    std::cout << std::setfill(' ') << std::setw(4) << "mvendorid" <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << dpi->csr_csr_mvendorid << std::dec << std::endl;
-    std::cout << std::setfill(' ') << std::setw(4) << "marchid" <<
-        ": 0x" << std::setfill('0') << std::setw(8) <<
-        std::hex << dpi->csr_csr_marchid << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mstatus"
+        << ": 0x" << std::setfill('0') << std::setw(8) << std::hex
+        << dpi->csr_csr_mstatus << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mtvec"
+        << ": 0x" << std::setfill('0') << std::setw(8) << std::hex
+        << dpi->csr_csr_mtvec << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mepc"
+        << ": 0x" << std::setfill('0') << std::setw(8) << std::hex
+        << dpi->csr_csr_mepc << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mcause"
+        << ": 0x" << std::setfill('0') << std::setw(8) << std::hex
+        << dpi->csr_csr_mcause << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mtval"
+        << ": 0x" << std::setfill('0') << std::setw(8) << std::hex
+        << dpi->csr_csr_mtval << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "mvendorid"
+        << ": 0x" << std::setfill('0') << std::setw(8) << std::hex
+        << dpi->csr_csr_mvendorid << std::dec << std::endl;
+    std::cout << std::setfill(' ') << std::setw(4) << "marchid"
+        << ": 0x" << std::setfill('0') << std::setw(8) << std::hex
+        << dpi->csr_csr_marchid << std::dec << std::endl;
 }
 
 /**

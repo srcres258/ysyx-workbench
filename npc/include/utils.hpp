@@ -158,18 +158,21 @@ bool sim_state_ftrace_funcSyms_init();
 // ----------- trace sinks -----------
 
 void trace_record_mtrace(
-    addr_t pc, bool isWrite, addr_t addr, int len, word_t data, uint8_t strobe, uint32_t resp
+    addr_t pc, bool isWrite, addr_t addr, int len, word_t data,
+    uint8_t strobe, uint32_t resp
 );
 
 void trace_record_itrace(addr_t pc, word_t inst);
 
 void trace_record_dtrace(
-    addr_t pc, const char *device, bool isWrite, addr_t addr, int len, word_t data,
+    addr_t pc, const char *device, bool isWrite, addr_t addr,
+    int len, word_t data,
     const char *bus, const char *region
 );
 
 void trace_record_etrace(
-    addr_t pc, const char *trapKind, word_t cause, word_t mepc, word_t mtval, word_t target
+    addr_t pc, const char *trapKind, word_t cause, word_t mepc,
+    word_t mtval, word_t target
 );
 
 // ----------- log -----------
@@ -215,7 +218,9 @@ void disasm_init();
  * @param code 待反汇编的代码段
  * @param nbyte 待反汇编的代码段长度
  */
-void disasm_disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
+void disasm_disassemble(
+    char *str, int size, uint64_t pc, uint8_t *code, int nbyte
+);
 
 /**
  * @brief 尝试反汇编一段代码。
@@ -223,7 +228,9 @@ void disasm_disassemble(char *str, int size, uint64_t pc, uint8_t *code, int nby
  * @return true  反汇编成功并写入结果
  * @return false 反汇编失败（例如没有解出单条指令）
  */
-bool disasm_tryDisassemble(char *str, int size, uint64_t pc, uint8_t *code, int nbyte);
+bool disasm_tryDisassemble(
+    char *str, int size, uint64_t pc, uint8_t *code, int nbyte
+);
 
 // ----------- ftrace -----------
 
@@ -248,7 +255,9 @@ bool ftrace_queryNameThroughSymbolTable(std::string &dest, addr_t addr);
  * @return true 记录成功（包含未知符号时也会保留运行时栈信息）
  * @return false 仅当类型不支持时返回
  */
-bool ftrace_tryRecord(CallType type, addr_t srcAddr, addr_t addr, addr_t retAddr, word_t callerSp);
+bool ftrace_tryRecord(
+    CallType type, addr_t srcAddr, addr_t addr, addr_t retAddr, word_t callerSp
+);
 
 // ----------- panic -----------
 

@@ -68,10 +68,11 @@ static void printWPPool() {
     std::cout << "Watchpoints:" << std::endl;
     if (cur) {
         while (cur) {
-            std::cout << "Watchpoint " << cur->no << ": " << (cur->expr ? cur->expr : "<null>") << std::endl;
+            std::cout << "Watchpoint " << cur->no << ": "
+                << (cur->expr ? cur->expr : "<null>") << std::endl;
             std::cout << "Value: " << sdb_value_as_i64(cur->val)
-                      << ", Evaluated: " << cur->evaluated
-                      << ", Enabled: " << cur->enabled << std::endl;
+                << ", Evaluated: " << cur->evaluated
+                << ", Enabled: " << cur->enabled << std::endl;
             cur = cur->next;
         }
     } else {
@@ -300,7 +301,9 @@ static int cmd_x(char *args) {
     printf("Memory scan: addr=0x%08x, N=%d\n", addr, N);
     cur_addr = addr;
     for (i = 0; i < N; i++) {
-        if (!sdb_npc_target_ops()->read_memory(nullptr, SDB_ADDR_MEM, cur_addr, 32, false, false, &memv, nullptr)) {
+        if (!sdb_npc_target_ops()->read_memory(
+            nullptr, SDB_ADDR_MEM, cur_addr, 32, false, false, &memv, nullptr
+        )) {
             printf("0x%08X: N/A\n", cur_addr);
         } else {
             value = (uint32_t)sdb_value_as_u64(memv);
@@ -334,9 +337,12 @@ static int cmd_p(char *args) {
     }
 
     if (sdb_expr_eval_text(args, sdb_npc_target_ops(), &result)) {
-        std::cout << "$1 = " << std::dec << sdb_value_as_i64(result.value) << std::endl;
-        std::cout << "unsigned = " << std::dec << sdb_value_as_u64(result.value) << std::endl;
-        std::cout << "hex = 0x" << std::hex << sdb_value_as_u64(result.value) << std::dec << std::endl;
+        std::cout << "$1 = " << std::dec << sdb_value_as_i64(result.value)
+            << std::endl;
+        std::cout << "unsigned = " << std::dec << sdb_value_as_u64(result.value)
+            << std::endl;
+        std::cout << "hex = 0x" << std::hex << sdb_value_as_u64(result.value)
+            << std::dec << std::endl;
     } else {
         std::cout << "求值失败，请检查您输入的表达式是否有误！" << std::endl;
     }
@@ -377,11 +383,11 @@ static int cmd_w(char *args) {
         if (sdb_expr_eval(wp->expr_ast, sdb_npc_target_ops(), &result)) {
             wp->val = result.value;
             wp->evaluated = true;
-            std::cout << "成功设置监视点" << wp->no << "，内容为：" <<
-                wp->expr << "，初始值为：" << sdb_value_as_i64(wp->val) << std::endl;
+            std::cout << "成功设置监视点" << wp->no << "，内容为：" << wp->expr
+                << "，初始值为：" << sdb_value_as_i64(wp->val) << std::endl;
         } else {
-            std::cout << "成功设置监视点" << wp->no << "，内容为：" <<
-                wp->expr << "，此时无法求值。" << std::endl;
+            std::cout << "成功设置监视点" << wp->no << "，内容为：" << wp->expr
+                << "，此时无法求值。" << std::endl;
         }
     } else {
         std::cout << "监视点表达式解析失败：" << err.message << std::endl;
@@ -450,12 +456,14 @@ static int cmd_help(char *args) {
     if (!arg) {
         // No argument given.
         for (i = 0; i < NR_CMD; i++) {
-            std::cout << cmd_table[i].name << " - " << cmd_table[i].description << std::endl;
+            std::cout << cmd_table[i].name << " - " << cmd_table[i].description
+                << std::endl;
         }
     } else {
         for (i = 0; i < NR_CMD; i++) {
             if (strcmp(arg, cmd_table[i].name) == 0) {
-                std::cout << cmd_table[i].name << " - " << cmd_table[i].description << std::endl;
+                std::cout << cmd_table[i].name << " - " << cmd_table[i].description
+                    << std::endl;
                 return 0;
             }
         }
@@ -614,10 +622,10 @@ void sdb_evalAndUpdateWP() {
         }
         if (cur->evaluated && result.value.bits != cur->val.bits) {
             sim_state.state = SIM_STOP;
-            std::cout << "Watchpoint " << cur->no << " triggered: " <<
-                (cur->expr ? cur->expr : "<null>") << std::endl;
-            std::cout << "Old value: " << std::dec << sdb_value_as_i64(cur->val) <<
-                ", new value: " << sdb_value_as_i64(result.value) << std::endl;
+            std::cout << "Watchpoint " << cur->no << " triggered: "
+                << (cur->expr ? cur->expr : "<null>") << std::endl;
+            std::cout << "Old value: " << std::dec << sdb_value_as_i64(cur->val)
+                << ", new value: " << sdb_value_as_i64(result.value) << std::endl;
             tui::g_eventFeed.push(getExecCount(), tui::EventType::WATCHPOINT,
                                   simExecInfo.pc, static_cast<word_t>(cur->no),
                                   cur->expr ? cur->expr : "<null>");
@@ -687,9 +695,11 @@ std::string sdb_cmdInfoWatchpoints() {
     WatchPoint *cur = wpHead;
     if (cur) {
         while (cur) {
-            oss << "Watchpoint " << cur->no << ": " << (cur->expr ? cur->expr : "<null>") << std::endl;
+            oss << "Watchpoint " << cur->no << ": "
+                << (cur->expr ? cur->expr : "<null>") << std::endl;
             oss << "Value: " << sdb_value_as_i64(cur->val)
-                << ", Evaluated: " << (cur->evaluated ? "true" : "false") << std::endl;
+                << ", Evaluated: " << (cur->evaluated ? "true" : "false")
+                << std::endl;
             cur = cur->next;
         }
     } else {
@@ -708,7 +718,8 @@ std::string sdb_cmdX(int n, const char *exprStr) {
     bool success = false;
     word_t addr = static_cast<word_t>(sdb_expr(exprStr, &success));
     if (!success) {
-        oss << "Error: failed to evaluate expression \"" << exprStr << "\"" << std::endl;
+        oss << "Error: failed to evaluate expression \"" << exprStr << "\""
+            << std::endl;
         return oss.str();
     }
 
@@ -738,9 +749,12 @@ std::string sdb_cmdP(const char *exprStr) {
 
     SdbEvalResult result{};
     if (sdb_expr_eval_text(exprStr, sdb_npc_target_ops(), &result)) {
-        oss << "$1 = " << std::dec << sdb_value_as_i64(result.value) << std::endl;
-        oss << "unsigned = " << std::dec << sdb_value_as_u64(result.value) << std::endl;
-        oss << "hex = 0x" << std::hex << sdb_value_as_u64(result.value) << std::dec;
+        oss << "$1 = " << std::dec << sdb_value_as_i64(result.value)
+            << std::endl;
+        oss << "unsigned = " << std::dec << sdb_value_as_u64(result.value)
+            << std::endl;
+        oss << "hex = 0x" << std::hex << sdb_value_as_u64(result.value)
+            << std::dec;
     } else {
         oss << "Evaluation failed — check your expression.";
     }

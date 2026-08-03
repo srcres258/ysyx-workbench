@@ -8,7 +8,7 @@
 namespace tui {
 
 NpcSnapshot makeNpcSnapshot(const SnapshotInput &input) {
-    NpcSnapshot snap{};
+    NpcSnapshot snap {};
 
     snap.retiredPc   = input.retiredPc;
     snap.retiredInst = input.retiredInst;
@@ -27,16 +27,18 @@ NpcSnapshot makeNpcSnapshot(const SnapshotInput &input) {
         snap.perfCounters = input.perfCounters;
     }
 
-    snap.numRecentEvents = input.eventFeed
-        ? input.eventFeed->getRecentEvents(
-              snap.recentEvents, NpcSnapshot::kMaxRecentEvents)
-        : 0;
+    snap.numRecentEvents = input.eventFeed ?
+        input.eventFeed->getRecentEvents(
+            snap.recentEvents,
+            NpcSnapshot::kMaxRecentEvents
+        ) : 0;
 
     auto appendInstMark = [&snap](
         const char *name, addr_t pc,
         bool valid, bool hasPc
     ) {
-        if (snap.numInstMarks >= NpcSnapshot::kMaxInstMarks) return;
+        if (snap.numInstMarks >= NpcSnapshot::kMaxInstMarks)
+            return;
         auto &mark = snap.instMarks[snap.numInstMarks++];
         std::snprintf(mark.name, sizeof(mark.name), "%s", name);
         mark.pc    = pc;
@@ -181,14 +183,17 @@ TuiFrameModel makeFrameModel(
             static_cast<double>(coreCycle) / static_cast<double>(coreInstret) :
             0.0;
         fm.perfStallPct = (coreCycle > 0) ?
-            static_cast<double>(coreStall) / static_cast<double>(coreCycle) * 100.0 :
+            static_cast<double>(coreStall) /
+                static_cast<double>(coreCycle) * 100.0 :
             0.0;
         fm.perfValid = true;
     }
 
     // ---- State strings ----
     std::snprintf(
-        fm.stateStr, sizeof(fm.stateStr), "%s",
+        fm.stateStr,
+        sizeof(fm.stateStr),
+        "%s",
         stateString(snap.simState)
     );
     if (snap.simState == SIM_END || snap.simState == SIM_ABORT) {
@@ -200,8 +205,10 @@ TuiFrameModel makeFrameModel(
         fm.haltPcStr[0] = '\0';
     }
     std::snprintf(
-        fm.difftestStr, sizeof(fm.difftestStr),
-        "DiffTest: %s", snap.difftestActive ? "active" : "inactive"
+        fm.difftestStr,
+        sizeof(fm.difftestStr),
+        "DiffTest: %s",
+        snap.difftestActive ? "active" : "inactive"
     );
 
     // ---- Recent events ----

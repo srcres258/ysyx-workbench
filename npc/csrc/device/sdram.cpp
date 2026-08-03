@@ -11,10 +11,12 @@
 
 #define IFDBG if (sim_config.config_debugOutput)
 
-static inline void*& sdram_io_base() { return getActiveSimulator()->sdram_io_base; }
+static inline void*& sdram_io_base() {
+    return getActiveSimulator()->sdram_io_base;
+}
 
 static void sdram_io_handler(addr_t offset, int len, bool isWrite) {
-    // TODO
+    // Nothing to do here: no need for IO handling.
 }
 
 bool device_sdram_init() {
@@ -22,7 +24,13 @@ bool device_sdram_init() {
     if (sdram_io_base()) {
         memset(sdram_io_base(), 0, SDRAM_LEN);
     }
-    device_io_addMMIOMap("sdram", SDRAM_ADDR, sdram_io_base(), SDRAM_LEN, sdram_io_handler);
+    device_io_addMMIOMap(
+        "sdram",
+        SDRAM_ADDR,
+        sdram_io_base(),
+        SDRAM_LEN,
+        sdram_io_handler
+    );
 
     return true;
 }
@@ -88,10 +96,13 @@ void device_sdram_write(addr_t addr, int len, word_t data) {
 
 #ifndef NPC_STANDALONE
     if (isDifftestActive()) {
-        difftest_dut_syncMemoryToRef(addr, sdramMemory + (addr - baseAddr), (size_t) len);
+        difftest_dut_syncMemoryToRef(
+            addr,
+            sdramMemory + (addr - baseAddr),
+            (size_t) len
+        );
     }
 #endif
 
     trace_record_dtrace(0, "sdram", true, addr, len, data, "dpi", "SDRAM");
-
 }

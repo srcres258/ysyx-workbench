@@ -36,7 +36,14 @@ void device_io_addMMIOMap(
     for (i = 0; i < nr_maps; i++) {
         map = &maps[i];
         if (left <= map->high && right >= map->low) {
-            reportMMIOOverlap(name, left, right, map->name, map->low, map->high);
+            reportMMIOOverlap(
+                name,
+                left,
+                right,
+                map->name,
+                map->low,
+                map->high
+            );
         }
     }
 
@@ -65,7 +72,8 @@ word_t device_io_mmio_read(addr_t addr, int len) {
     IOMap *map = fetchMMIOMap(addr);
     if (map == nullptr) {
         panic(
-            "device_mmio_read failed to find a device map at " FMT_ADDR ", read len 0x%08x\n",
+            "device_mmio_read failed to find a device map at " FMT_ADDR
+                ", read len 0x%08x\n",
             addr, len
         );
     }
@@ -77,7 +85,8 @@ void device_io_mmio_write(addr_t addr, int len, word_t data) {
     IOMap *map = fetchMMIOMap(addr);
     if (map == nullptr) {
         panic(
-            "device_mmio_write failed to find a device map at " FMT_ADDR ", write len 0x%08x, data " FMT_WORD "\n",
+            "device_mmio_write failed to find a device map at " FMT_ADDR
+            ", write len 0x%08x, data " FMT_WORD "\n",
             addr, len, data
         );
     }

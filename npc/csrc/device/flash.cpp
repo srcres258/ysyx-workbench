@@ -10,7 +10,9 @@
 
 #define IFDBG if (sim_config.config_debugOutput)
 
-static inline void*& flash_io_base() { return getActiveSimulator()->flash_io_base; }
+static inline void*& flash_io_base() {
+    return getActiveSimulator()->flash_io_base;
+}
 
 static bool initFlashMemory(std::string filename, size_t *fileSize) {
     size_t size;
@@ -26,7 +28,8 @@ static bool initFlashMemory(std::string filename, size_t *fileSize) {
     IFDBG std::cout << "File size is " << size << " bytes." << std::endl;
     if (size > FLASH_LEN) {
         std::cerr << "Flash file is too large, size is " << size <<
-            " bytes, but maximum is only " << FLASH_LEN << " bytes." << std::endl;
+            " bytes, but maximum is only " << FLASH_LEN << " bytes."
+            << std::endl;
         return false;
     }
     f.seekg(0, std::ios::beg);
@@ -52,16 +55,24 @@ bool device_flash_init() {
     if (flash_io_base()) {
         memset(flash_io_base(), 0, FLASH_LEN);
     }
-    device_io_addMMIOMap("flash", FLASH_ADDR, flash_io_base(), FLASH_LEN, flash_io_handler);
+    device_io_addMMIOMap(
+        "flash",
+        FLASH_ADDR,
+        flash_io_base(),
+        FLASH_LEN,
+        flash_io_handler
+    );
 
     IFDBG std::cout << "Initializing flash from bin file..." << std::endl;
     std::string filename(sim_config.config_flashBinFilePath);
     size_t fileSize;
     if (!initFlashMemory(filename, &fileSize)) {
-        std::cerr << "Failed to initialize flash from bin file: " << filename << std::endl;
+        std::cerr << "Failed to initialize flash from bin file: " << filename
+            << std::endl;
         return false;
     }
-    IFDBG std::cout << "Finished initializing flash, size is " << fileSize << " bytes." << std::endl;
+    IFDBG std::cout << "Finished initializing flash, size is " << fileSize
+        << " bytes." << std::endl;
 
     return true;
 }

@@ -96,7 +96,9 @@ public:
     void write(uint16_t row, uint16_t col, const char *text, Style style = {});
 
     /** Write a std::string. */
-    void writeStr(uint16_t row, uint16_t col, const std::string &text, Style style = {});
+    void writeStr(
+        uint16_t row, uint16_t col, const std::string &text, Style style = {}
+    );
 
     /** Fill a rectangular region with a single character and style. */
     void fill(uint16_t row, uint16_t col, uint16_t h, uint16_t w,
@@ -108,7 +110,9 @@ public:
     // ---- Style helpers ----
 
     /** Set the style of every cell in a region without changing the glyph. */
-    void applyStyle(uint16_t row, uint16_t col, uint16_t h, uint16_t w, Style style);
+    void applyStyle(
+        uint16_t row, uint16_t col, uint16_t h, uint16_t w, Style style
+    );
 
     /** Write a formatted (printf‑style) string. */
     void writeF(uint16_t row, uint16_t col, Style style, const char *fmt, ...);
@@ -121,10 +125,12 @@ public:
      * Non‑space cells in @p src overwrite the destination cell.
      * Space cells in @p src are transparent (destination unchanged).
      */
-    void blit(uint16_t dstRow, uint16_t dstCol,
-              const Canvas &src,
-              uint16_t srcRow, uint16_t srcCol,
-              uint16_t h, uint16_t w);
+    void blit(
+        uint16_t dstRow, uint16_t dstCol,
+        const Canvas &src,
+        uint16_t srcRow, uint16_t srcCol,
+        uint16_t h, uint16_t w
+    );
 
     /** Blit entire @p src canvas anchored at (dstRow, dstCol). */
     void blitAll(uint16_t dstRow, uint16_t dstCol, const Canvas &src);
@@ -140,7 +146,9 @@ public:
     }
 
     /** True if every cell in the region is ' ' (space). */
-    bool regionIsEmpty(uint16_t row, uint16_t col, uint16_t h, uint16_t w) const;
+    bool regionIsEmpty(
+        uint16_t row, uint16_t col, uint16_t h, uint16_t w
+    ) const;
 
 private:
     uint16_t          m_rows;
@@ -207,22 +215,30 @@ public:
     // ---- Drawing primitives (convenience wrappers that delegate to free functions) ----
 
     /** Draw a box with optional border and title. */
-    void drawBox(uint16_t row, uint16_t col, uint16_t h, uint16_t w,
-                 const char *title = nullptr,
-                 Style titleStyle = {},
-                 Style borderStyle = {});
+    void drawBox(
+        uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+        const char *title = nullptr,
+        Style titleStyle = {},
+        Style borderStyle = {}
+    );
 
     /** Draw a horizontal status bar at the given row. */
-    void drawStatusBar(uint16_t row, const char *left, const char *right,
-                       Style barStyle = {}, Style textStyle = {});
+    void drawStatusBar(
+        uint16_t row, const char *left, const char *right,
+        Style barStyle = {}, Style textStyle = {}
+    );
 
     /** Draw a key‑hint strip (e.g. "q:quit  space:pause  tab:focus"). */
-    void drawKeyHints(uint16_t row, uint16_t col,
-                      const char *hints, Style style = {});
+    void drawKeyHints(
+        uint16_t row, uint16_t col,
+        const char *hints, Style style = {}
+    );
 
     // ---- Last‑frame hook for future diff rendering ----
 
-    const std::string &lastFrame() const { return m_lastFrame; }
+    const std::string &lastFrame() const {
+        return m_lastFrame;
+    }
 
     // ---- Terminal‑too‑small fallback ----
 
@@ -230,7 +246,9 @@ public:
     static constexpr uint16_t kMinRows = 6;
 
     /** True if the current terminal is too small to render properly. */
-    bool terminalTooSmall() const { return m_tooSmall; }
+    bool terminalTooSmall() const {
+        return m_tooSmall;
+    }
 
 private:
     /**
@@ -254,16 +272,20 @@ private:
 // ============================================================================
 
 /** Draw a single‑line border box (corner and edge glyphs). */
-void primDrawBox(Canvas &canvas,
-                 uint16_t row, uint16_t col, uint16_t h, uint16_t w,
-                 const char *title = nullptr,
-                 Style titleStyle = {},
-                 Style borderStyle = {});
+void primDrawBox(
+    Canvas &canvas,
+    uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+    const char *title = nullptr,
+    Style titleStyle = {},
+    Style borderStyle = {}
+);
 
 /** Draw a horizontal status bar spanning the full canvas width. */
-void primDrawStatusBar(Canvas &canvas, uint16_t row,
-                       const char *left, const char *right,
-                       Style barStyle = {}, Style textStyle = {});
+void primDrawStatusBar(
+    Canvas &canvas, uint16_t row,
+    const char *left, const char *right,
+    Style barStyle = {}, Style textStyle = {}
+);
 
 /**
  * @brief Draw a simple table.
@@ -273,32 +295,40 @@ void primDrawStatusBar(Canvas &canvas, uint16_t row,
  * @p headerStyle  Style for the header row.
  * @p cellStyle    Style for body cells.
  */
-void primDrawTable(Canvas &canvas,
-                   uint16_t row, uint16_t col,
-                   const char *const headers[], size_t nCols,
-                   const char *const rows[], size_t nDataRows,
-                   Style headerStyle = {}, Style cellStyle = {},
-                   Style borderStyle = {});
+void primDrawTable(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *const headers[], size_t nCols,
+    const char *const rows[], size_t nDataRows,
+    Style headerStyle = {}, Style cellStyle = {},
+    Style borderStyle = {}
+);
 
 /** Draw a vertical list of items (one per line). */
-void primDrawList(Canvas &canvas,
-                  uint16_t row, uint16_t col,
-                  const char *const items[], size_t nItems,
-                  Style itemStyle = {});
+void primDrawList(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *const items[], size_t nItems,
+    Style itemStyle = {}
+);
 
 /**
  * @brief Draw a small inline badge (e.g. "[RUNNING]").
  *
  * The badge width is computed from the text length + 2 brackets.
  */
-void primDrawBadge(Canvas &canvas,
-                   uint16_t row, uint16_t col,
-                   const char *text, Style badgeStyle = {});
+void primDrawBadge(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *text, Style badgeStyle = {}
+);
 
 /** Draw a key‑hint strip — usually near the bottom of the screen. */
-void primDrawKeyHints(Canvas &canvas,
-                      uint16_t row, uint16_t col,
-                      const char *hints, Style style = {});
+void primDrawKeyHints(
+    Canvas &canvas,
+    uint16_t row, uint16_t col,
+    const char *hints, Style style = {}
+);
 
 // ============================================================================
 // Style constructors (inline convenience)

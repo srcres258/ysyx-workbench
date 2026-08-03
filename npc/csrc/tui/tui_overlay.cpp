@@ -71,11 +71,13 @@ void Overlay::backspace() {
 }
 
 void Overlay::moveCursorLeft() {
-    if (m_cursorPos > 0) --m_cursorPos;
+    if (m_cursorPos > 0)
+        --m_cursorPos;
 }
 
 void Overlay::moveCursorRight() {
-    if (m_cursorPos < m_input.size()) ++m_cursorPos;
+    if (m_cursorPos < m_input.size())
+        ++m_cursorPos;
 }
 
 void Overlay::moveCursorHome() {
@@ -134,14 +136,16 @@ void Overlay::dispatchCommand(const std::string &cmd) {
         requestSimContinue();
     } else if (token == "si") {
         int n = (args && *args) ? std::atoi(args) : 1;
-        if (n <= 0) n = 1;
+        if (n <= 0)
+            n = 1;
         char buf[64];
         std::snprintf(buf, sizeof(buf), "Stepping %d instruction(s)...", n);
         m_output.push_back(buf);
         requestSimStepInst(static_cast<uint64_t>(n));
     } else if (token == "sic") {
         int n = (args && *args) ? std::atoi(args) : 1;
-        if (n <= 0) n = 1;
+        if (n <= 0)
+            n = 1;
         char buf[64];
         std::snprintf(buf, sizeof(buf), "Stepping %d clock period(s)...", n);
         m_output.push_back(buf);
@@ -219,12 +223,30 @@ void Overlay::render(Canvas &canvas, uint16_t rows, uint16_t cols) {
     uint16_t oh = (rows > kOverlayRows) ? kOverlayRows : rows;
     uint16_t orow = rows - oh;
 
-    Style bgStyle { ColourIndex::kColourBlack, ColourIndex::kColourBlack, false, false, false };
-    Style cmdStyle { ColourIndex::kColourWhite, ColourIndex::kColourBlack, true, false, false };
-    Style promptStyle { ColourIndex::kColourGreen, ColourIndex::kColourBlack, true, false, false };
-    Style outputStyle { ColourIndex::kColourWhite, ColourIndex::kColourBlack, false, false, false };
-    Style hintStyle { ColourIndex::kColourCyan, ColourIndex::kColourBlack, true, false, false };
-    Style borderFg { ColourIndex::kColourCyan, ColourIndex::kColourBlack, false, false, false };
+    Style bgStyle {
+        ColourIndex::kColourBlack, ColourIndex::kColourBlack,
+        false, false, false
+    };
+    Style cmdStyle {
+        ColourIndex::kColourWhite, ColourIndex::kColourBlack,
+        true, false, false
+    };
+    Style promptStyle {
+        ColourIndex::kColourGreen, ColourIndex::kColourBlack,
+        true, false, false
+    };
+    Style outputStyle {
+        ColourIndex::kColourWhite, ColourIndex::kColourBlack,
+        false, false, false
+    };
+    Style hintStyle {
+        ColourIndex::kColourCyan, ColourIndex::kColourBlack,
+        true, false, false
+    };
+    Style borderFg {
+        ColourIndex::kColourCyan, ColourIndex::kColourBlack,
+        false, false, false
+    };
 
     canvas.fill(orow, 0, oh, cols, ' ', bgStyle);
 
@@ -251,8 +273,13 @@ void Overlay::render(Canvas &canvas, uint16_t rows, uint16_t cols) {
         canvas.writeStr(orow + oh - 2, 3, visible, cmdStyle);
         uint16_t cursorVisual = 3 + static_cast<uint16_t>(m_cursorPos);
         if (cursorVisual < cols && m_cursorPos < visible.size()) {
-            Style cursorStyle { ColourIndex::kColourBlack, ColourIndex::kColourWhite, false, false, false };
-            canvas.put(orow + oh - 2, cursorVisual, visible[m_cursorPos], cursorStyle);
+            Style cursorStyle {
+                ColourIndex::kColourBlack, ColourIndex::kColourWhite,
+                false, false, false
+            };
+            canvas.put(
+                orow + oh - 2, cursorVisual, visible[m_cursorPos], cursorStyle
+            );
         }
     }
 

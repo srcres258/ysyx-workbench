@@ -19,18 +19,18 @@ extern "C" void dpi_pmem_write(int addr, int data, char strb);
 // All register/memory access paths go through the active simulator bridge.
 // Returns true if the simulator is active and ready; false otherwise.
 static inline bool ensure_sim_active(SdbError *err) {
-    if (getActiveSimulator()) {
-        return true;
-    }
-    sdb_error_set(
-      err, SDB_ERR_UNSUPPORTED, 0, 0,
-      "no active simulator instance — SDB unavailable", "npc"
-    );
-    return false;
+  if (getActiveSimulator()) {
+    return true;
+  }
+  sdb_error_set(
+    err, SDB_ERR_UNSUPPORTED, 0, 0,
+    "no active simulator instance — SDB unavailable", "npc"
+  );
+  return false;
 }
 
 static bool read_reg_impl(void *userdata, const char *name, SdbValue *out, SdbError *err) {
-  (void)userdata;
+  (void) userdata;
   if (!ensure_sim_active(err))
     return false;
   bool success = false;
@@ -40,7 +40,9 @@ static bool read_reg_impl(void *userdata, const char *name, SdbValue *out, SdbEr
   }
   word_t value = isaRegStr2Val(name, &success);
   if (!success) {
-    sdb_error_set(err, SDB_ERR_UNKNOWN_REGISTER, 0, 0, "unknown register", "npc");
+    sdb_error_set(
+      err, SDB_ERR_UNKNOWN_REGISTER, 0, 0, "unknown register", "npc"
+    );
     return false;
   }
   *out = sdb_value_make(value, sizeof(word_t) * 8, false);
@@ -48,7 +50,7 @@ static bool read_reg_impl(void *userdata, const char *name, SdbValue *out, SdbEr
 }
 
 static bool write_reg_impl(void *userdata, const char *name, SdbValue value, SdbError *err) {
-  (void)userdata;
+  (void) userdata;
   if (!ensure_sim_active(err))
     return false;
   auto *dpi = getDPIModule();
@@ -57,7 +59,10 @@ static bool write_reg_impl(void *userdata, const char *name, SdbValue value, Sdb
     dpi->core_pc = static_cast<addr_t>(bits);
     return true;
   }
-  if (std::strcmp(name, "x0") == 0 || std::strcmp(name, "0") == 0 || std::strcmp(name, "$0") == 0) {
+  if (
+    std::strcmp(name, "x0") == 0 || std::strcmp(name, "0") == 0 ||
+    std::strcmp(name, "$0") == 0
+  ) {
     return true;
   }
   auto assign_gpr = [&](size_t idx) -> bool {
@@ -115,7 +120,10 @@ static bool write_reg_impl(void *userdata, const char *name, SdbValue value, Sdb
     }
   }
   if (!ok) {
-    sdb_error_set(err, SDB_ERR_UNKNOWN_REGISTER, 0, 0, "unknown or unsupported register", "npc");
+    sdb_error_set(
+      err, SDB_ERR_UNKNOWN_REGISTER, 0, 0,
+      "unknown or unsupported register", "npc"
+    );
     return false;
   }
   return true;
@@ -125,13 +133,15 @@ static bool read_mem_impl(
   void *userdata, SdbAddressSpace space, uint64_t addr, unsigned width,
   bool is_signed, bool force_mmio, SdbValue *out, SdbError *err
 ) {
-  (void)userdata;
-  (void)is_signed;
+  (void) userdata;
+  (void) is_signed;
   if (!ensure_sim_active(err))
     return false;
   const int len = static_cast<int>(width / 8);
   if (len != 1 && len != 2 && len != 4 && len != 8) {
-    sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "unsupported memory width", "npc");
+    sdb_error_set(
+      err, SDB_ERR_UNSUPPORTED, 0, 0, "unsupported memory width", "npc"
+    );
     return false;
   }
   if (!device_io_mmio_isAddrValid(static_cast<addr_t>(addr))) {
@@ -148,7 +158,10 @@ static bool read_mem_impl(
     }
 #endif
     if (!force_mmio) {
-      sdb_error_set(err, SDB_ERR_MMIO_SIDE_EFFECT, 0, 0, "refusing to read MMIO without force flag", "npc");
+      sdb_error_set(
+        err, SDB_ERR_MMIO_SIDE_EFFECT, 0, 0,
+        "refusing to read MMIO without force flag", "npc"
+      );
       return false;
     }
   }
@@ -160,11 +173,15 @@ static bool read_mem_impl(
     if (addr >= 0x80000000ULL) {
       value = static_cast<uint32_t>(dpi_pmem_read(static_cast<int>(addr)));
     } else {
-      sdb_error_set(err, SDB_ERR_MEMORY_FAULT, 0, 0, "memory access fault", "npc");
+      sdb_error_set(
+        err, SDB_ERR_MEMORY_FAULT, 0, 0, "memory access fault", "npc"
+      );
       return false;
     }
 #else
-    sdb_error_set(err, SDB_ERR_MEMORY_FAULT, 0, 0, "memory access fault", "npc");
+    sdb_error_set(
+      err, SDB_ERR_MEMORY_FAULT, 0, 0, "memory access fault", "npc"
+    );
     return false;
 #endif
   }
@@ -176,13 +193,15 @@ static bool write_mem_impl(
   void *userdata, SdbAddressSpace space, uint64_t addr, unsigned width,
   SdbValue value, bool force_mmio, SdbError *err
 ) {
-  (void)userdata;
-  (void)space;
+  (void) userdata;
+  (void) space;
   if (!ensure_sim_active(err))
     return false;
   const int len = static_cast<int>(width / 8);
   if (len != 1 && len != 2 && len != 4 && len != 8) {
-    sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "unsupported memory width", "npc");
+    sdb_error_set(
+      err, SDB_ERR_UNSUPPORTED, 0, 0, "unsupported memory width", "npc"
+    );
     return false;
   }
   if (!device_io_mmio_isAddrValid(static_cast<addr_t>(addr))) {
@@ -191,56 +210,76 @@ static bool write_mem_impl(
       uint64_t bits = sdb_value_as_u64(value);
       for (int i = 0; i < len; ++i) {
         char strb = 1 << (i & 3);
-        dpi_pmem_write(static_cast<int>(addr + static_cast<uint64_t>(i & ~3)), static_cast<int>(bits >> (8 * (i & 3))), strb);
+        dpi_pmem_write(
+          static_cast<int>(addr + static_cast<uint64_t>(i & ~3)),
+          static_cast<int>(bits >> (8 * (i & 3))),
+          strb
+        );
       }
       return true;
     }
 #endif
     if (!force_mmio) {
-      sdb_error_set(err, SDB_ERR_MMIO_SIDE_EFFECT, 0, 0, "refusing to write MMIO without force flag", "npc");
+      sdb_error_set(
+        err, SDB_ERR_MMIO_SIDE_EFFECT, 0, 0,
+        "refusing to write MMIO without force flag", "npc"
+      );
       return false;
     }
   }
   if (device_io_mmio_isAddrValid(static_cast<addr_t>(addr))) {
-    device_io_mmio_write(static_cast<addr_t>(addr), len, static_cast<word_t>(sdb_value_as_u64(value)));
+    device_io_mmio_write(
+      static_cast<addr_t>(addr),
+      len,
+      static_cast<word_t>(sdb_value_as_u64(value))
+    );
     return true;
   }
-  sdb_error_set(err, SDB_ERR_MEMORY_FAULT, 0, 0, "memory access fault", "npc");
+  sdb_error_set(
+    err, SDB_ERR_MEMORY_FAULT, 0, 0, "memory access fault", "npc"
+  );
   return false;
 }
 
-static bool resolve_symbol_impl(void *userdata, const char *name, uint64_t *addr, SdbError *err) {
-  (void)userdata;
-  (void)name;
-  (void)addr;
+static bool resolve_symbol_impl(
+  void *userdata, const char *name, uint64_t *addr, SdbError *err
+) {
+  (void) userdata;
+  (void) name;
+  (void) addr;
   sdb_error_set(err, SDB_ERR_UNKNOWN_SYMBOL, 0, 0, "unknown symbol", "npc");
   return false;
 }
 
-static bool lookup_symbol_impl(void *userdata, uint64_t addr, char *name, size_t name_len,
-                               uint64_t *offset, SdbError *err) {
-  (void)userdata;
-  (void)addr;
-  (void)name;
-  (void)name_len;
-  (void)offset;
-  (void)err;
+static bool lookup_symbol_impl(
+  void *userdata, uint64_t addr, char *name, size_t name_len,
+  uint64_t *offset, SdbError *err
+) {
+  (void) userdata;
+  (void) addr;
+  (void) name;
+  (void) name_len;
+  (void) offset;
+  (void) err;
   return false;
 }
 
 static uint64_t get_pc_impl(void *userdata) {
-  (void)userdata;
+  (void) userdata;
   if (!getActiveSimulator())
     return 0;
   return getDPIModule()->core_pc;
 }
 
 static bool set_pc_impl(void *userdata, uint64_t pc, SdbError *err) {
-  (void)userdata;
+  (void) userdata;
   if (!ensure_sim_active(err))
     return false;
   getDPIModule()->core_pc = static_cast<addr_t>(pc);
-  sdb_error_set(err, SDB_ERR_UNSUPPORTED, 0, 0, "pc write uses best-effort direct assignment", "npc");
+  sdb_error_set(
+    err, SDB_ERR_UNSUPPORTED, 0, 0,
+    "pc write uses best-effort direct assignment", "npc"
+  );
   return true;
 }
 

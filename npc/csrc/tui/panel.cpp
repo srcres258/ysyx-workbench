@@ -24,7 +24,8 @@ PanelRegistry &PanelRegistry::instance() {
 }
 
 bool PanelRegistry::registerPanel(std::unique_ptr<Panel> panel) {
-    if (!panel) return false;
+    if (!panel)
+        return false;
     const char *panelId = panel->id();
     if (m_panels.find(panelId) != m_panels.end()) {
         return false; // duplicate
@@ -66,7 +67,8 @@ bool PanelRegistry::validateLayout(const LayoutTree &tree) const {
     bool ok = true;
     for (const auto &id : ids) {
         if (!has(id)) {
-            std::cerr << "[tui] layout error: unknown panel ID \"" << id << "\"" << std::endl;
+            std::cerr << "[tui] layout error: unknown panel ID \"" << id
+                << "\"" << std::endl;
             ok = false;
         }
     }
@@ -127,8 +129,10 @@ static const char *kAbiNames[] = {
     "a6",   "a7",  "s2",  "s3",  "s4",  "s5",  "s6",  "s7",
     "s8",   "s9",  "s10", "s11", "t3",  "t4",  "t5",  "t6"
 };
-static_assert(sizeof(kAbiNames) / sizeof(kAbiNames[0]) == RISCV_GPR_NUM,
-              "ABI name array must cover all GPRs");
+static_assert(
+    sizeof(kAbiNames) / sizeof(kAbiNames[0]) == RISCV_GPR_NUM,
+    "ABI name array must cover all GPRs"
+);
 
 // ============================================================================
 // CorePanel
@@ -292,7 +296,8 @@ public:
 
             for (int col = 0; col < nCols; col++) {
                 int idx = row + col * nRows;
-                if (idx >= RISCV_GPR_NUM) break;
+                if (idx >= RISCV_GPR_NUM)
+                    break;
 
                 uint16_t xpos = c + static_cast<uint16_t>(col) * cellW;
 
@@ -371,7 +376,8 @@ public:
         uint16_t r = rect.row + 1;
         uint16_t c = rect.col + 1;
         uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (innerW < 10) return;
+        if (innerW < 10)
+            return;
 
         // Detect changes via local cache
         for (size_t i = 0; i < TuiFrameModel::kNumDefinedCSRs; i++) {
@@ -383,7 +389,8 @@ public:
         m_initialized = true;
 
         for (size_t i = 0; i < TuiFrameModel::kNumDefinedCSRs; i++) {
-            if (r >= rect.row + rect.h - 1) break;
+            if (r >= rect.row + rect.h - 1)
+                break;
 
             bool changed = m_changed[i];
             Style nameStyle = changed ?
@@ -421,7 +428,8 @@ public:
                         bitBuf[pos++] = ' ';
                     }
                     bitBuf[pos++] = (val & (1u << b)) ? '1' : '0';
-                    if (pos >= 38) break;
+                    if (pos >= 38)
+                        break;
                 }
                 bitBuf[pos] = '\0';
                 writeClippedF(
@@ -462,7 +470,8 @@ public:
         uint16_t r = rect.row + 1;
         const uint16_t c = rect.col + 1;
         const uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (innerW < 8 || r >= rect.row + rect.h) return;
+        if (innerW < 8 || r >= rect.row + rect.h)
+            return;
 
         const uint16_t endRow = rect.row + rect.h;
 
@@ -486,10 +495,10 @@ public:
 
         // ── Core counters + derived metrics ──
         {
-            uint64_t cyc = pv[perf::Idx::CORE_CYCLE];
-            uint64_t ins = pv[perf::Idx::CORE_INSTRET];
-            uint64_t busy = pv[perf::Idx::CORE_BUSY_CYCLE];
-            uint64_t stall= pv[perf::Idx::CORE_STALL_CYCLE];
+            uint64_t cyc    = pv[perf::Idx::CORE_CYCLE];
+            uint64_t ins    = pv[perf::Idx::CORE_INSTRET];
+            uint64_t busy   = pv[perf::Idx::CORE_BUSY_CYCLE];
+            uint64_t stall  = pv[perf::Idx::CORE_STALL_CYCLE];
             writeClippedF(
                 canvas, r, c, c, innerW, styleFg(kColourGreen),
                 "Core: c=%lu i=%lu b=%lu s=%lu", cyc, ins, busy, stall
@@ -505,8 +514,8 @@ public:
             const char *ipcFmt = (fm.perfIpc > 0.0) ? "%.3f" : "-";
             const char *stFmt  = (fm.perfStallPct > 0.0) ? "%.1f%%" : "-";
             writeClippedF(
-                canvas, r, c, c, innerW, styleFg(kColourYellow),
-                "CPI="
+                canvas, r, c, c, innerW,
+                styleFg(kColourYellow), "CPI="
             );
             writeClippedF(
                 canvas, r, static_cast<uint16_t>(c + 4), c, innerW,
@@ -623,7 +632,8 @@ public:
         uint16_t c = rect.col + 1;
         uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
         uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (innerH == 0 || innerW < 10) return;
+        if (innerH == 0 || innerW < 10)
+            return;
 
         addr_t anchorPc = chooseInstAnchorPc(fm);
         anchorPc &= ~static_cast<addr_t>(0x3);
@@ -642,8 +652,8 @@ public:
             addr_t linePc = startPc + static_cast<addr_t>(i) * 4;
             bool highlighted = (linePc == anchorPc);
 
-            char disasm[64] = {0};
-            uint8_t bytes[4] = {0, 0, 0, 0};
+            char disasm[64] = { 0 };
+            uint8_t bytes[4] = { 0, 0, 0, 0 };
             bool readable = isReadableInstWord(linePc);
             if (readable) {
                 word_t inst = device_io_mmio_read(linePc, 4);
@@ -651,7 +661,9 @@ public:
                 bytes[1] = static_cast<uint8_t>((inst >> 8) & 0xff);
                 bytes[2] = static_cast<uint8_t>((inst >> 16) & 0xff);
                 bytes[3] = static_cast<uint8_t>((inst >> 24) & 0xff);
-                if (!disasm_tryDisassemble(disasm, sizeof(disasm), linePc, bytes, 4)) {
+                if (!disasm_tryDisassemble(
+                    disasm, sizeof(disasm), linePc, bytes, 4
+                )) {
                     std::snprintf(disasm, sizeof(disasm), "unavailable");
                 }
             } else {
@@ -702,7 +714,8 @@ public:
         uint16_t c = rect.col + 1;
         uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
         uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
-        if (innerH == 0 || innerW < 16) return;
+        if (innerH == 0 || innerW < 16)
+            return;
 
         if (fm.callFrames.empty()) {
             canvas.write(r, c, "(no call frames yet)", styleFg(kColourBlue));
@@ -981,22 +994,63 @@ public:
             ColourIndex evColor = kColourWhite;
             const char *prefix = "[*]";
             switch (ev.type) {
-                case EventType::HALT:              prefix = "[H]"; evColor = kColourRed;    break;
-                case EventType::TRAP_GOOD:         prefix = "[T]"; evColor = kColourGreen;  break;
-                case EventType::TRAP_BAD:          prefix = "[!]"; evColor = kColourRed;    break;
-                case EventType::ABORT:             prefix = "[A]"; evColor = kColourRed;    break;
-                case EventType::WATCHPOINT:        prefix = "[W]"; evColor = kColourYellow; break;
-                case EventType::DIFFTEST_MISMATCH: prefix = "[D]"; evColor = kColourRed;    break;
-                case EventType::DIFFTEST_ACTIVATE: prefix = "[D]"; evColor = kColourCyan;   break;
-                case EventType::DIFFTEST_WARNING:  prefix = "[W]"; evColor = kColourYellow; break;
-                case EventType::PAUSE:             prefix = "[P]"; evColor = kColourYellow; break;
-                case EventType::RESUME:            prefix = "[R]"; evColor = kColourGreen;  break;
-                case EventType::RESET:             prefix = "[R]"; evColor = kColourCyan;   break;
-                case EventType::CONFIG:            prefix = "[C]"; evColor = kColourBlue;   break;
-                default: break;
+                case EventType::HALT:
+                    prefix = "[H]";
+                    evColor = kColourRed;
+                    break;
+                case EventType::TRAP_GOOD:
+                    prefix = "[T]";
+                    evColor = kColourGreen;
+                    break;
+                case EventType::TRAP_BAD:
+                    prefix = "[!]";
+                    evColor = kColourRed;
+                    break;
+                case EventType::ABORT:
+                    prefix = "[A]";
+                    evColor = kColourRed;
+                    break;
+                case EventType::WATCHPOINT:
+                    prefix = "[W]";
+                    evColor = kColourYellow;
+                    break;
+                case EventType::DIFFTEST_MISMATCH:
+                    prefix = "[D]";
+                    evColor = kColourRed;
+                    break;
+                case EventType::DIFFTEST_ACTIVATE:
+                    prefix = "[D]";
+                    evColor = kColourCyan;
+                    break;
+                case EventType::DIFFTEST_WARNING:
+                    prefix = "[W]";
+                    evColor = kColourYellow;
+                    break;
+                case EventType::PAUSE:
+                    prefix = "[P]";
+                    evColor = kColourYellow;
+                    break;
+                case EventType::RESUME:
+                    prefix = "[R]";
+                    evColor = kColourGreen;
+                    break;
+                case EventType::RESET:
+                    prefix = "[R]";
+                    evColor = kColourCyan;
+                    break;
+                case EventType::CONFIG:
+                    prefix = "[C]";
+                    evColor = kColourBlue;
+                    break;
+                default:
+                    break;
             }
-            canvas.write(r + static_cast<uint16_t>(i), c, prefix,
-                         styleFgBold(evColor));
+            canvas.write(
+                r + static_cast<uint16_t>(i),
+                c,
+                prefix,
+                styleFgBold(evColor)
+            );
 
             size_t descW = (innerW > 4) ? (static_cast<size_t>(innerW) - 4) : 0;
             if (descW > 0) {
@@ -1006,7 +1060,8 @@ public:
                     static_cast<int>(std::min(descW, size_t(100))),
                     ev.description
                 );
-                canvas.write(r + static_cast<uint16_t>(i),
+                canvas.write(
+                    r + static_cast<uint16_t>(i),
                     static_cast<uint16_t>(c + 4), desc,
                     styleFg(kColourWhite)
                 );
@@ -1066,7 +1121,9 @@ public:
         if (innerW < 20 || innerH == 0) return;
 
         const uint16_t endRow = rect.row + rect.h;
-        const size_t numCounters = static_cast<size_t>(perf::PerfCounters::kNumCounters);
+        const size_t numCounters = static_cast<size_t>(
+            perf::PerfCounters::kNumCounters
+        );
 
         // ── No perf data ──
         if (!fm.perfValid) {

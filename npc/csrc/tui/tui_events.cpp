@@ -49,7 +49,8 @@ size_t EventFeed::getEventsSince(uint64_t since, std::deque<Event> &out) const {
 }
 
 size_t EventFeed::getRecentEvents(Event *out, size_t maxCount) const {
-    if (events_.empty() || maxCount == 0) return 0;
+    if (events_.empty() || maxCount == 0)
+        return 0;
     size_t count = 0;
     auto it = events_.rbegin();
     for (; it != events_.rend() && count < maxCount; ++it, ++count) {

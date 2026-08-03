@@ -55,7 +55,12 @@ void vga_update() {
     }
     lastRender = now;
 
-    SDL_UpdateTexture(vga_texture, nullptr, vga_fb, VGA_SCREEN_W * sizeof(uint32_t));
+    SDL_UpdateTexture(
+        vga_texture,
+        nullptr,
+        vga_fb,
+        VGA_SCREEN_W * sizeof(uint32_t)
+    );
     SDL_RenderClear(vga_renderer);
     SDL_RenderCopy(vga_renderer, vga_texture, nullptr, nullptr);
     SDL_RenderPresent(vga_renderer);
@@ -66,9 +71,18 @@ void vga_cleanup() {
     if (!vga_windowEnabled) {
         return;
     }
-    if (vga_texture)  { SDL_DestroyTexture(vga_texture);  vga_texture  = nullptr; }
-    if (vga_renderer) { SDL_DestroyRenderer(vga_renderer); vga_renderer = nullptr; }
-    if (vga_window)   { SDL_DestroyWindow(vga_window);     vga_window   = nullptr; }
+    if (vga_texture) {
+        SDL_DestroyTexture(vga_texture);
+        vga_texture = nullptr;
+    }
+    if (vga_renderer) {
+        SDL_DestroyRenderer(vga_renderer);
+        vga_renderer = nullptr;
+    }
+    if (vga_window) {
+        SDL_DestroyWindow(vga_window);
+        vga_window = nullptr;
+    }
     SDL_Quit();
     vga_windowEnabled = false;
 }

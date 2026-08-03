@@ -65,7 +65,7 @@ bool mkdirParents(const std::string &path) {
         return false;
     if (mkdir(parent.c_str(), 0755) != 0 && errno != EEXIST) {
         std::cerr << "[tui] failed to create directory " << parent
-                  << ": " << strerror(errno) << std::endl;
+            << ": " << strerror(errno) << std::endl;
         return false;
     }
     return true;
@@ -85,60 +85,112 @@ TuiConfig parseTuiConfig(const std::string &path) {
         tbl = toml::parse_file(path);
     } catch (const toml::parse_error &e) {
         std::cerr << "[tui] config parse error in " << path << ":\n"
-                  << e.description() << "\n"
-                  << "\tat line " << e.source().begin.line
-                  << ", column " << e.source().begin.column << std::endl;
+            << e.description() << "\n"
+            << "\tat line " << e.source().begin.line
+            << ", column " << e.source().begin.column << std::endl;
         throw;
     }
 
     // [keybindings]
     if (auto *kb = tbl["keybindings"].as_table()) {
-        cfg.keybindings.focus_next       = getOr<std::string>(*kb, "focus_next",       cfg.keybindings.focus_next);
-        cfg.keybindings.focus_prev       = getOr<std::string>(*kb, "focus_prev",       cfg.keybindings.focus_prev);
-        cfg.keybindings.help_overlay     = getOr<std::string>(*kb, "help_overlay",     cfg.keybindings.help_overlay);
-        cfg.keybindings.maximize_toggle  = getOr<std::string>(*kb, "maximize_toggle",  cfg.keybindings.maximize_toggle);
-        cfg.keybindings.panel_picker     = getOr<std::string>(*kb, "panel_picker",     cfg.keybindings.panel_picker);
-        cfg.keybindings.pause_resume     = getOr<std::string>(*kb, "pause_resume",     cfg.keybindings.pause_resume);
-        cfg.keybindings.quit             = getOr<std::string>(*kb, "quit",             cfg.keybindings.quit);
-        cfg.keybindings.reset            = getOr<std::string>(*kb, "reset",            cfg.keybindings.reset);
-        cfg.keybindings.resize_down      = getOr<std::string>(*kb, "resize_down",      cfg.keybindings.resize_down);
-        cfg.keybindings.resize_left      = getOr<std::string>(*kb, "resize_left",      cfg.keybindings.resize_left);
-        cfg.keybindings.resize_right     = getOr<std::string>(*kb, "resize_right",     cfg.keybindings.resize_right);
-        cfg.keybindings.resize_up        = getOr<std::string>(*kb, "resize_up",        cfg.keybindings.resize_up);
-        cfg.keybindings.step_clock       = getOr<std::string>(*kb, "step_clock",       cfg.keybindings.step_clock);
-        cfg.keybindings.step_instruction = getOr<std::string>(*kb, "step_instruction", cfg.keybindings.step_instruction);
-        cfg.keybindings.tab_next         = getOr<std::string>(*kb, "tab_next",         cfg.keybindings.tab_next);
+        cfg.keybindings.focus_next       = getOr<std::string>(
+            *kb, "focus_next",       cfg.keybindings.focus_next
+        );
+        cfg.keybindings.focus_prev       = getOr<std::string>(
+            *kb, "focus_prev",       cfg.keybindings.focus_prev
+        );
+        cfg.keybindings.help_overlay     = getOr<std::string>(
+            *kb, "help_overlay",     cfg.keybindings.help_overlay
+        );
+        cfg.keybindings.maximize_toggle  = getOr<std::string>(
+            *kb, "maximize_toggle",  cfg.keybindings.maximize_toggle
+        );
+        cfg.keybindings.panel_picker     = getOr<std::string>(
+            *kb, "panel_picker",     cfg.keybindings.panel_picker
+        );
+        cfg.keybindings.pause_resume     = getOr<std::string>(
+            *kb, "pause_resume",     cfg.keybindings.pause_resume
+        );
+        cfg.keybindings.quit             = getOr<std::string>(
+            *kb, "quit",             cfg.keybindings.quit
+        );
+        cfg.keybindings.reset            = getOr<std::string>(
+            *kb, "reset",            cfg.keybindings.reset
+        );
+        cfg.keybindings.resize_down      = getOr<std::string>(
+            *kb, "resize_down",      cfg.keybindings.resize_down
+        );
+        cfg.keybindings.resize_left      = getOr<std::string>(
+            *kb, "resize_left",      cfg.keybindings.resize_left
+        );
+        cfg.keybindings.resize_right     = getOr<std::string>(
+            *kb, "resize_right",     cfg.keybindings.resize_right
+        );
+        cfg.keybindings.resize_up        = getOr<std::string>(
+            *kb, "resize_up",        cfg.keybindings.resize_up
+        );
+        cfg.keybindings.step_clock       = getOr<std::string>(
+            *kb, "step_clock",       cfg.keybindings.step_clock
+        );
+        cfg.keybindings.step_instruction = getOr<std::string>(
+            *kb, "step_instruction", cfg.keybindings.step_instruction
+        );
+        cfg.keybindings.tab_next         = getOr<std::string>(
+            *kb, "tab_next",         cfg.keybindings.tab_next
+        );
     }
 
     // [layout]
     if (auto *ly = tbl["layout"].as_table()) {
-        cfg.layout.preset = getOr<std::string>(*ly, "preset", cfg.layout.preset);
+        cfg.layout.preset = getOr<std::string>(
+            *ly, "preset", cfg.layout.preset
+        );
     }
 
     // [regs]
     if (auto *rg = tbl["regs"].as_table()) {
-        cfg.regs.abi_names         = getBool(*rg, "abi_names",         cfg.regs.abi_names);
-        cfg.regs.highlight_changed = getBool(*rg, "highlight_changed", cfg.regs.highlight_changed);
+        cfg.regs.abi_names         = getBool(
+            *rg, "abi_names",         cfg.regs.abi_names
+        );
+        cfg.regs.highlight_changed = getBool(
+            *rg, "highlight_changed", cfg.regs.highlight_changed
+        );
     }
 
     // [render]
     if (auto *rd = tbl["render"].as_table()) {
-        cfg.render.box_border_style = getOr<std::string>(*rd, "box_border_style", cfg.render.box_border_style);
-        cfg.render.theme            = getOr<std::string>(*rd, "theme",            cfg.render.theme);
+        cfg.render.box_border_style = getOr<std::string>(
+            *rd, "box_border_style", cfg.render.box_border_style
+        );
+        cfg.render.theme            = getOr<std::string>(
+            *rd, "theme",            cfg.render.theme
+        );
     }
 
     // [trace]
     if (auto *tr = tbl["trace"].as_table()) {
-        cfg.trace.buffer_size = getInt(*tr, "buffer_size", cfg.trace.buffer_size);
-        cfg.trace.follow_tail = getBool(*tr, "follow_tail", cfg.trace.follow_tail);
-        cfg.trace.show_disasm = getBool(*tr, "show_disasm", cfg.trace.show_disasm);
+        cfg.trace.buffer_size = getInt(
+            *tr, "buffer_size", cfg.trace.buffer_size
+        );
+        cfg.trace.follow_tail = getBool(
+            *tr, "follow_tail", cfg.trace.follow_tail
+        );
+        cfg.trace.show_disasm = getBool(
+            *tr, "show_disasm", cfg.trace.show_disasm
+        );
     }
 
     // [ui]
     if (auto *u = tbl["ui"].as_table()) {
-        cfg.ui.refresh_hz = getInt(*u, "refresh_hz", cfg.ui.refresh_hz);
-        cfg.ui.show_fps   = getBool(*u, "show_fps",   cfg.ui.show_fps);
-        cfg.ui.status_bar = getBool(*u, "status_bar", cfg.ui.status_bar);
+        cfg.ui.refresh_hz = getInt(
+            *u, "refresh_hz", cfg.ui.refresh_hz
+        );
+        cfg.ui.show_fps   = getBool(
+            *u, "show_fps",   cfg.ui.show_fps
+        );
+        cfg.ui.status_bar = getBool(
+            *u, "status_bar", cfg.ui.status_bar
+        );
     }
 
     return cfg;
@@ -158,8 +210,8 @@ static bool validateStringEnum(
             return true;
     }
     std::cerr << "[tui] error: [" << section << "] " << key
-              << " = \"" << val << "\" is not a recognised value."
-              << std::endl;
+        << " = \"" << val << "\" is not a recognised value."
+        << std::endl;
     return false;
 }
 
@@ -168,44 +220,57 @@ bool validateTuiConfig(TuiConfig &cfg) {
 
     // layout.preset
     {
-        static const char *const allowed[] = {"default", "wide", "tall", "minimal"};
-        if (!validateStringEnum("layout", "preset", cfg.layout.preset, allowed, 4))
+        static const char *const allowed[] = {
+            "default", "wide", "tall", "minimal"
+        };
+        if (!validateStringEnum(
+            "layout", "preset", cfg.layout.preset, allowed, 4
+        ))
             ok = false;
     }
 
     // render.box_border_style
     {
-        static const char *const allowed[] = {"single", "double", "rounded"};
-        if (!validateStringEnum("render", "box_border_style", cfg.render.box_border_style, allowed, 3))
+        static const char *const allowed[] = {
+            "single", "double", "rounded"
+        };
+        if (!validateStringEnum(
+            "render", "box_border_style", cfg.render.box_border_style,
+            allowed, 3
+        ))
             ok = false;
     }
 
     // render.theme
     {
-        static const char *const allowed[] = {"default", "dark", "light"};
-        if (!validateStringEnum("render", "theme", cfg.render.theme, allowed, 3))
+        static const char *const allowed[] = {
+            "default", "dark", "light"
+        };
+        if (!validateStringEnum(
+            "render", "theme", cfg.render.theme, allowed, 3
+        ))
             ok = false;
     }
 
     // Numerical bounds
     if (cfg.ui.refresh_hz < 1) {
         std::cerr << "[tui] warning: ui.refresh_hz clamped to 1 (was "
-                  << cfg.ui.refresh_hz << ")" << std::endl;
+            << cfg.ui.refresh_hz << ")" << std::endl;
         cfg.ui.refresh_hz = 1;
     }
     if (cfg.ui.refresh_hz > 120) {
         std::cerr << "[tui] warning: ui.refresh_hz clamped to 120 (was "
-                  << cfg.ui.refresh_hz << ")" << std::endl;
+            << cfg.ui.refresh_hz << ")" << std::endl;
         cfg.ui.refresh_hz = 120;
     }
     if (cfg.trace.buffer_size < 64) {
         std::cerr << "[tui] warning: trace.buffer_size clamped to 64 (was "
-                  << cfg.trace.buffer_size << ")" << std::endl;
+            << cfg.trace.buffer_size << ")" << std::endl;
         cfg.trace.buffer_size = 64;
     }
     if (cfg.trace.buffer_size > 65536) {
         std::cerr << "[tui] warning: trace.buffer_size clamped to 65536 (was "
-                  << cfg.trace.buffer_size << ")" << std::endl;
+            << cfg.trace.buffer_size << ")" << std::endl;
         cfg.trace.buffer_size = 65536;
     }
 
@@ -220,12 +285,14 @@ static void emitKeybindings(std::ostream &os, const TuiConfig &cfg, bool full) {
     os << "# ── Keybindings ───────────────────────────────────────────────\n";
     os << "# Key syntax:\n";
     os << "#   Single chars:    q, s, c, r, h, p, m, t\n";
-    os << "#   Named keys:      space, tab, up, down, left, right, enter, esc, backspace, delete, home, end, pgup, pgdn\n";
+    os << "#   Named keys:      space, tab, up, down, left, right, enter, esc, "
+        << "backspace, delete, home, end, pgup, pgdn\n";
     os << "#   Modified keys:   shift+<key>, ctrl+<key>, alt+<key>\n";
     if (full) {
         os << "#\n";
         os << "# These 15 keys cover the v1 interaction surface.\n";
-        os << "# All bindings must be valid key tokens; unbound actions are no-ops.\n";
+        os << "# All bindings must be valid key tokens; unbound actions are "
+            << "no-ops.\n";
     }
     os << "\n[keybindings]\n";
     os << "focus_next = \""       << cfg.keybindings.focus_next       << "\"\n";
@@ -264,10 +331,14 @@ static void emitRegs(std::ostream &os, const TuiConfig &cfg, bool) {
     os << "# ── Register Panel ───────────────────────────────────────────\n";
     os << "# abi_names: true  → display a0–a7, t0–t6, s0–s11, etc.\n";
     os << "#            false → display x0–x31\n";
-    os << "# highlight_changed: bold+colour registers that changed since last frame\n";
+    os << "# highlight_changed: bold+colour registers that changed since last "
+        << "frame\n";
     os << "\n[regs]\n";
-    os << "abi_names = "         << (cfg.regs.abi_names ? "true" : "false") << "\n";
-    os << "highlight_changed = " << (cfg.regs.highlight_changed ? "true" : "false") << "\n";
+    os << "abi_names = " << (cfg.regs.abi_names ? "true" : "false")
+        << "\n";
+    os << "highlight_changed = "
+        << (cfg.regs.highlight_changed ? "true" : "false")
+        << "\n";
     os << "\n";
 }
 
@@ -293,8 +364,10 @@ static void emitTrace(std::ostream &os, const TuiConfig &cfg, bool full) {
     }
     os << "\n[trace]\n";
     os << "buffer_size = " << cfg.trace.buffer_size << "\n";
-    os << "follow_tail = " << (cfg.trace.follow_tail ? "true" : "false") << "\n";
-    os << "show_disasm = " << (cfg.trace.show_disasm ? "true" : "false") << "\n";
+    os << "follow_tail = " << (cfg.trace.follow_tail ? "true" : "false")
+        << "\n";
+    os << "show_disasm = " << (cfg.trace.show_disasm ? "true" : "false")
+        << "\n";
     os << "\n";
 }
 
@@ -412,8 +485,8 @@ bool generateTuiConfig(const std::string &path, bool forceOverwrite, bool full) 
         check.close();
         if (!forceOverwrite) {
             std::cerr << "[tui] config file already exists: " << path
-                      << "\n      use NPC_CONFIG_TUI_FORCE_OVERWRITE_CONFIG=on to overwrite."
-                      << std::endl;
+                << "\n      use NPC_CONFIG_TUI_FORCE_OVERWRITE_CONFIG=on to overwrite."
+                << std::endl;
             return false;
         }
         std::cout << "[tui] overwriting existing config: " << path << std::endl;
@@ -429,7 +502,7 @@ bool generateTuiConfig(const std::string &path, bool forceOverwrite, bool full) 
     std::ofstream out(path);
     if (!out) {
         std::cerr << "[tui] failed to open " << path << " for writing: "
-                  << strerror(errno) << std::endl;
+            << strerror(errno) << std::endl;
         return false;
     }
 
@@ -443,7 +516,7 @@ bool generateTuiConfig(const std::string &path, bool forceOverwrite, bool full) 
     }
 
     std::cout << "[tui] config written to " << path
-              << " (" << (full ? "full" : "minimal") << ")" << std::endl;
+        << " (" << (full ? "full" : "minimal") << ")" << std::endl;
     return true;
 }
 
@@ -451,7 +524,7 @@ bool loadOrGenerateTuiConfig(const std::string &path) {
     std::ifstream check(path);
     if (!check.good()) {
         std::cout << "[tui] config file not found, generating minimal config at "
-                  << path << std::endl;
+            << path << std::endl;
         if (!generateTuiConfig(path, false, false)) {
             return false;
         }
@@ -464,7 +537,7 @@ bool loadOrGenerateTuiConfig(const std::string &path) {
         g_tuiConfig = parseTuiConfig(path);
     } catch (const toml::parse_error &e) {
         std::cerr << "[tui] failed to parse config file; using defaults."
-                  << std::endl;
+            << std::endl;
         // Fall through — g_tuiConfig keeps its default values
     }
 

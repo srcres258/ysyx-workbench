@@ -113,7 +113,9 @@ void printTuiDefaultConfig(std::ostream &os);
  * Returns false if the file already exists and @p forceOverwrite is false.
  * Returns true on success or if the file exists and @p forceOverwrite is true.
  */
-bool generateTuiConfig(const std::string &path, bool forceOverwrite, bool full = false);
+bool generateTuiConfig(
+    const std::string &path, bool forceOverwrite, bool full = false
+);
 
 /**
  * @brief Load global config: parse file if it exists, or auto‑generate a

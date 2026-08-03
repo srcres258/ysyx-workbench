@@ -50,14 +50,16 @@ extern void uart_set_divisor(unsigned short);
 
 // ── Active-instance bridge ──
 static SimulatorImpl s_impl;
-SimulatorImpl* getActiveSimulator() { return &s_impl; }
+SimulatorImpl* getActiveSimulator() {
+    return &s_impl;
+}
 
 void setActiveSimulator(SimulatorImpl* impl) {
     if (impl && getActiveSimulator() && impl != getActiveSimulator()) {
         std::fprintf(
             stderr,
             "[npc] ERROR: only one active simulator per process is "
-            "supported in this pass\n"
+                "supported in this pass\n"
         );
         std::abort();
     }
@@ -150,10 +152,10 @@ VysyxSoCFull *top = nullptr;
 VerilatedFstC *tfp         = nullptr;
 ExecInfo       simExecInfo = { .pc = 0x00000000, .inst = 0 };
 
-volatile bool  sim_halt            = false;
-uint64_t       execCount           = 0;
+volatile bool  sim_halt             = false;
+uint64_t       execCount            = 0;
 uint64_t       execCountClockPeriod = 0;
-bool           s_difftestActive    = false;
+bool           s_difftestActive     = false;
 
 // ── Signal handler ──
 static void sigint_handler(int) {
@@ -177,9 +179,9 @@ VysyxSoCFull_GeneralDPIAdapter *getDPIModule() {
 #endif
 
 // ── Execution counter accessors ──
-uint64_t getExecCount()           { return execCount; }
-uint64_t getExecCountClockPeriod() { return execCountClockPeriod; }
-bool     isDifftestActive()       { return s_difftestActive; }
+uint64_t getExecCount()             { return execCount; }
+uint64_t getExecCountClockPeriod()  { return execCountClockPeriod; }
+bool     isDifftestActive()         { return s_difftestActive; }
 
 // ═══════════════════════════════════════════════════════════════════
 //  Internal lifecycle helpers  (was static functions in sim.cpp)
@@ -299,7 +301,10 @@ void simStepImpl() {
         if (getDPIModule()->core_executing && !executionBegun) {
             executionBegun = true;
         }
-    } while (!executionBegun || (executionBegun && getDPIModule()->core_executing));
+    } while (
+        !executionBegun ||
+        (executionBegun && getDPIModule()->core_executing)
+    );
 }
 
 void simResetImpl(int n) {
@@ -318,18 +323,19 @@ void simResetImpl(int n) {
 
 bool simExecOnceImpl() {
     if (sim_config.config_debugOutput)
-        std::cout << "处理器开始执行第 " << std::dec << execCount << " 条指令 (从 0 开始算)..." << std::endl;
+        std::cout << "处理器开始执行第 " << std::dec << execCount
+            << " 条指令 (从 0 开始算)..." << std::endl;
 
     auto *dpi = getDPIModule();
     addr_t pc = dpi->core_pc;
     if (sim_config.config_debugOutput)
-        std::cout << "当前PC(即将执行的指令位置): 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << pc << std::endl;
+        std::cout << "当前PC(即将执行的指令位置): 0x" << std::setfill('0')
+            << std::setw(8) << std::hex << pc << std::endl;
 
     simStepImpl();
     if (sim_config.config_debugOutput) {
-        std::cout << "当前指令: 0x" << std::setfill('0') <<
-            std::setw(8) << std::hex << simExecInfo.inst << std::endl;
+        std::cout << "当前指令: 0x" << std::setfill('0')
+            << std::setw(8) << std::hex << simExecInfo.inst << std::endl;
     }
 
     if (sim_state.itrace_ofs.is_open()) {
@@ -396,15 +402,18 @@ void simExecImpl(uint64_t n) {
             std::cout << "仿真: " << (sim_state.state == SIM_ABORT ?
                     ANSI_FMT("ABORT", ANSI_FG_RED) :
                     (halt_ret == 0 ? ANSI_FMT("HIT GOOD TRAP", ANSI_FG_GREEN) :
-                        ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED))) <<
-                " at pc = 0x" << std::setfill('0') <<
-                std::setw(8) << std::hex << sim_state.haltPC << std::dec <<
-                ", 结果: " << halt_ret << std::endl;
-            std::cout << "仿真结束, 共执行 " << std::dec << execCount <<
-                " 条指令, 耗时 " << std::dec << execCountClockPeriod << " 个时钟周期." << std::endl;
+                        ANSI_FMT("HIT BAD TRAP", ANSI_FG_RED)))
+                << " at pc = 0x" << std::setfill('0') << std::setw(8)
+                << std::hex << sim_state.haltPC << std::dec
+                << ", 结果: " << halt_ret << std::endl;
+            std::cout << "仿真结束, 共执行 " << std::dec << execCount
+                << " 条指令, 耗时 " << std::dec << execCountClockPeriod
+                << " 个时钟周期." << std::endl;
             if (execCountClockPeriod > 0) {
-                double ipc = static_cast<double>(execCount) / static_cast<double>(execCountClockPeriod);
-                std::cout << "IPC = " << std::fixed << std::setprecision(4) << ipc << std::endl;
+                double ipc = static_cast<double>(execCount) /
+                    static_cast<double>(execCountClockPeriod);
+                std::cout << "IPC = " << std::fixed << std::setprecision(4)
+                    << ipc << std::endl;
             }
             if (sim_config.config_perf) {
                 const char *perfStrictEnv = std::getenv("NPC_CONFIG_PERF_CHECK_STRICT");
@@ -418,7 +427,9 @@ void simExecImpl(uint64_t n) {
             if (sim_state.state == SIM_END) {
                 tui::g_eventFeed.push(
                     execCount,
-                    (halt_ret == 0) ? tui::EventType::TRAP_GOOD : tui::EventType::TRAP_BAD,
+                    (halt_ret == 0) ?
+                        tui::EventType::TRAP_GOOD :
+                        tui::EventType::TRAP_BAD,
                     sim_state.haltPC, halt_ret,
                     (halt_ret == 0) ? "Good trap" : "Bad trap"
                 );
@@ -435,7 +446,8 @@ void simExecImpl(uint64_t n) {
         );
         std::println(
             stderr,
-            "[difftest] 请检查: (1) startPC 是否设置正确; (2) 程序是否确实会执行到该地址."
+            "[difftest] 请检查: (1) startPC 是否设置正确; "
+                "(2) 程序是否确实会执行到该地址."
         );
         tui::g_eventFeed.push(
             execCount, tui::EventType::DIFFTEST_WARNING,
@@ -448,7 +460,8 @@ void simExecImpl(uint64_t n) {
 void simExecClockPeriodImpl(uint64_t n) {
     for (uint64_t i = n; i > 0; i--) {
         if (sim_config.config_debugOutput)
-            std::cout << "处理器开始执行第 " << std::dec << execCountClockPeriod << " 个时钟周期 (从 0 开始算)..." << std::endl;
+            std::cout << "处理器开始执行第 " << std::dec << execCountClockPeriod
+                << " 个时钟周期 (从 0 开始算)..." << std::endl;
         simStepClockImpl();
     }
 }
@@ -554,7 +567,8 @@ bool npc::Simulator::initialize(
     if (imgVal) {
         standalone_mem_loadBin(imgVal);
     } else {
-        std::cerr << "[standalone] IMG env var not set, no binary loaded!" << std::endl;
+        std::cerr << "[standalone] IMG env var not set, no binary loaded!"
+            << std::endl;
     }
 #else
     top = new VysyxSoCFull(verContext);
@@ -571,7 +585,9 @@ bool npc::Simulator::initialize(
 #ifndef NPC_STANDALONE
         if (sim_config.config_nvboard) {
             fprintf(
-                stderr, "[NPC] Entering NVBoard init path (config_device=%d, config_nvboard=%d)\n",
+                stderr,
+                "[NPC] Entering NVBoard init path (config_device=%d, "
+                    "config_nvboard=%d)\n",
                 sim_config.config_device, sim_config.config_nvboard
             );
             nvboard_bind_all_pins(top);
@@ -589,7 +605,11 @@ bool npc::Simulator::initialize(
             std::cout << "正在加载外部设备..." << std::endl;
         if (!device_init()) {
             std::cerr << "外部设备加载失败! 退出..." << std::endl;
-            if (tfp) { tfp->close(); delete tfp; tfp = nullptr; }
+            if (tfp) {
+                tfp->close();
+                delete tfp;
+                tfp = nullptr;
+            }
             delete top; top = nullptr;
             delete verContext; verContext = nullptr;
             return false;
@@ -599,15 +619,17 @@ bool npc::Simulator::initialize(
     if (sim_config.config_difftest) {
         if (sim_config.config_debugOutput)
             std::cout << "正在加载 DiffTest..." << std::endl;
-        std::cout << "[sim] DiffTest 起始模式: " << sim_config.config_difftestStartMode
-                  << ", 起始 PC: 0x" << std::hex << sim_config.config_difftestStartPC
-                  << ", 内存模式: " << sim_config.config_difftestMemMode
-                  << std::dec << std::endl;
+        std::cout << "[sim] DiffTest 起始模式: "
+            << sim_config.config_difftestStartMode
+            << ", 起始 PC: 0x" << std::hex << sim_config.config_difftestStartPC
+            << ", 内存模式: " << sim_config.config_difftestMemMode
+            << std::dec << std::endl;
         if (sim_config.config_difftestStartMode == "payload") {
-            std::cout << "[sim] Payload BIN: " << sim_config.config_difftestPayloadBinFilePath
-                      << ", 加载地址: 0x" << std::hex
-                      << sim_config.config_difftestPayloadLoadAddr
-                      << std::dec << std::endl;
+            std::cout << "[sim] Payload BIN: "
+                << sim_config.config_difftestPayloadBinFilePath
+                << ", 加载地址: 0x" << std::hex
+                << sim_config.config_difftestPayloadLoadAddr
+                << std::dec << std::endl;
         }
         difftest_dut_init(
             sim_config.config_difftestSoFilePath.c_str(),
@@ -626,6 +648,7 @@ bool npc::Simulator::initialize(
                 delete verContext; verContext = nullptr;
                 return false;
             }
+
             {
                 addr_t execRegionBase = 0;
                 if (
@@ -692,8 +715,10 @@ bool npc::Simulator::initialize(
             ) {
                 std::println(
                     stderr,
-                    "[sim] 警告: startPC=0x{:08x} 在 PSRAM/SDRAM/SRAM 内但未指定 Payload BIN 文件. "
-                    "Activation 时内存同步会将空数据发到 REF, 可能导致 INVALID OPCODE 崩溃.",
+                    "[sim] 警告: startPC=0x{:08x} 在 PSRAM/SDRAM/SRAM "
+                        "内但未指定 Payload BIN 文件. "
+                        "Activation 时内存同步会将空数据发到 REF, "
+                        "可能导致 INVALID OPCODE 崩溃.",
                     sim_config.config_difftestStartPC
                 );
             }
@@ -737,14 +762,20 @@ bool npc::Simulator::run(bool sdbEnabled) {
         kbOk &= tui::validateKeyBinding(kb.step_instruction, "step_instruction");
         kbOk &= tui::validateKeyBinding(kb.tab_next,         "tab_next");
         if (!kbOk) {
-            std::fprintf(stderr, "[tui] fatal: keybinding validation failed — aborting\n");
+            std::fprintf(
+                stderr,
+                "[tui] fatal: keybinding validation failed — aborting\n"
+            );
             success = false;
             goto run_cleanup;
         }
 
         tui::TerminalSession term;
         if (!term) {
-            std::fprintf(stderr, "[tui] terminal session init failed — aborting\n");
+            std::fprintf(
+                stderr,
+                "[tui] terminal session init failed — aborting\n"
+            );
             success = false;
             goto run_cleanup;
         }
@@ -765,8 +796,9 @@ bool npc::Simulator::run(bool sdbEnabled) {
 
         if (!tui::PanelRegistry::instance().validateLayout(layout)) {
             std::fprintf(
-                stderr, "[tui] fatal: layout references unknown panel IDs. "
-                "Check your [layout] preset or panel registrations.\n"
+                stderr,
+                "[tui] fatal: layout references unknown panel IDs. "
+                    "Check your [layout] preset or panel registrations.\n"
             );
             success = false;
             goto run_cleanup;
@@ -792,7 +824,11 @@ bool npc::Simulator::run(bool sdbEnabled) {
 
             if (sim_state.state == SIM_RUNNING) {
                 constexpr int kRefreshBurst = 500;
-                for (int bi = 0; bi < kRefreshBurst && sim_state.state == SIM_RUNNING; bi++) {
+                for (
+                    int bi = 0;
+                    bi < kRefreshBurst && sim_state.state == SIM_RUNNING;
+                    bi++
+                ) {
                     internal::execute(1);
                 }
             }
@@ -807,7 +843,13 @@ bool npc::Simulator::run(bool sdbEnabled) {
                 FD_ZERO(&fds);
                 FD_SET(STDIN_FILENO, &fds);
                 struct timeval tv{0, 0};
-                if (::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv) > 0) {
+                if (::select(
+                    STDIN_FILENO + 1,
+                    &fds,
+                    nullptr,
+                    nullptr,
+                    &tv
+                ) > 0) {
                     auto ch = tui::readKeyChord();
                     if (ch && actionMap.lookup(*ch) == tui::Action::QUIT)
                         running = false;
@@ -826,7 +868,13 @@ bool npc::Simulator::run(bool sdbEnabled) {
                 FD_ZERO(&fds);
                 FD_SET(STDIN_FILENO, &fds);
                 struct timeval tv{0, 0};
-                if (::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv) > 0) {
+                if (::select(
+                    STDIN_FILENO + 1,
+                    &fds,
+                    nullptr,
+                    nullptr,
+                    &tv
+                ) > 0) {
                     auto ch = tui::readKeyChord();
                     if (ch && actionMap.lookup(*ch) == tui::Action::QUIT)
                         running = false;
@@ -843,27 +891,47 @@ bool npc::Simulator::run(bool sdbEnabled) {
                 tui::SnapshotInput si{};
                 auto *dpi = getDPIModule();
 
-                si.retiredPc   = simExecInfo.pc;
-                si.retiredInst = simExecInfo.inst;
-                si.nextPc      = dpi->core_pc;
-                si.procState   = getProcessorState();
-                si.simState    = sim_state.state;
-                si.haltPc      = sim_state.haltPC;
-                si.simHalt     = sim_halt;
-                si.execCount      = getExecCount();
-                si.execCountClock = getExecCountClockPeriod();
-                si.difftestActive = isDifftestActive();
-                si.perfEnabled    = sim_config.config_perf;
+                si.retiredPc        = simExecInfo.pc;
+                si.retiredInst      = simExecInfo.inst;
+                si.nextPc           = dpi->core_pc;
+                si.procState        = getProcessorState();
+                si.simState         = sim_state.state;
+                si.haltPc           = sim_state.haltPC;
+                si.simHalt          = sim_halt;
+                si.execCount        = getExecCount();
+                si.execCountClock   = getExecCountClockPeriod();
+                si.difftestActive   = isDifftestActive();
+                si.perfEnabled      = sim_config.config_perf;
                 if (si.perfEnabled) {
                     si.perfCounters = perf::getPerfMonitor().view();
                 }
                 si.eventFeed = &tui::g_eventFeed;
 
-                si.stages[0] = { dpi->core_pc, dpi->ifu_if_nextStage_valid != 0, true };
-                si.stages[1] = { 0, dpi->idu_id_nextStage_valid != 0, false };
-                si.stages[2] = { dpi->exu_exPc, dpi->exu_ex_nextStage_valid != 0, true };
-                si.stages[3] = { dpi->memu_memPc, dpi->memu_mem_nextStage_valid != 0, true };
-                si.stages[4] = { dpi->wbu_pc, dpi->wbu_wb_nextStage_valid != 0, true };
+                si.stages[0] = {
+                    dpi->core_pc,
+                    dpi->ifu_if_nextStage_valid != 0,
+                    true
+                };
+                si.stages[1] = {
+                    0,
+                    dpi->idu_id_nextStage_valid != 0,
+                    false
+                };
+                si.stages[2] = {
+                    dpi->exu_exPc,
+                    dpi->exu_ex_nextStage_valid != 0,
+                    true
+                };
+                si.stages[3] = {
+                    dpi->memu_memPc,
+                    dpi->memu_mem_nextStage_valid != 0,
+                    true
+                };
+                si.stages[4] = {
+                    dpi->wbu_pc,
+                    dpi->wbu_wb_nextStage_valid != 0,
+                    true
+                };
 
                 {
                     auto stack = sim_state.ftrace_callStack;
@@ -895,9 +963,12 @@ bool npc::Simulator::run(bool sdbEnabled) {
                 char leftBuf[128];
                 char rightBuf[128];
                 const char *simLabel = "STOP";
-                if (sim_state.state == SIM_RUNNING) simLabel = "RUN";
-                else if (sim_state.state == SIM_END)    simLabel = "END";
-                else if (sim_state.state == SIM_ABORT)  simLabel = "ABORT";
+                if (sim_state.state == SIM_RUNNING)
+                    simLabel = "RUN";
+                else if (sim_state.state == SIM_END)
+                    simLabel = "END";
+                else if (sim_state.state == SIM_ABORT)
+                    simLabel = "ABORT";
                 std::snprintf(
                     leftBuf, sizeof(leftBuf),
                     " Preset: %s | Sim: %s | Focus: %s%s",
@@ -908,7 +979,12 @@ bool npc::Simulator::run(bool sdbEnabled) {
                 );
                 std::snprintf(
                     rightBuf, sizeof(rightBuf),
-                    "q:quit  h:overlay  tab:focus  m:max  space:pause  s:step"
+                    "q:quit  "
+                        "h:overlay  "
+                        "tab:focus  "
+                        "m:max  "
+                        "space:pause  "
+                        "s:step"
                 );
                 renderer.drawStatusBar(
                     sz.rows - 1, leftBuf, rightBuf,
@@ -945,8 +1021,15 @@ bool npc::Simulator::run(bool sdbEnabled) {
                     tv.tv_sec  = 1;
                     tv.tv_usec = 0;
                 }
-                int sel = ::select(STDIN_FILENO + 1, &fds, nullptr, nullptr, &tv);
-                if (sel <= 0) continue;
+                int sel = ::select(
+                    STDIN_FILENO + 1,
+                    &fds,
+                    nullptr,
+                    nullptr,
+                    &tv
+                );
+                if (sel <= 0)
+                    continue;
             }
 
             auto chord = tui::readKeyChord();
@@ -979,7 +1062,11 @@ bool npc::Simulator::run(bool sdbEnabled) {
                     overlay.historyNext();
                 } else if (chord->key == tui::SpecialKey::kSpace) {
                     overlay.insertChar(' ');
-                } else if (chord->key >= 32 && chord->key <= 126 && chord->mod == tui::kModNone) {
+                } else if (
+                    chord->key >= 32 &&
+                    chord->key <= 126 &&
+                    chord->mod == tui::kModNone
+                ) {
                     overlay.insertChar(static_cast<char>(chord->key));
                 }
             } else {
@@ -1012,9 +1099,15 @@ bool npc::Simulator::run(bool sdbEnabled) {
                             );
                             overlay.appendOutput(buf);
                         }
-                        overlay.appendOutput("── Overlay commands ──");
-                        overlay.appendOutput("  c/si/sic/pause/reset/q  info r/w");
-                        overlay.appendOutput("  x N EXPR  p EXPR  w EXPR  d N  help");
+                        overlay.appendOutput(
+                            "── Overlay commands ──"
+                        );
+                        overlay.appendOutput(
+                            "  c/si/sic/pause/reset/q  info r/w"
+                        );
+                        overlay.appendOutput(
+                            "  x N EXPR  p EXPR  w EXPR  d N  help"
+                        );
                         break;
                     case tui::Action::PAUSE_RESUME:
                         if (sim_state.state == SIM_RUNNING) {
@@ -1045,14 +1138,21 @@ bool npc::Simulator::run(bool sdbEnabled) {
                             for (const auto &pid : pickerIds) {
                                 char buf[128];
                                 std::snprintf(
-                                    buf, sizeof(buf), "  [%d] %s%s", idx,
-                                    tui::PanelRegistry::instance().displayNameFor(pid).c_str(),
+                                    buf,
+                                    sizeof(buf),
+                                    "  [%d] %s%s",
+                                    idx,
+                                    tui::PanelRegistry::instance()
+                                        .displayNameFor(pid)
+                                        .c_str(),
                                     (pid == layout.focusedPanel()) ? " (*)" : ""
                                 );
                                 overlay.appendOutput(buf);
                                 idx++;
                             }
-                            overlay.appendOutput("Type digit to focus panel, ESC to close.");
+                            overlay.appendOutput(
+                                "Type digit to focus panel, ESC to close."
+                            );
                         }
                         break;
                     }
@@ -1061,16 +1161,25 @@ bool npc::Simulator::run(bool sdbEnabled) {
                 }
             }
 
-            if (overlay.active() && !pickerIds.empty() &&
+            if (
+                overlay.active() && !pickerIds.empty() &&
                 chord->key >= '0' && chord->key <= '9' &&
-                chord->mod == tui::kModNone) {
+                chord->mod == tui::kModNone
+            ) {
                 int pickIdx = static_cast<int>(chord->key - '0');
-                if (pickIdx >= 0 && static_cast<size_t>(pickIdx) < pickerIds.size()) {
+                if (
+                    pickIdx >= 0 &&
+                    static_cast<size_t>(pickIdx) < pickerIds.size()
+                ) {
                     layout.setFocus(pickerIds[static_cast<size_t>(pickIdx)]);
                     overlay.close();
                 }
             }
-            if (overlay.active() && chord->key == tui::SpecialKey::kEsc && !pickerIds.empty()) {
+            if (
+                overlay.active() &&
+                chord->key == tui::SpecialKey::kEsc &&
+                !pickerIds.empty()
+            ) {
                 pickerIds.clear();
             }
         }

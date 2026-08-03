@@ -152,7 +152,7 @@ struct TuiFrameModel {
 
     // ---- In-flight instruction marks ----
     InstMark instMarks[NpcSnapshot::kMaxInstMarks];
-    size_t    numInstMarks;
+    size_t   numInstMarks;
 
     // ---- Ftrace call stack ----
     std::vector<CallFrameInfo> callFrames;

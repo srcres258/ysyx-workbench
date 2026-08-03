@@ -30,10 +30,19 @@ void LayoutTree::setRoot(LayoutNode root) {
 
 bool LayoutTree::buildFromPreset(const std::string &preset) {
     m_preset = preset;
-    if (preset == "wide")           { buildWide();    return true; }
-    else if (preset == "tall")      { buildTall();    return true; }
-    else if (preset == "minimal")   { buildMinimal(); return true; }
-    else if (preset == "default")   { buildDefault(); return true; }
+    if (preset == "wide") {
+        buildWide();
+        return true;
+    } else if (preset == "tall") {
+        buildTall();
+        return true;
+    } else if (preset == "minimal") {
+        buildMinimal();
+        return true;
+    } else if (preset == "default") {
+        buildDefault();
+        return true;
+    }
     return false;
 }
 
@@ -143,7 +152,8 @@ void LayoutTree::compute(uint16_t rows, uint16_t cols, uint16_t statusRows) {
     m_sizedOk = false;
 
     uint16_t contentRows = (rows > statusRows) ? (rows - statusRows) : 0;
-    if (contentRows == 0 || cols == 0) return;
+    if (contentRows == 0 || cols == 0)
+        return;
 
     if (m_maximized && !m_maximizedPanel.empty()) {
         // Maximised: focused panel fills the content area
@@ -183,8 +193,10 @@ void LayoutTree::compute(uint16_t rows, uint16_t cols, uint16_t statusRows) {
 }
 
 static uint16_t clampU16(uint16_t val, uint16_t lo, uint16_t hi) {
-    if (val < lo) return lo;
-    if (val > hi) return hi;
+    if (val < lo)
+        return lo;
+    if (val > hi)
+        return hi;
     return val;
 }
 
@@ -193,17 +205,19 @@ bool LayoutTree::computeRect(
     uint16_t row, uint16_t col,
     uint16_t h, uint16_t w
 ) {
-    if (h < node.minH || w < node.minW) return false;
+    if (h < node.minH || w < node.minW)
+        return false;
 
     if (node.type == LayoutNode::Leaf) {
         LayoutSlot slot;
-        slot.rect = Rect{row, col, h, w};
+        slot.rect = Rect { row, col, h, w };
         m_slots[node.panelId] = slot;
         return true;
     }
 
     if (node.type == LayoutNode::Split) {
-        if (node.children.size() < 2) return false;
+        if (node.children.size() < 2)
+            return false;
 
         const auto &c0 = node.children[0];
         const auto &c1 = node.children[1];
@@ -214,7 +228,8 @@ bool LayoutTree::computeRect(
             uint16_t minH0 = c0.minH;
             uint16_t minH1 = c1.minH;
             firstH = clampU16(firstH, minH0, (h > minH1) ? (h - minH1) : 0);
-            if (firstH < minH0 || (h - firstH) < minH1) return false;
+            if (firstH < minH0 || (h - firstH) < minH1)
+                return false;
             uint16_t secondH = h - firstH;
 
             return computeRect(c0, row, col, firstH, w)
@@ -225,7 +240,8 @@ bool LayoutTree::computeRect(
             uint16_t minW0 = c0.minW;
             uint16_t minW1 = c1.minW;
             firstW = clampU16(firstW, minW0, (w > minW1) ? (w - minW1) : 0);
-            if (firstW < minW0 || (w - firstW) < minW1) return false;
+            if (firstW < minW0 || (w - firstW) < minW1)
+                return false;
             uint16_t secondW = w - firstW;
 
             return computeRect(c0, row, col, h, firstW)
@@ -234,7 +250,8 @@ bool LayoutTree::computeRect(
     }
 
     if (node.type == LayoutNode::Tabbed) {
-        if (node.children.empty()) return false;
+        if (node.children.empty())
+            return false;
 
         uint16_t tabBarH = (h >= 2) ? 1u : 0u;
         uint16_t contentH = h - tabBarH;
@@ -247,7 +264,8 @@ bool LayoutTree::computeRect(
         const auto &activeChild = node.children[active];
         // Recursively compute the active child
         bool ok = computeRect(activeChild, row + tabBarH, col, contentH, w);
-        if (!ok) return false;
+        if (!ok)
+            return false;
 
         // Mark tab info for all children's slots
         for (size_t i = 0; i < node.children.size(); i++) {
@@ -271,9 +289,14 @@ bool LayoutTree::computeRect(
 // ============================================================================
 
 void LayoutTree::focusNext() {
-    if (m_focusOrder.empty()) return;
+    if (m_focusOrder.empty())
+        return;
     clearFocusInSlots();
-    auto it = std::find(m_focusOrder.begin(), m_focusOrder.end(), m_focusedPanel);
+    auto it = std::find(
+        m_focusOrder.begin(),
+        m_focusOrder.end(),
+        m_focusedPanel
+    );
     if (it == m_focusOrder.end()) {
         m_focusedPanel = m_focusOrder[0];
     } else {
@@ -282,13 +305,19 @@ void LayoutTree::focusNext() {
         m_focusedPanel = m_focusOrder[idx];
     }
     auto fit = m_slots.find(m_focusedPanel);
-    if (fit != m_slots.end()) fit->second.focused = true;
+    if (fit != m_slots.end())
+        fit->second.focused = true;
 }
 
 void LayoutTree::focusPrev() {
-    if (m_focusOrder.empty()) return;
+    if (m_focusOrder.empty())
+        return;
     clearFocusInSlots();
-    auto it = std::find(m_focusOrder.begin(), m_focusOrder.end(), m_focusedPanel);
+    auto it = std::find(
+        m_focusOrder.begin(),
+        m_focusOrder.end(),
+        m_focusedPanel
+    );
     if (it == m_focusOrder.end()) {
         m_focusedPanel = m_focusOrder.back();
     } else {
@@ -301,11 +330,13 @@ void LayoutTree::focusPrev() {
 }
 
 bool LayoutTree::setFocus(const std::string &panelId) {
-    if (m_slots.find(panelId) == m_slots.end()) return false;
+    if (m_slots.find(panelId) == m_slots.end())
+        return false;
     clearFocusInSlots();
     m_focusedPanel = panelId;
     auto fit = m_slots.find(m_focusedPanel);
-    if (fit != m_slots.end()) fit->second.focused = true;
+    if (fit != m_slots.end())
+        fit->second.focused = true;
     return true;
 }
 
@@ -320,7 +351,8 @@ void LayoutTree::clearFocusInSlots() {
 // ============================================================================
 
 void LayoutTree::toggleMaximize() {
-    if (m_focusedPanel.empty()) return;
+    if (m_focusedPanel.empty())
+        return;
 
     if (m_maximized && m_maximizedPanel == m_focusedPanel) {
         m_maximized = false;
@@ -341,10 +373,12 @@ void LayoutTree::toggleMaximize() {
 // ============================================================================
 
 void LayoutTree::focusTabNext() {
-    if (m_focusedPanel.empty()) return;
+    if (m_focusedPanel.empty())
+        return;
 
     auto it = m_slots.find(m_focusedPanel);
-    if (it == m_slots.end() || it->second.tabCount <= 1) return;
+    if (it == m_slots.end() || it->second.tabCount <= 1)
+        return;
 
     size_t tabCount = it->second.tabCount;
 
@@ -364,9 +398,11 @@ void LayoutTree::focusTabNext() {
     }
 }
 
-bool LayoutTree::advanceTabInNode(LayoutNode &node,
-                                   const std::string &panelId,
-                                   size_t tabCount) {
+bool LayoutTree::advanceTabInNode(
+    LayoutNode &node,
+    const std::string &panelId,
+    size_t tabCount
+) {
     if (node.type == LayoutNode::Tabbed) {
         for (size_t i = 0; i < node.children.size(); i++) {
             if (isPanelInSubtree(node.children[i], panelId)) {
@@ -380,26 +416,32 @@ bool LayoutTree::advanceTabInNode(LayoutNode &node,
         }
     } else if (node.type == LayoutNode::Split) {
         for (auto &child : node.children) {
-            if (advanceTabInNode(child, panelId, tabCount)) return true;
+            if (advanceTabInNode(child, panelId, tabCount))
+                return true;
         }
     }
     // Leaf nodes never contain other panels
     return false;
 }
 
-bool LayoutTree::isPanelInSubtree(const LayoutNode &node, const std::string &panelId) const {
+bool LayoutTree::isPanelInSubtree(
+    const LayoutNode &node,
+    const std::string &panelId
+) const {
     if (node.type == LayoutNode::Leaf) {
         return node.panelId == panelId;
     }
     for (const auto &child : node.children) {
-        if (isPanelInSubtree(child, panelId)) return true;
+        if (isPanelInSubtree(child, panelId))
+            return true;
     }
     return false;
 }
 
 bool LayoutTree::isFocusedInTabbed() const {
     auto it = m_slots.find(m_focusedPanel);
-    if (it == m_slots.end()) return false;
+    if (it == m_slots.end())
+        return false;
     return it->second.tabCount > 1;
 }
 
@@ -414,7 +456,9 @@ static std::string getFirstLeafReachable(const LayoutNode &node) {
     }
     if (node.type == LayoutNode::Tabbed) {
         if (!node.children.empty()) {
-            size_t idx = (node.activeTab < node.children.size()) ? node.activeTab : 0;
+            size_t idx = (node.activeTab < node.children.size()) ?
+                node.activeTab :
+                0;
             return getFirstLeafReachable(node.children[idx]);
         }
         return "";
@@ -422,7 +466,8 @@ static std::string getFirstLeafReachable(const LayoutNode &node) {
     // Split node: depth-first, left-to-right
     for (const auto &child : node.children) {
         std::string id = getFirstLeafReachable(child);
-        if (!id.empty()) return id;
+        if (!id.empty())
+            return id;
     }
     return "";
 }
@@ -535,7 +580,10 @@ void LayoutTree::drawTabBars(Canvas &canvas) const {
     drawTabBarsRecursive(canvas, m_root);
 }
 
-void LayoutTree::drawTabBarsRecursive(Canvas &canvas, const LayoutNode &node) const {
+void LayoutTree::drawTabBarsRecursive(
+    Canvas &canvas,
+    const LayoutNode &node
+) const {
     if (node.type == LayoutNode::Tabbed) {
         if (node.children.size() <= 1) {
             // No tab bar needed for single child; still recurse
@@ -547,8 +595,10 @@ void LayoutTree::drawTabBarsRecursive(Canvas &canvas, const LayoutNode &node) co
 
         // Find the rect of the active tab to locate the tab bar area
         std::string activeId;
-        if (node.activeTab < node.children.size()
-            && node.children[node.activeTab].type == LayoutNode::Leaf) {
+        if (
+            node.activeTab < node.children.size()
+            && node.children[node.activeTab].type == LayoutNode::Leaf
+        ) {
             activeId = node.children[node.activeTab].panelId;
         }
 
@@ -576,25 +626,46 @@ void LayoutTree::drawTabBarsRecursive(Canvas &canvas, const LayoutNode &node) co
 
             Style labelStyle;
             if (i == node.activeTab) {
-                labelStyle = Style{kColourCyan, kColourBlack, true, false, false};
+                labelStyle = Style {
+                    kColourCyan,
+                    kColourBlack,
+                    true,
+                    false,
+                    false
+                };
             } else {
-                labelStyle = Style{kColourWhite, kColourBlack, false, false, false};
+                labelStyle = Style {
+                    kColourWhite,
+                    kColourBlack,
+                    false,
+                    false,
+                    false
+                };
             }
 
             size_t labelLen = 0;
-            for (const char *p = label; *p && labelLen < 16; p++, labelLen++) {}
+            for (const char *p = label; *p && labelLen < 16; p++, labelLen++);
 
             if (x + labelLen + 3 < tabCol + tabW) {
                 canvas.put(tabRow, x, ' ', labelStyle);
                 canvas.write(tabRow, x + 1, label, labelStyle);
-                canvas.put(tabRow, x + static_cast<uint16_t>(labelLen) + 1, ' ', labelStyle);
+                canvas.put(
+                    tabRow,
+                    x + static_cast<uint16_t>(labelLen) + 1,
+                    ' ',
+                    labelStyle
+                );
                 x += static_cast<uint16_t>(labelLen) + 3;
             } else {
                 // Truncated label
                 uint16_t remaining = tabCol + tabW - x;
                 if (remaining > 2) {
                     canvas.put(tabRow, x, ' ', labelStyle);
-                    for (uint16_t j = 1; j < remaining - 1 && j <= labelLen; j++) {
+                    for (
+                        uint16_t j = 1;
+                        j < remaining - 1 && j <= labelLen;
+                        j++
+                    ) {
                         canvas.put(tabRow, x + j, label[j - 1], labelStyle);
                     }
                     canvas.put(tabRow, x + remaining - 1, ' ', labelStyle);

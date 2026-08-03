@@ -31,14 +31,22 @@ extern "C" struct ProcessorState {
     void dump() const;
 };
 
-static_assert(sizeof(ProcessorState) == sizeof(word_t) * RISCV_GPR_NUM + sizeof(addr_t) + sizeof(word_t) * RISCV_CSR_NUM,
-              "ProcessorState size mismatch: DiffTest ABI broken");
-static_assert(offsetof(ProcessorState, gpr) == 0,
-              "ProcessorState gpr offset mismatch: DiffTest ABI broken");
-static_assert(offsetof(ProcessorState, pc) == sizeof(word_t) * RISCV_GPR_NUM,
-              "ProcessorState pc offset mismatch: DiffTest ABI broken");
-static_assert(offsetof(ProcessorState, csr) == sizeof(word_t) * RISCV_GPR_NUM + sizeof(addr_t),
-              "ProcessorState csr offset mismatch: DiffTest ABI broken");
+static_assert(
+    sizeof(ProcessorState) == sizeof(word_t) * RISCV_GPR_NUM + sizeof(addr_t) + sizeof(word_t) * RISCV_CSR_NUM,
+     "ProcessorState size mismatch: DiffTest ABI broken"
+    );
+static_assert(
+    offsetof(ProcessorState, gpr) == 0,
+    "ProcessorState gpr offset mismatch: DiffTest ABI broken"
+);
+static_assert(
+    offsetof(ProcessorState, pc) == sizeof(word_t) * RISCV_GPR_NUM,
+    "ProcessorState pc offset mismatch: DiffTest ABI broken"
+);
+static_assert(
+    offsetof(ProcessorState, csr) == sizeof(word_t) * RISCV_GPR_NUM + sizeof(addr_t),
+    "ProcessorState csr offset mismatch: DiffTest ABI broken"
+);
 
 /**
  * @brief 获取当前仿真环境的处理器状态。

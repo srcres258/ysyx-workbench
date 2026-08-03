@@ -11,7 +11,7 @@ uint32_t rtc_read(uint32_t addr) {
 }
 
 void rtc_write(uint32_t addr, uint32_t data, uint8_t strb) {
-    (void)addr;
-    (void)data;
-    (void)strb;
+    (void) addr;
+    (void) data;
+    (void) strb;
 }

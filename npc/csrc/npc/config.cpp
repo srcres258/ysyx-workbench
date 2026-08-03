@@ -40,12 +40,12 @@ void translateConfig(const SimulatorConfig &src, SimConfig &dst) {
     dst.config_tuiPrintDefaultConfig   = src.tuiPrintDefaultConfig;
 
     // ---- DiffTest ----
-    dst.config_difftestPort = src.difftestPort;
-    dst.config_difftestStartMode = src.difftestStartMode;
-    dst.config_difftestStartPC  = static_cast<addr_t>(src.difftestStartPC);
-    dst.config_difftestPayloadBinFilePath = src.difftestPayloadBinFilePath;
-    dst.config_difftestPayloadLoadAddr    = static_cast<addr_t>(src.difftestPayloadLoadAddr);
-    dst.config_difftestMemMode  = src.difftestMemMode;
+    dst.config_difftestPort                 = src.difftestPort;
+    dst.config_difftestStartMode            = src.difftestStartMode;
+    dst.config_difftestStartPC              = static_cast<addr_t>(src.difftestStartPC);
+    dst.config_difftestPayloadBinFilePath   = src.difftestPayloadBinFilePath;
+    dst.config_difftestPayloadLoadAddr      = static_cast<addr_t>(src.difftestPayloadLoadAddr);
+    dst.config_difftestMemMode              = src.difftestMemMode;
 
     // ---- output file paths ----
     dst.config_itraceOutFilePath      = src.itraceOutFilePath;
@@ -65,9 +65,9 @@ void translateConfig(const SimulatorConfig &src, SimConfig &dst) {
 }
 
 void resetSimState(SimState &state) {
-    state.state   = SIM_RUNNING;
-    state.haltPC  = 0;
-    state.itrace_iringbuf = nullptr;
+    state.state             = SIM_RUNNING;
+    state.haltPC            = 0;
+    state.itrace_iringbuf   = nullptr;
     // ofstreams are left in their default-constructed state;
     // the runner will reopen them via sim_state_ofstream_init().
 }

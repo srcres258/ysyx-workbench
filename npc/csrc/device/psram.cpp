@@ -11,10 +11,12 @@
 
 #define IFDBG if (sim_config.config_debugOutput)
 
-static inline void*& psram_io_base() { return getActiveSimulator()->psram_io_base; }
+static inline void*& psram_io_base() {
+    return getActiveSimulator()->psram_io_base;
+}
 
 static void psram_io_handler(addr_t offset, int len, bool isWrite) {
-    // TODO
+    // Nothing to do here: no need for IO handling.
 }
 
 bool device_psram_init() {
@@ -22,7 +24,13 @@ bool device_psram_init() {
     if (psram_io_base()) {
         memset(psram_io_base(), 0, PSRAM_LEN);
     }
-    device_io_addMMIOMap("psram", PSRAM_ADDR, psram_io_base(), PSRAM_LEN, psram_io_handler);
+    device_io_addMMIOMap(
+        "psram",
+        PSRAM_ADDR,
+        psram_io_base(),
+        PSRAM_LEN,
+        psram_io_handler
+    );
 
     return true;
 }
@@ -88,10 +96,13 @@ void device_psram_write(addr_t addr, int len, word_t data) {
 
 #ifndef NPC_STANDALONE
     if (isDifftestActive()) {
-        difftest_dut_syncMemoryToRef(addr, psramMemory + (addr - baseAddr), (size_t) len);
+        difftest_dut_syncMemoryToRef(
+            addr,
+            psramMemory + (addr - baseAddr),
+            (size_t) len
+        );
     }
 #endif
 
     trace_record_dtrace(0, "psram", true, addr, len, data, "dpi", "PSRAM");
-
 }

@@ -6,7 +6,9 @@
 #include <cstring>
 #include "../npc/simulator_impl.hpp"
 
-static inline void*& sram_io_base() { return getActiveSimulator()->sram_io_base; }
+static inline void*& sram_io_base() {
+    return getActiveSimulator()->sram_io_base;
+}
 
 #ifndef NPC_STANDALONE
 static inline auto &dutSramMemory() {
@@ -60,7 +62,13 @@ static void sram_io_handler(addr_t offset, int len, bool isWrite) {
 
 bool device_sram_init() {
     sram_io_base() = device_io_map_newSpace(SRAM_LEN);
-    device_io_addMMIOMap("sram", SRAM_ADDR, sram_io_base(), SRAM_LEN, sram_io_handler);
+    device_io_addMMIOMap(
+        "sram",
+        SRAM_ADDR,
+        sram_io_base(),
+        SRAM_LEN,
+        sram_io_handler
+    );
 
     if (sram_io_base()) {
         memset(sram_io_base(), 0, SRAM_LEN);

@@ -36,13 +36,17 @@ public:
      * @param fm      Current frame model (all panel data sources).
      * @param focused True when this panel has keyboard focus.
      */
-    virtual void render(Canvas &canvas, const Rect &rect,
-                        const TuiFrameModel &fm, bool focused) = 0;
+    virtual void render(
+        Canvas &canvas, const Rect &rect,
+         const TuiFrameModel &fm, bool focused
+    ) = 0;
 
 protected:
-    static void writeClipped(Canvas &canvas, uint16_t row, uint16_t col,
-                             uint16_t clipStartCol, uint16_t clipWidth,
-                             const char *text, Style style) {
+    static void writeClipped(
+        Canvas &canvas, uint16_t row, uint16_t col,
+        uint16_t clipStartCol, uint16_t clipWidth,
+        const char *text, Style style
+    ) {
         if (!text || clipWidth == 0 || col < clipStartCol) return;
 
         size_t offset = static_cast<size_t>(col - clipStartCol);
@@ -56,9 +60,11 @@ protected:
     }
 
     template <typename... Args>
-    static void writeClippedF(Canvas &canvas, uint16_t row, uint16_t col,
-                              uint16_t clipStartCol, uint16_t clipWidth,
-                              Style style, const char *fmt, Args... args) {
+    static void writeClippedF(
+        Canvas &canvas, uint16_t row, uint16_t col,
+        uint16_t clipStartCol, uint16_t clipWidth,
+        Style style, const char *fmt, Args... args
+    ) {
         if (clipWidth == 0 || col < clipStartCol) return;
 
         size_t offset = static_cast<size_t>(col - clipStartCol);

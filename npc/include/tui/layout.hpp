@@ -63,7 +63,9 @@ struct LayoutNode {
 
     // ── Factory helpers ──
 
-    static LayoutNode leaf(const std::string &id, uint16_t minH_ = 3, uint16_t minW_ = 10) {
+    static LayoutNode leaf(
+        const std::string &id, uint16_t minH_ = 3, uint16_t minW_ = 10
+    ) {
         LayoutNode n;
         n.type   = Leaf;
         n.panelId = id;
@@ -171,12 +173,16 @@ public:
     std::vector<std::string> panelIds() const;
 
     /** True when the current terminal size is too small for the minimum constraints. */
-    bool terminalTooSmall() const { return !m_sizedOk; }
+    bool terminalTooSmall() const {
+        return !m_sizedOk;
+    }
 
     // ── Focus ──
 
     /** ID of the currently‑focused panel (empty if none). */
-    std::string focusedPanel() const { return m_focusedPanel; }
+    std::string focusedPanel() const {
+        return m_focusedPanel;
+    }
 
     /** Advance focus to the next visible leaf panel. */
     void focusNext();
@@ -193,10 +199,14 @@ public:
     void toggleMaximize();
 
     /** True if a panel is currently maximised. */
-    bool isMaximized() const { return m_maximized; }
+    bool isMaximized() const {
+        return m_maximized;
+    }
 
     /** Panel ID that is currently maximised (empty if not maximised). */
-    std::string maximizedPanel() const { return m_maximizedPanel; }
+    std::string maximizedPanel() const {
+        return m_maximizedPanel;
+    }
 
     // ── Tab navigation ──
 
@@ -210,9 +220,11 @@ public:
     // ── Iteration ──
 
     /** Visit every visible leaf panel with its computed rect and focus flag. */
-    void forEachLeaf(std::function<void(const std::string &panelId,
-                                         const Rect &rect,
-                                         bool focused)> fn) const;
+    void forEachLeaf(std::function<void(
+        const std::string &panelId,
+        const Rect &rect,
+        bool focused
+    )> fn) const;
 
 private:
     LayoutNode  m_root;
@@ -234,15 +246,21 @@ private:
     // ── Internal helpers ──
 
     /** Recursively compute rects.  Returns true if every subtree fits. */
-    bool computeRect(const LayoutNode &node,
-                     uint16_t row, uint16_t col,
-                     uint16_t h, uint16_t w);
+    bool computeRect(
+        const LayoutNode &node,
+        uint16_t row, uint16_t col,
+        uint16_t h, uint16_t w
+    );
 
     /** Collect all leaf panel IDs in visual order into @p ids. */
-    void collectLeafOrder(const LayoutNode &node, std::vector<std::string> &ids) const;
+    void collectLeafOrder(
+        const LayoutNode &node, std::vector<std::string> &ids
+    ) const;
 
     /** Collect every leaf panel ID regardless of tab state (for validation). */
-    void collectAllLeafIds(const LayoutNode &node, std::vector<std::string> &ids) const;
+    void collectAllLeafIds(
+        const LayoutNode &node, std::vector<std::string> &ids
+    ) const;
 
     /** Rebuild m_focusOrder from m_slots by collecting leaves in visual order. */
     void rebuildFocusOrder();
@@ -251,16 +269,22 @@ private:
     void clearFocusInSlots();
 
     /** Advance activeTab in the tabbed node containing panelId. */
-    bool advanceTabInNode(LayoutNode &node,
-                           const std::string &panelId,
-                           size_t tabCount);
+    bool advanceTabInNode(
+        LayoutNode &node,
+        const std::string &panelId,
+        size_t tabCount
+    );
 
     /** Find the first leaf in the active tab of the tabbed node containing panelId. */
-    std::string getFirstLeafInActiveTab(const LayoutNode &node,
-                                         const std::string &panelId) const;
+    std::string getFirstLeafInActiveTab(
+        const LayoutNode &node,
+        const std::string &panelId
+    ) const;
 
     /** True if panelId lives anywhere under @p node. */
-    bool isPanelInSubtree(const LayoutNode &node, const std::string &panelId) const;
+    bool isPanelInSubtree(
+        const LayoutNode &node, const std::string &panelId
+    ) const;
 
     /** Draw tab bars for all tabbed nodes in the tree. */
     void drawTabBarsRecursive(Canvas &canvas, const LayoutNode &node) const;

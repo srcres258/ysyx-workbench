@@ -42,8 +42,8 @@ static void checkBound(const IOMap *map, addr_t addr, int len) {
         Assert(
             addr >= map->low && len <= (int) mapLen &&
             addr - map->low <= mapLen - (addr_t) len,
-            "address (" FMT_ADDR ") with len %d is out of bound {%s} [" FMT_ADDR
-                ", " FMT_ADDR "] at pc = " FMT_WORD,
+            "address (" FMT_ADDR ") with len %d is out of bound {%s} ["
+                FMT_ADDR ", " FMT_ADDR "] at pc = " FMT_WORD,
             addr, len, map->name, map->low, map->high, dpi()->core_pc
         );
     } else {
@@ -54,7 +54,12 @@ static void checkBound(const IOMap *map, addr_t addr, int len) {
     }
 }
 
-static void invokeCallback(io_callback_t c, addr_t offset, int len, bool isWrite) {
+static void invokeCallback(
+    io_callback_t c,
+    addr_t offset,
+    int len,
+    bool isWrite
+) {
     if (c) {
         c(offset, len, isWrite);
     }
@@ -64,7 +69,16 @@ static void dtraceRecord(
     addr_t addr, int len, word_t data,
     const IOMap *map, std::string type
 ) {
-    trace_record_dtrace(dpi()->core_pc, map->name.c_str(), type == "write", addr, len, data, "io-map", map->name.c_str());
+    trace_record_dtrace(
+        dpi()->core_pc,
+        map->name.c_str(),
+        type == "write",
+        addr,
+        len,
+        data,
+        "io-map",
+        map->name.c_str()
+    );
 }
 
 bool IOMap::isInside(addr_t addr) const {

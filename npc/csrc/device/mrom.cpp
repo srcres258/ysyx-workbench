@@ -10,7 +10,9 @@
 
 #define IFDBG if (sim_config.config_debugOutput)
 
-static inline void*& mrom_io_base() { return getActiveSimulator()->mrom_io_base; }
+static inline void*& mrom_io_base() {
+    return getActiveSimulator()->mrom_io_base;
+}
 
 static bool initMROMMemory(std::string filename, size_t *fileSize) {
     size_t size;
@@ -26,7 +28,8 @@ static bool initMROMMemory(std::string filename, size_t *fileSize) {
     IFDBG std::cout << "File size is " << size << " bytes." << std::endl;
     if (size > MROM_LEN) {
         std::cerr << "MROM file is too large, size is " << size <<
-            " bytes, but maximum is only " << MROM_LEN << " bytes." << std::endl;
+            " bytes, but maximum is only " << MROM_LEN << " bytes."
+            << std::endl;
         return false;
     }
     f.seekg(0, std::ios::beg);
@@ -52,17 +55,25 @@ bool device_mrom_init() {
     if (mrom_io_base()) {
         memset(mrom_io_base(), 0, MROM_LEN);
     }
-    device_io_addMMIOMap("mrom", MROM_ADDR, mrom_io_base(), MROM_LEN, mrom_io_handler);
+    device_io_addMMIOMap(
+        "mrom",
+        MROM_ADDR,
+        mrom_io_base(),
+        MROM_LEN,
+        mrom_io_handler
+    );
 
     if (sim_config.config_mrom) {
         IFDBG std::cout << "Initializing MROM from bin file..." << std::endl;
         std::string filename(sim_config.config_mromBinFilePath);
         size_t fileSize;
         if (!initMROMMemory(filename, &fileSize)) {
-            std::cerr << "Failed to initialize MROM from bin file: " << filename << std::endl;
+            std::cerr << "Failed to initialize MROM from bin file: "
+                << filename << std::endl;
             return false;
         }
-        IFDBG std::cout << "Finished initializing MROM, size is " << fileSize << " bytes." << std::endl;
+        IFDBG std::cout << "Finished initializing MROM, size is "
+            << fileSize << " bytes." << std::endl;
     }
 
     return true;

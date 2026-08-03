@@ -40,7 +40,10 @@ void simExecClockPeriod(uint64_t n) {
 bool simulate(bool sdbEnabled) {
     auto* bridge = getActiveSimulator();
     if (!bridge || !bridge->owner) {
-        std::fprintf(stderr, "[npc] simulate() called with no active Simulator\n");
+        std::fprintf(
+            stderr,
+            "[npc] simulate() called with no active Simulator\n"
+        );
         return false;
     }
     return bridge->owner->run(sdbEnabled);

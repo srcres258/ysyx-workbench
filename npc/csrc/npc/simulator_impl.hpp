@@ -64,15 +64,15 @@ struct SimulatorImpl {
 
     // ── Difftest state (was: static globals in difftest/dut.cpp) ──
     void* dlHandle = nullptr;
-    ref_difftest_memcpy_f_t      ref_difftest_memcpy      = nullptr;
-    ref_difftest_regcpy_f_t      ref_difftest_regcpy      = nullptr;
-    ref_difftest_exec_f_t        ref_difftest_exec        = nullptr;
-    ref_difftest_raise_intr_f_t  ref_difftest_raise_intr  = nullptr;
-    ref_difftest_set_mem_map_f_t ref_difftest_set_mem_map = nullptr;
-    ref_difftest_get_mem_map_f_t ref_difftest_get_mem_map = nullptr;
-    ref_difftest_set_reset_vector_f_t ref_difftest_set_reset_vector = nullptr;
-    ref_difftest_init_f_t        ref_difftest_init        = nullptr;
-    std::deque<DiffTestSkipEvent> pendingSkipRefPcs;
+    ref_difftest_memcpy_f_t             ref_difftest_memcpy           = nullptr;
+    ref_difftest_regcpy_f_t             ref_difftest_regcpy           = nullptr;
+    ref_difftest_exec_f_t               ref_difftest_exec             = nullptr;
+    ref_difftest_raise_intr_f_t         ref_difftest_raise_intr       = nullptr;
+    ref_difftest_set_mem_map_f_t        ref_difftest_set_mem_map      = nullptr;
+    ref_difftest_get_mem_map_f_t        ref_difftest_get_mem_map      = nullptr;
+    ref_difftest_set_reset_vector_f_t   ref_difftest_set_reset_vector = nullptr;
+    ref_difftest_init_f_t               ref_difftest_init             = nullptr;
+    std::deque<DiffTestSkipEvent>       pendingSkipRefPcs;
     int skipDutNrInst = 0;
 
     // ── Device memory bases (was: globals in device/*.cpp) ──
@@ -82,11 +82,11 @@ struct SimulatorImpl {
     void* sdram_io_base = nullptr;
     void* sram_io_base  = nullptr;
 
-    SimulatorImpl()                           = default;
-    SimulatorImpl(const SimulatorImpl&)       = delete;
-    SimulatorImpl& operator=(const SimulatorImpl&) = delete;
-    SimulatorImpl(SimulatorImpl&&)            = delete;
-    SimulatorImpl& operator=(SimulatorImpl&&) = delete;
+    SimulatorImpl()                                 = default;
+    SimulatorImpl(const SimulatorImpl&)             = delete;
+    SimulatorImpl& operator=(const SimulatorImpl&)  = delete;
+    SimulatorImpl(SimulatorImpl&&)                  = delete;
+    SimulatorImpl& operator=(SimulatorImpl&&)       = delete;
 };
 
 // ── Config translation (Task 3: public API → internal legacy shape) ──
@@ -101,7 +101,7 @@ void           setActiveSimulator(SimulatorImpl* impl);
 
 // ── Internal lifecycle helpers (shared between Simulator methods
 //     and transitional compat wrappers in sim.cpp) ──
-namespace npc { namespace internal {
+namespace npc::internal {
 
 void simStepClockImpl();
 void simStepImpl();
@@ -110,6 +110,6 @@ bool simExecOnceImpl();
 void simExecImpl(uint64_t n);
 void simExecClockPeriodImpl(uint64_t n);
 
-}} // namespace npc::internal
+} // namespace npc::internal
 
 #endif // NPC_SRC_SIMULATOR_IMPL_HPP

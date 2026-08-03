@@ -70,7 +70,10 @@ public:
     void push(const Event &event);
 
     /// Push an event with inline construction.
-    void push(uint64_t timestamp, EventType type, addr_t pc, word_t value, const char *desc);
+    void push(
+        uint64_t timestamp, EventType type, addr_t pc, word_t value,
+        const char *desc
+    );
 
     /// Get all events whose timestamp >= @p since.  Appends to @p out.
     size_t getEventsSince(uint64_t since, std::deque<Event> &out) const;

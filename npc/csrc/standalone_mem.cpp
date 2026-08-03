@@ -56,25 +56,33 @@ int dpi_pmem_read(int addr) {
     if (rtc_is_in_range(a)) {
         difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
         int value = (int) rtc_read(a);
-        trace_record_dtrace(0, "rtc", false, a, 4, (word_t) value, "standalone", "RTC");
+        trace_record_dtrace(
+            0, "rtc", false, a, 4, (word_t) value, "standalone", "RTC"
+        );
         return value;
     }
     if (keyboard_is_in_range(a)) {
         difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
         int value = (int) keyboard_read(a);
-        trace_record_dtrace(0, "keyboard", false, a, 4, (word_t) value, "standalone", "KBD");
+        trace_record_dtrace(
+            0, "keyboard", false, a, 4, (word_t) value, "standalone", "KBD"
+        );
         return value;
     }
     if (vga_is_in_range(a)) {
         difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
         int value = (int) vga_read(a);
-        trace_record_dtrace(0, "vga", false, a, 4, (word_t) value, "standalone", "VGA");
+        trace_record_dtrace(
+            0, "vga", false, a, 4, (word_t) value, "standalone", "VGA"
+        );
         return value;
     }
     if (serial_is_in_range(a)) {
         difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
         int value = serial_read_stdin_byte();
-        trace_record_dtrace(0, "serial", false, a, 1, (word_t) value, "standalone", "UART");
+        trace_record_dtrace(
+            0, "serial", false, a, 1, (word_t) value, "standalone", "UART"
+        );
         return value;
     }
     uint32_t word_addr = a & ~0x3u;
@@ -97,16 +105,40 @@ void dpi_pmem_write(int addr, int data, char strb) {
             }
         }
         std::cout << std::flush;
-        trace_record_dtrace(0, "serial", true, a, 4, (word_t) wdata, "standalone", "UART");
+        trace_record_dtrace(
+            0, "serial", true, a, 4, (word_t) wdata, "standalone", "UART"
+        );
         return;
     }
-    if (rtc_is_in_range(a))      { difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO); rtc_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "rtc", true, a, 4, (word_t) data, "standalone", "RTC"); return; }
-    if (keyboard_is_in_range(a)) { difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO); keyboard_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "keyboard", true, a, 4, (word_t) data, "standalone", "KBD"); return; }
-    if (vga_is_in_range(a))      { difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO); vga_write(a, (uint32_t)data, (uint8_t)strb); trace_record_dtrace(0, "vga", true, a, 4, (word_t) data, "standalone", "VGA"); return; }
+    if (rtc_is_in_range(a)) {
+        difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
+        rtc_write(a, (uint32_t)data, (uint8_t)strb);
+        trace_record_dtrace(
+            0, "rtc", true, a, 4, (word_t) data, "standalone", "RTC"
+        );
+        return;
+    }
+    if (keyboard_is_in_range(a)) {
+        difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
+        keyboard_write(a, (uint32_t)data, (uint8_t)strb);
+        trace_record_dtrace(
+            0, "keyboard", true, a, 4, (word_t) data, "standalone", "KBD"
+        );
+        return;
+    }
+    if (vga_is_in_range(a)) {
+        difftest_dut_skipRef(getDPIModule()->core_pc, DIFFTEST_SKIP_REASON_MMIO);
+        vga_write(a, (uint32_t)data, (uint8_t)strb);
+        trace_record_dtrace(
+            0, "vga", true, a, 4, (word_t) data, "standalone", "VGA"
+        );
+        return;
+    }
     uint32_t word_addr = a & ~0x3u;
-    if (!addr_valid(word_addr)) return;
-    uint32_t wdata = (uint32_t)data;
-    uint8_t  wstrb = (uint8_t)strb;
+    if (!addr_valid(word_addr))
+        return;
+    uint32_t wdata = (uint32_t) data;
+    uint8_t  wstrb = (uint8_t) strb;
     uint32_t off = word_addr - PMEM_BASE;
     if (wstrb & 0x1) pmem[off + 0] = (wdata >>  0) & 0xFF;
     if (wstrb & 0x2) pmem[off + 1] = (wdata >>  8) & 0xFF;
@@ -115,8 +147,9 @@ void dpi_pmem_write(int addr, int data, char strb) {
 }
 
 void dpi_set_pmem_word(int word_addr, int data) {
-    uint32_t addr = (uint32_t)word_addr * 4;
-    if (addr >= PMEM_SIZE - 3) return;
+    uint32_t addr = (uint32_t) word_addr * 4;
+    if (addr >= PMEM_SIZE - 3)
+        return;
     pmem[addr + 0] = (data >>  0) & 0xFF;
     pmem[addr + 1] = (data >>  8) & 0xFF;
     pmem[addr + 2] = (data >> 16) & 0xFF;

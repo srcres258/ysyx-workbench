@@ -252,7 +252,8 @@ static npc::SimulatorConfig buildConfigFromEnv() {
         std::cout << "[config] DiffTest 起始 PC: 0x" << std::hex
                   << config.difftestStartPC << std::dec << std::endl;
     } catch (const std::exception &e) {
-        std::cerr << "[config] DiffTest 起始 PC 解析失败: " << e.what() << std::endl;
+        std::cerr << "[config] DiffTest 起始 PC 解析失败: " << e.what()
+            << std::endl;
         std::exit(EXIT_FAILURE);
     }
 
@@ -271,7 +272,8 @@ static npc::SimulatorConfig buildConfigFromEnv() {
         std::cout << "[config] DiffTest Payload 加载地址: 0x" << std::hex
                   << config.difftestPayloadLoadAddr << std::dec << std::endl;
     } catch (const std::exception &e) {
-        std::cerr << "[config] DiffTest Payload 加载地址解析失败: " << e.what() << std::endl;
+        std::cerr << "[config] DiffTest Payload 加载地址解析失败: " << e.what()
+            << std::endl;
         std::exit(EXIT_FAILURE);
     }
 

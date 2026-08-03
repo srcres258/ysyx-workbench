@@ -26,11 +26,13 @@
 // to access them through extern declarations in utils.hpp.
 
 static bool traceFormatWantsHuman() {
-    return sim_config.config_traceFormat == "human" || sim_config.config_traceFormat == "both";
+    return sim_config.config_traceFormat == "human" ||
+        sim_config.config_traceFormat == "both";
 }
 
 static bool traceFormatWantsJsonl() {
-    return sim_config.config_traceFormat == "jsonl" || sim_config.config_traceFormat == "both";
+    return sim_config.config_traceFormat == "jsonl" ||
+        sim_config.config_traceFormat == "both";
 }
 
 /**
@@ -154,7 +156,8 @@ bool sim_state_ftrace_funcSyms_init() {
     // Before the first call to elf_begin() ,
     // a program must call elf_version() to coordinate versions.
     if (elf_version(EV_CURRENT) == EV_NONE) {
-        std::cerr << "libelf version is missing! ELF file will not be loaded." << std::endl;
+        std::cerr << "libelf version is missing! ELF file will not be loaded."
+            << std::endl;
         return false;
     }
 
@@ -180,8 +183,8 @@ bool sim_state_ftrace_funcSyms_init() {
     size = loadFunctionSymbolsFromElf(&sim_state.ftrace_funcSyms, elf);
     elf_end(elf);
     close(fd);
-    std::cout << "Loaded " << size << " function symbols from ELF file: " <<
-        elfFilePath << std::endl;
+    std::cout << "Loaded " << size << " function symbols from ELF file: "
+        << elfFilePath << std::endl;
 
     return true;
 }
@@ -305,7 +308,10 @@ static std::string jsonEscape(std::string_view s) {
             case '\t': out += "\\t"; break;
             default:
                 if (static_cast<unsigned char>(ch) < 0x20) {
-                    out += std::format("\\u{:04x}", static_cast<unsigned char>(ch));
+                    out += std::format(
+                        "\\u{:04x}",
+                        static_cast<unsigned char>(ch)
+                    );
                 } else {
                     out.push_back(ch);
                 }
@@ -324,7 +330,9 @@ public:
         out += '"';
     }
 
-    void addStringOrNull(std::string_view key, std::string_view value, bool keepValue) {
+    void addStringOrNull(
+        std::string_view key, std::string_view value, bool keepValue
+    ) {
         if (keepValue) {
             addString(key, value);
         } else {
@@ -383,7 +391,9 @@ private:
     bool first = true;
 };
 
-static void writeHumanLine(std::ofstream &ofs, const std::string &line, uint64_t &counter) {
+static void writeHumanLine(
+    std::ofstream &ofs, const std::string &line, uint64_t &counter
+) {
     ofs << line << '\n';
     counter++;
     if ((counter % kTraceFlushBatch) == 0) {
@@ -391,7 +401,9 @@ static void writeHumanLine(std::ofstream &ofs, const std::string &line, uint64_t
     }
 }
 
-static void writeJsonLine(std::ofstream &ofs, const std::string &line, uint64_t &counter) {
+static void writeJsonLine(
+    std::ofstream &ofs, const std::string &line, uint64_t &counter
+) {
     ofs << line << '\n';
     counter++;
     if ((counter % kTraceFlushBatch) == 0) {

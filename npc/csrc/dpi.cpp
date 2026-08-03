@@ -31,7 +31,8 @@ extern "C" void dpi_halt(bool halt) {
 
     if (sim_halt) {
         if (sim_config.config_debugOutput)
-            std::cout << "[sim] 仿真环境置仿真终止信号，处理器下一次执行前将结束仿真！" << std::endl;
+            std::cout << "[sim] 仿真环境置仿真终止信号，处理器下一次执行前将结束仿真！"
+                << std::endl;
         tui::g_eventFeed.push(
             getExecCount(), tui::EventType::HALT,
             simExecInfo.pc, 0,
@@ -72,14 +73,16 @@ extern "C" void dpi_onRetireTrace(bool _trig) {
         if (dpi->wbu_inst_jal && rd == 1) {
             if (sim_config.config_debugOutput)
                 std::println(
-                    "[sim] ftrace: Detected call from jal at pc = {:#08x}, dest_addr = {:#08x}",
+                    "[sim] ftrace: Detected call from jal at pc = {:#08x}, "
+                        "dest_addr = {:#08x}",
                     pc, pc + dpi->wbu_imm
                 );
             ftrace_tryRecord(CALL_TYPE_CALL, pc, pc + dpi->wbu_imm, retAddr, callerSp);
         } else if (dpi->wbu_inst_jal && rd == 0) {
             if (sim_config.config_debugOutput)
                 std::println(
-                    "[sim] ftrace: Detected tail from jal at pc = {:#08x}, dest_addr = {:#08x}",
+                    "[sim] ftrace: Detected tail from jal at pc = {:#08x}, "
+                        "dest_addr = {:#08x}",
                     pc, pc + dpi->wbu_imm
                 );
             ftrace_tryRecord(CALL_TYPE_TAIL, pc, pc + dpi->wbu_imm, retAddr, callerSp);
@@ -87,28 +90,34 @@ extern "C" void dpi_onRetireTrace(bool _trig) {
             if (rd == 0 && rs1 == 1) {
                 if (sim_config.config_debugOutput)
                     std::println(
-                        "[sim] ftrace: Detected ret from jalr at pc = {:#08x}, dest_addr = {:#08x}",
+                        "[sim] ftrace: Detected ret from jalr at pc = {:#08x}, "
+                            "dest_addr = {:#08x}",
                         pc, destAddr
                     );
                 ftrace_tryRecord(CALL_TYPE_RET, pc, destAddr, retAddr, callerSp);
             } else if (isAddrFuncSymStart(destAddr) || (rd == 1 && rs1 == 1)) {
                 if (sim_config.config_debugOutput)
                     std::println(
-                        "[sim] ftrace: Detected call from jalr at pc = {:#08x}, dest_addr = {:#08x}",
+                        "[sim] ftrace: Detected call from jalr at pc = {:#08x}, "
+                            "dest_addr = {:#08x}",
                         pc, destAddr
                     );
                 ftrace_tryRecord(CALL_TYPE_CALL, pc, destAddr, retAddr, callerSp);
-            } else if (rd == 0 && (isAddrFuncSymStart(destAddr) || rs1 == 6 || rs1 == 7)) {
+            } else if (
+                rd == 0 && (isAddrFuncSymStart(destAddr) || rs1 == 6 || rs1 == 7)
+            ) {
                 if (sim_config.config_debugOutput)
                     std::println(
-                        "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, dest_addr = {:#08x}",
+                        "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, "
+                            "dest_addr = {:#08x}",
                         pc, destAddr
                     );
                 ftrace_tryRecord(CALL_TYPE_TAIL, pc, destAddr, retAddr, callerSp);
             } else if (rd == 1 && (rs1 == 6 || rs1 == 7)) {
                 if (sim_config.config_debugOutput)
                     std::println(
-                        "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, dest_addr = {:#08x}",
+                        "[sim] ftrace: Detected tail from jalr at pc = {:#08x}, "
+                            "dest_addr = {:#08x}",
                         pc, destAddr
                     );
                 ftrace_tryRecord(CALL_TYPE_TAIL, pc, destAddr, retAddr, callerSp);
@@ -157,15 +166,20 @@ static bool isMMIOAccess(addr_t addr) {
         return true;
     }
     // SRAM
-    if (addr >= SRAM_ADDR && addr < SRAM_ADDR + SRAM_LEN) return false;
+    if (addr >= SRAM_ADDR && addr < SRAM_ADDR + SRAM_LEN)
+        return false;
     // MROM
-    if (addr >= MROM_ADDR && addr < MROM_ADDR + MROM_LEN) return false;
+    if (addr >= MROM_ADDR && addr < MROM_ADDR + MROM_LEN)
+        return false;
     // FLASH
-    if (addr >= FLASH_ADDR && addr < FLASH_ADDR + FLASH_LEN) return false;
+    if (addr >= FLASH_ADDR && addr < FLASH_ADDR + FLASH_LEN)
+        return false;
     // PSRAM
-    if (addr >= PSRAM_ADDR && addr < PSRAM_ADDR + PSRAM_LEN) return false;
+    if (addr >= PSRAM_ADDR && addr < PSRAM_ADDR + PSRAM_LEN)
+        return false;
     // SDRAM
-    if (addr >= SDRAM_ADDR && addr < SDRAM_ADDR + SDRAM_LEN) return false;
+    if (addr >= SDRAM_ADDR && addr < SDRAM_ADDR + SDRAM_LEN)
+        return false;
     // Everything else (UART, SPI, CLINT, GPIO, VGA, keyboard, etc.) is MMIO
     return true;
 }
@@ -201,7 +215,9 @@ extern "C" void dpi_onMemAccess(
     );
 }
 
-extern "C" void dpi_onEcallEnable(const svLogicVecVal *pc, svLogic ecallEnable) {
+extern "C" void dpi_onEcallEnable(
+    const svLogicVecVal *pc, svLogic ecallEnable
+) {
     if (ecallEnable != sv_1 || !sim_config.config_etrace) {
         return;
     }
@@ -217,7 +233,9 @@ extern "C" void dpi_onEcallEnable(const svLogicVecVal *pc, svLogic ecallEnable) 
     );
 }
 
-extern "C" void dpi_onEpcRecoverEnable(const svLogicVecVal *pc, svLogic epcRecoverEnable) {
+extern "C" void dpi_onEpcRecoverEnable(
+    const svLogicVecVal *pc, svLogic epcRecoverEnable
+) {
     if (epcRecoverEnable != sv_1 || !sim_config.config_etrace) {
         return;
     }
@@ -281,7 +299,9 @@ extern "C" void dpi_onPosEdge_wb_nextStage_valid(bool _wb_nextStage_valid) {
     }
 }
 
-extern "C" word_t dpi_clint_onReadEnable(const svLogicVecVal *, bool _clint_read_readEnable) {
+extern "C" word_t dpi_clint_onReadEnable(
+    const svLogicVecVal *, bool _clint_read_readEnable
+) {
     auto *dpi = getDPIModule();
     bool clint_read_readEnable = dpi->clint_read_readEnable;
     if (!clint_read_readEnable) {
@@ -303,7 +323,9 @@ extern "C" word_t dpi_clint_onReadEnable(const svLogicVecVal *, bool _clint_read
     return result;
 }
 
-extern "C" void dpi_clint_onWriteEnable(const svLogicVecVal *, bool _clint_write_writeEnable) {
+extern "C" void dpi_clint_onWriteEnable(
+    const svLogicVecVal *, bool _clint_write_writeEnable
+) {
     bool clint_write_writeEnable = dpi()->clint_write_writeEnable;
     if (!clint_write_writeEnable) {
         return;
@@ -325,19 +347,25 @@ extern "C" void flash_read(addr_t addr, word_t *data) {
     }
     *data = device_flash_read(realAddr, 4);
     if (sim_config.config_debugOutput) {
-        std::string message = std::format("[sim] read from FLASH, data = 0x{:08x}", *data);
+        std::string message = std::format(
+            "[sim] read from FLASH, data = 0x{:08x}", *data
+        );
         std::cout << message << std::endl;
     }
 }
 
 extern "C" void mrom_read(addr_t addr, word_t *data) {
     if (sim_config.config_debugOutput) {
-        std::string message = std::format("[sim] read from MROM, addr = 0x{:08x}", addr);
+        std::string message = std::format(
+            "[sim] read from MROM, addr = 0x{:08x}", addr
+        );
         std::cout << message << std::endl;
     }
     *data = device_mrom_read(addr, 4);
     if (sim_config.config_debugOutput) {
-        std::string message = std::format("[sim] read from MROM, data = 0x{:08x}", *data);
+        std::string message = std::format(
+            "[sim] read from MROM, data = 0x{:08x}", *data
+        );
         std::cout << message << std::endl;
     }
 }
