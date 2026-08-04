@@ -82,7 +82,7 @@ static void printWPPool() {
 
 /**
  * @brief 从监视点池分配监视点。
- * 
+ *
  * @return WatchPoint* 新分配的监视点；若无空闲监视点则返回空指针
  */
 static WatchPoint *newWP() {
@@ -118,7 +118,7 @@ static WatchPoint *newWP() {
 
 /**
  * @brief 释放来自监视点池的监视点。
- * 
+ *
  * @param wp 要释放的监视点
  */
 static void freeWP(WatchPoint *wp) {
@@ -181,14 +181,14 @@ static int cmd_help(char *args);
 
 /**
  * @brief 单步执行
- * 
+ *
  * 让程序单步执行N条指令后暂停执行,
  * 当N没有给出时, 缺省为1
- * 
+ *
  * 格式：si [N]
- * 
+ *
  * 使用举例：si 10
- * 
+ *
  * @param args 指令的条数
  * @return int 始终返回0
  */
@@ -207,14 +207,14 @@ static int cmd_si(char *args) {
 
 /**
  * @brief 单步执行 (时钟周期)
- * 
+ *
  * 让程序单步执行N个时钟周期后暂停执行,
  * 当N没有给出时, 缺省为1
- * 
+ *
  * 格式：si [N]
- * 
+ *
  * 使用举例：si 10
- * 
+ *
  * @param args 指令的条数
  * @return int 始终返回0
  */
@@ -233,16 +233,16 @@ static int cmd_sic(char *args) {
 
 /**
  * @brief 打印程序状态
- * 
+ *
  * 打印寄存器状态
  * 打印监视点信息
- * 
+ *
  * 格式：info SUBCMD
- * 
+ *
  * 使用举例：
  * info r
  * info w
- * 
+ *
  * @param args
  * @return int 始终返回0
  */
@@ -262,18 +262,18 @@ static int cmd_info(char *args) {
 
 /**
  * @brief 扫描内存
- * 
+ *
  * 求出表达式EXPR的值, 将结果作为起始内存
  * 地址, 以十六进制形式输出连续的N个4字节
- * 
+ *
  * 注：GDB相比, 我们在这里做了简化, 更改了命令的格式
- * 
+ *
  * 格式：x N EXPR
- * 
+ *
  * 使用举例：x 10 $esp
- * 
- * @param args 
- * @return int 
+ *
+ * @param args
+ * @return int
  */
 static int cmd_x(char *args) {
     char *N_str, *EXPR_str;
@@ -317,15 +317,15 @@ static int cmd_x(char *args) {
 
 /**
  * @brief 表达式求值
- * 
+ *
  * 求出表达式EXPR的值
- * 
+ *
  * 格式：p EXPR
- * 
+ *
  * 使用举例：p $eax + 1
- * 
- * @param args 
- * @return int 
+ *
+ * @param args
+ * @return int
  */
 static int cmd_p(char *args) {
     bool success;
@@ -352,15 +352,15 @@ static int cmd_p(char *args) {
 
 /**
  * @brief 设置监视点
- * 
+ *
  * 当表达式EXPR的值发生变化时, 暂停程序执行
- * 
+ *
  * 格式：w EXPR
- * 
+ *
  * 使用举例：w *0x2000
- * 
- * @param args 
- * @return int 
+ *
+ * @param args
+ * @return int
  */
 static int cmd_w(char *args) {
     WatchPoint *wp;
@@ -399,15 +399,15 @@ static int cmd_w(char *args) {
 
 /**
  * @brief 删除监视点
- * 
+ *
  * 删除序号为N的监视点
- * 
+ *
  * 格式：d N
- * 
+ *
  * 使用举例：d 2
- * 
- * @param args 
- * @return int 
+ *
+ * @param args
+ * @return int
  */
 static int cmd_d(char *args) {
     WatchPoint *wp;
@@ -477,7 +477,7 @@ static int cmd_help(char *args) {
 
 /**
  * @brief 从标准输入流读取一行。
- * 
+ *
  * @return std::string 读取到的一行内容（不包含末尾换行符）
  */
 static std::string readLine() {
@@ -490,7 +490,7 @@ static std::string readLine() {
 
 /**
  * @brief 从标准输入流读取一行命令输入（在读取前先输出命令提示符）。
- * 
+ *
  * @return std::string 读取到的一行内容（不包含末尾换行符）
  */
 static std::string readCmdInput() {
@@ -501,7 +501,7 @@ static std::string readCmdInput() {
 
 /**
  * @brief SDB：对表达式求值。
- * 
+ *
  * @param e 表达式字符串
  * @param success 是否成功
  * @return word_t 该表达式的求值结果
@@ -518,7 +518,7 @@ word_t sdb_expr(const char *e, bool *success) {
 
 /**
  * @brief SDB：添加监视点。
- * 
+ *
  * @return WatchPoint* 新添加的监视点；若监视点已用尽则返回空指针
  */
 WatchPoint *sdb_newWP() {
@@ -545,7 +545,7 @@ WatchPoint *sdb_newWP() {
 
 /**
  * @brief SDB：删除监视点。
- * 
+ *
  * @param wp 要删除的监视点
  */
 void sdb_freeWP(WatchPoint *wp) {
@@ -589,7 +589,7 @@ void sdb_freeWP(WatchPoint *wp) {
 
 /**
  * @brief SDB：查找指定编号的监视点。
- * 
+ *
  * @param no 监视点编号
  * @return WatchPoint* 监视点指针；若未找到返回空指针
  */

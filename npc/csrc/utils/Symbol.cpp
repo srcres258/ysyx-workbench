@@ -5,7 +5,7 @@
 
 /**
  * @brief 从给定 ELF 文件中加载函数符号信息。
- * 
+ *
  * @param dest 容纳目的符号的 vector
  * @param elf ELF 文件
  * @return size_t 总共加载的符号数量

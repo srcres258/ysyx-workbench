@@ -51,7 +51,7 @@ void difftest_dut_skipRef(addr_t pc, DiffTestSkipReason reason) {
 void difftest_dut_skipDut(int nr_ref, int nr_dut) {
     auto &s = sim();
     int i;
-    
+
     s.skipDutNrInst += nr_dut;
 
     for (i = nr_ref; i --> 0;) {
@@ -260,7 +260,7 @@ void difftest_dut_syncPayloadMemoryToRef() {
     auto &s = sim();
     const auto &cfg = sim_config;
     std::println(
-        "[difftest] 正在将 payload 内存区域同步到 REF (mem_mode={})...", 
+        "[difftest] 正在将 payload 内存区域同步到 REF (mem_mode={})...",
         cfg.config_difftestMemMode
     );
 

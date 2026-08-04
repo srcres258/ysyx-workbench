@@ -5,7 +5,7 @@
 
 /**
  * @brief ftrace: 在符号表中查询指定内存地址处的符号。
- * 
+ *
  * @param dest 输出目的字符串缓冲区
  * @param addr 内存地址
  * @return true 查询成功
@@ -26,7 +26,7 @@ bool ftrace_queryNameThroughSymbolTable(
 
 /**
  * @brief ftrace: 尝试记录到指定内存地址处的函数调用信息。
- * 
+ *
  * @param type 函数调用类型
  * @param srcAddr 函数调用的源起地址
  * @param addr 函数调用的目标地址

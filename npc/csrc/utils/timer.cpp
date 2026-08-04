@@ -10,7 +10,7 @@ static uint64_t bootTime = 0;
 static uint64_t getTimeInternal() {
     timespec now;
     uint64_t us;
-    
+
     // 我们直接使用 clock_gettime 函数来获取时间。
     clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
     us = now.tv_sec * 1000000 + now.tv_nsec / 1000;

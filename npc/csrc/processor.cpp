@@ -45,7 +45,7 @@ void ProcessorState::dump() const {
 
 /**
  * @brief 获取当前仿真环境的处理器状态。
- * 
+ *
  * @return ProcessorState 处理器状态
  */
 ProcessorState getProcessorState() {
