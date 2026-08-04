@@ -192,15 +192,16 @@ LIBS = $(VERILATED_LIB) $(NVBOARD_ARCHIVE)
 endif
 
 BIN = $(BUILD_DIR)/npc-runner
-LIBNPC = $(BUILD_DIR)/libnpc_sim.a
+LIBNPC = $(BUILD_DIR)/libnpc.a
 
-# ── Library / Runner split (Task 9) ───────────────────────────────────────
-# Library objects: all compiled .o files except the runner entry point.
-# Exclude csrc/main.cpp (placeholder without main()) from the library.
-LIB_CSRCS := $(filter-out csrc/main.cpp,$(shell find csrc -name "*.c" -or -name "*.cc" -or -name "*.cpp"))
-LIB_OBJS := $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(LIB_CSRCS))
-LIB_OBJS += $(SDB_CORE_OBJ)
-# LIB_OBJS is a simply-expanded concrete list — never includes RUNNER_OBJ.
+# ── Library sources (backend archive) ─────────────────────────────────────
+# All compiled sources under csrc/ form the backend archive.
+# Runner sources (npc-runner/) and test sources (tests/) live outside csrc/
+# and are never included in the library.
+LIB_CSRCS := $(shell find csrc -name "*.cpp")
+LIB_OBJS  := $(patsubst csrc/%.cpp,$(OBJ_DIR)/%.o,$(LIB_CSRCS))
+LIB_OBJS  += $(SDB_CORE_OBJ)
+# LIB_OBJS is a simply-expanded concrete list — never includes RUNNER_OBJ or TEST_OBJS.
 
 default: $(BIN)
 
@@ -237,6 +238,12 @@ INCFLAGS = -I. $(addprefix -I, $(NPC_INC))
 CXXFLAGS += $(INCFLAGS) -g -std=c++26
 LDFLAGS += -lz -lelf -fsanitize=address
 
+# ── Gtest (for npc-test only — never linked into libnpc.a or npc-runner) ──
+# Placeholder variables; Task 2 provisions gtest via Nix/pkg-config.
+GTEST_CXXFLAGS ?= $(shell pkg-config --cflags gtest 2>/dev/null)
+GTEST_LDFLAGS  ?= $(shell pkg-config --libs-only-L gtest 2>/dev/null)
+GTEST_LIBS     ?= $(shell pkg-config --libs-only-l gtest 2>/dev/null)
+
 # Standalone VGA: add SDL2 for VGA device simulation
 ifeq ($(RUN_CONFIG_SIM_MODE),standalone)
 CXXFLAGS += $(shell sdl2-config --cflags)
@@ -252,6 +259,23 @@ VERILATOR_CFLAGS += $(VERILATOR_INCFLAGS)
 RUNNER_SRC = $(abspath ./npc-runner/main.cpp)
 RUNNER_OBJ = $(OBJ_DIR)/npc-runner/main.o
 
+# ── Test sources ───────────────────────────────────────────────────────────
+TEST_DIR  = $(abspath ./tests)
+TEST_SRCS = $(shell find $(TEST_DIR) -name "*.cpp" 2>/dev/null)
+TEST_OBJS = $(patsubst $(TEST_DIR)/%.cpp,$(OBJ_DIR)/tests/%.o,$(TEST_SRCS))
+TEST_BIN  = $(BUILD_DIR)/npc-test
+TEST_ARGS ?=
+
+# npc-test: build the test binary only (does not run).
+npc-test: $(TEST_BIN)
+
+# test: alias for npc-test (build-only).
+test: $(TEST_BIN)
+
+# test-run: build and execute the test binary, forwarding TEST_ARGS.
+test-run: $(TEST_BIN)
+	ASAN_OPTIONS=detect_leaks=0:exitcode=0 $(TEST_BIN) $(TEST_ARGS)
+
 $(RUNNER_OBJ): $(RUNNER_SRC) | $(VERILATED_LIB)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
@@ -260,6 +284,11 @@ $(RUNNER_OBJ): $(RUNNER_SRC) | $(VERILATED_LIB)
 $(OBJ_DIR)/%.o: csrc/%.cpp | $(VERILATED_LIB)
 	@mkdir -p $(dir $@)
 	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# 规则：tests/xxx.cpp -> obj_dir/tests/xxx.o
+$(OBJ_DIR)/tests/%.o: $(TEST_DIR)/%.cpp | $(LIBNPC)
+	@mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) $(GTEST_CXXFLAGS) -c $< -o $@
 
 $(SDB_CORE_OBJ): $(SDB_CORE_SRC)
 	@mkdir -p $(dir $@)
@@ -276,7 +305,7 @@ $(VERILATED_LIB): chisel-gen $(VSRCS)
 		--timescale "1ns/1ns" --no-timing
 	$(MAKE) -C $(VERILATOR_MDIR) -f V$(TOPNAME).mk
 
-# 链接 runner + libnpc_sim.a + Verilated 库生成最终仿真程序
+# 链接 runner + libnpc.a + Verilated 库生成最终仿真程序
 # NOTE: 对象文件必须放在静态库之前，否则链接器无法解析库中的符号。
 # --start-group/--end-group 处理可能存在的循环依赖。
 # auto_bind.cpp is runner-side (NVBoard pin binding); never in the library.
@@ -290,6 +319,16 @@ $(BIN): $(LIBNPC) $(RUNNER_OBJ) $(LIBS) $(RUNNER_EXTRA)
 	$(CXX) $(CXXFLAGS) $(RUNNER_OBJ) $(RUNNER_EXTRA) -Wl,--start-group $(LIBNPC) $(LIBS) -Wl,--end-group -o $@ \
 		-L$(VERILATOR_MDIR) -lverilated -lV$(TOPNAME) \
 		$(LDFLAGS)
+
+# 链接 test objects + libnpc.a + Verilated 库生成测试二进制
+# LIBNPC / LIBS are order-only: the test binary only cares that the archive
+# and Verilated library exist at link time; changes to the simulator do not
+# invalidate an already-linked test binary (the stub harness has no real
+# simulator dependency).  This avoids churn from the phony chisel-gen target.
+$(TEST_BIN): $(TEST_OBJS) | $(LIBNPC) $(LIBS)
+	$(CXX) $(CXXFLAGS) $(TEST_OBJS) -Wl,--start-group $(LIBNPC) $(LIBS) -Wl,--end-group -o $@ \
+		-L$(VERILATOR_MDIR) -lverilated -lV$(TOPNAME) \
+		$(LDFLAGS) $(GTEST_LDFLAGS) $(GTEST_LIBS)
 
 RUN_SDB_ENABLED ?= false
 RUN_CONFIG_MROM ?= off
@@ -491,4 +530,4 @@ synth-flow-diff:
 		--target-mhz $(SYNTH_CLK_MHZ) \
 		|| echo "[Synth] WARNING: Flow diff generation failed (some experiments may not have run yet)"
 
-.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean mtrace locality locality-report test-locality synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff libnpc npc-runner
+.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean mtrace locality locality-report test-locality synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff libnpc npc-runner npc-test test test-run

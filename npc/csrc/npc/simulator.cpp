@@ -36,6 +36,7 @@
 #include <device/vga.hpp>
 #include <device/keyboard.hpp>
 #endif
+#include <dlfcn.h>
 #include <unistd.h>
 #include <sys/select.h>
 
@@ -534,6 +535,36 @@ bool npc::Simulator::initialize(
     const char *verilatorArgv[]
 ) {
     applySimulatorConfig(config);
+
+    // ── Pre-init reset: zero mutable globals for repeatable cycles ──
+    ::execCount          = 0;
+    execCountClockPeriod = 0;
+    s_difftestActive     = false;
+    sim_halt             = false;
+    simExecInfo          = {0, 0};
+
+    if (s_impl.dlHandle) {
+        dlclose(s_impl.dlHandle);
+        s_impl.dlHandle = nullptr;
+    }
+    s_impl.ref_difftest_memcpy           = nullptr;
+    s_impl.ref_difftest_regcpy           = nullptr;
+    s_impl.ref_difftest_exec             = nullptr;
+    s_impl.ref_difftest_raise_intr       = nullptr;
+    s_impl.ref_difftest_set_mem_map      = nullptr;
+    s_impl.ref_difftest_get_mem_map      = nullptr;
+    s_impl.ref_difftest_set_reset_vector = nullptr;
+    s_impl.ref_difftest_init             = nullptr;
+    s_impl.pendingSkipRefPcs.clear();
+    s_impl.skipDutNrInst = 0;
+
+    perf::getPerfMonitor().onResetBegin();
+    perf::getPerfMonitor().onResetEnd();
+    perf::getPerfMonitor().setStrict(false);
+
+    tui::resetPauseState();
+
+    trace_reset_counters();
 
     install_signal_handlers();
 

@@ -68,6 +68,8 @@ void resetSimState(SimState &state) {
     state.state             = SIM_RUNNING;
     state.haltPC            = 0;
     state.itrace_iringbuf   = nullptr;
+    state.ftrace_funcSyms.clear();
+    std::stack<CallFrameInfo>().swap(state.ftrace_callStack);
     // ofstreams are left in their default-constructed state;
     // the runner will reopen them via sim_state_ofstream_init().
 }

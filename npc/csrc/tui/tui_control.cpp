@@ -73,4 +73,9 @@ void clearPauseRequest() {
     s_pauseRequested = false;
 }
 
+void resetPauseState() {
+    s_pauseRequested = false;
+    s_wasPaused      = false;
+}
+
 } // namespace tui

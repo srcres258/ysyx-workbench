@@ -157,6 +157,14 @@ bool sim_state_ftrace_funcSyms_init();
 
 // ----------- trace sinks -----------
 
+/**
+ * @brief Reset all internal trace sequence and flush-batch counters.
+ *
+ * Call at the start of simulator initialization so that repeated
+ * init/teardown cycles produce identical JSONL trace output.
+ */
+void trace_reset_counters();
+
 void trace_record_mtrace(
     addr_t pc, bool isWrite, addr_t addr, int len, word_t data,
     uint8_t strobe, uint32_t resp

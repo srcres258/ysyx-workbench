@@ -43,6 +43,9 @@ bool isPauseRequested();
 /// Clear the pause flag (called by the execution loop after stopping).
 void clearPauseRequest();
 
+/// Reset pause and was-paused flags for lifecycle repeatability.
+void resetPauseState();
+
 } // namespace tui
 
 #endif /* __TUI_CONTROL_HPP__ */

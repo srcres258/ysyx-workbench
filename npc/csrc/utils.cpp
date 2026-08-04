@@ -687,6 +687,18 @@ static std::string buildEtraceJson(
 
 } // namespace
 
+// ── Trace counter reset (Task 3) ──
+// Resets the JSONL sequence counter and per-trace flush-batch
+// counters so that repeated init/teardown cycles produce
+// deterministic trace output starting from seq=1.
+void trace_reset_counters() {
+    g_traceSeq      = 0;
+    g_itraceWrites  = 0;
+    g_mtraceWrites  = 0;
+    g_dtraceWrites  = 0;
+    g_etraceWrites  = 0;
+}
+
 static addr_t trace_current_pc() {
     auto *module = getDPIModule();
     return module ? module->core_pc : 0;

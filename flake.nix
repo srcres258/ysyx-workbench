@@ -63,6 +63,8 @@
       libz
       capstone
       readline
+
+      gtest
     ];
     # Safe for LD_LIBRARY_PATH — excludes libz which conflicts with binutils' own zlib
     runtimeLibDeps = with pkgs; [
@@ -92,7 +94,7 @@
       ];
 
       shellHook = ''
-        export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" runtimeDeps}"
+        export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" runtimeDeps}:$PKG_CONFIG_PATH"
         export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibDeps}:$LD_LIBRARY_PATH"
 
         export NVBOARD_HOME="$PWD/nvboard"
