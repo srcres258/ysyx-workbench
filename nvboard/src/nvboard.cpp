@@ -14,10 +14,10 @@ void set_redraw() { need_redraw = true; }
 
 void vga_update();
 void kb_update();
-// UART 更新已移至 nvboard_uart_update() (在 simStepClockPeriod() 中每周期调用)
+// UART 更新已移至 nvboard_uart_update()（由仿真每周期钩子调用）
 
 void nvboard_update() {
-  // VGA 采样已移至 simStepClockPeriod() 中每周期调用
+  // VGA 采样已移至仿真每周期钩子中执行
   // 此处保留 SDL 事件轮询和帧率限制渲染
 
   extern bool is_kb_idle;

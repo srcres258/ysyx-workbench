@@ -5,6 +5,7 @@
 #include <sim_top.hpp>
 #include <isa.hpp>
 #include <processor.hpp>
+#include "npc/gpr_fields.hpp"
 
 void ProcessorState::dump() const {
     int i;
@@ -50,46 +51,18 @@ void ProcessorState::dump() const {
  */
 ProcessorState getProcessorState() {
     auto *dpi = getDPIModule();
+#define NPC_GPR_FIELD(idx) dpi->gpr_gprs_##idx,
     ProcessorState state = {
         .gpr = {
-            dpi->gpr_gprs_0,
-            dpi->gpr_gprs_1,
-            dpi->gpr_gprs_2,
-            dpi->gpr_gprs_3,
-            dpi->gpr_gprs_4,
-            dpi->gpr_gprs_5,
-            dpi->gpr_gprs_6,
-            dpi->gpr_gprs_7,
-            dpi->gpr_gprs_8,
-            dpi->gpr_gprs_9,
-            dpi->gpr_gprs_10,
-            dpi->gpr_gprs_11,
-            dpi->gpr_gprs_12,
-            dpi->gpr_gprs_13,
-            dpi->gpr_gprs_14,
-            dpi->gpr_gprs_15,
+            NPC_GPR_FIELDS_0_15(NPC_GPR_FIELD)
 #ifndef CONFIG_RVE
-            dpi->gpr_gprs_16,
-            dpi->gpr_gprs_17,
-            dpi->gpr_gprs_18,
-            dpi->gpr_gprs_19,
-            dpi->gpr_gprs_20,
-            dpi->gpr_gprs_21,
-            dpi->gpr_gprs_22,
-            dpi->gpr_gprs_23,
-            dpi->gpr_gprs_24,
-            dpi->gpr_gprs_25,
-            dpi->gpr_gprs_26,
-            dpi->gpr_gprs_27,
-            dpi->gpr_gprs_28,
-            dpi->gpr_gprs_29,
-            dpi->gpr_gprs_30,
-            dpi->gpr_gprs_31
+            NPC_GPR_FIELDS_16_31(NPC_GPR_FIELD)
 #endif
         },
         .pc = dpi->core_pc,
         .csr = { 0 }
     };
+#undef NPC_GPR_FIELD
     state.csr[CSR_MSTATUS] = dpi->csr_csr_mstatus;
     state.csr[CSR_MTVEC] = dpi->csr_csr_mtvec;
     state.csr[CSR_MEPC] = dpi->csr_csr_mepc;

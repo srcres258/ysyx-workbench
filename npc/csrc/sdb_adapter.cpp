@@ -9,6 +9,7 @@
 #include <device/io/mmio.hpp>
 #include <sdb.hpp>
 #include "npc/simulator_impl.hpp"
+#include "npc/gpr_fields.hpp"
 
 #ifdef NPC_STANDALONE
 extern "C" int dpi_pmem_read(int addr);
@@ -66,41 +67,15 @@ static bool write_reg_impl(void *userdata, const char *name, SdbValue value, Sdb
     return true;
   }
   auto assign_gpr = [&](size_t idx) -> bool {
+#define NPC_GPR_CASE(idx) case idx: dpi->gpr_gprs_##idx = bits; return true;
     switch (idx) {
-      case 0: dpi->gpr_gprs_0 = bits; return true;
-      case 1: dpi->gpr_gprs_1 = bits; return true;
-      case 2: dpi->gpr_gprs_2 = bits; return true;
-      case 3: dpi->gpr_gprs_3 = bits; return true;
-      case 4: dpi->gpr_gprs_4 = bits; return true;
-      case 5: dpi->gpr_gprs_5 = bits; return true;
-      case 6: dpi->gpr_gprs_6 = bits; return true;
-      case 7: dpi->gpr_gprs_7 = bits; return true;
-      case 8: dpi->gpr_gprs_8 = bits; return true;
-      case 9: dpi->gpr_gprs_9 = bits; return true;
-      case 10: dpi->gpr_gprs_10 = bits; return true;
-      case 11: dpi->gpr_gprs_11 = bits; return true;
-      case 12: dpi->gpr_gprs_12 = bits; return true;
-      case 13: dpi->gpr_gprs_13 = bits; return true;
-      case 14: dpi->gpr_gprs_14 = bits; return true;
-      case 15: dpi->gpr_gprs_15 = bits; return true;
-      case 16: dpi->gpr_gprs_16 = bits; return true;
-      case 17: dpi->gpr_gprs_17 = bits; return true;
-      case 18: dpi->gpr_gprs_18 = bits; return true;
-      case 19: dpi->gpr_gprs_19 = bits; return true;
-      case 20: dpi->gpr_gprs_20 = bits; return true;
-      case 21: dpi->gpr_gprs_21 = bits; return true;
-      case 22: dpi->gpr_gprs_22 = bits; return true;
-      case 23: dpi->gpr_gprs_23 = bits; return true;
-      case 24: dpi->gpr_gprs_24 = bits; return true;
-      case 25: dpi->gpr_gprs_25 = bits; return true;
-      case 26: dpi->gpr_gprs_26 = bits; return true;
-      case 27: dpi->gpr_gprs_27 = bits; return true;
-      case 28: dpi->gpr_gprs_28 = bits; return true;
-      case 29: dpi->gpr_gprs_29 = bits; return true;
-      case 30: dpi->gpr_gprs_30 = bits; return true;
-      case 31: dpi->gpr_gprs_31 = bits; return true;
+      NPC_GPR_FIELDS_0_15(NPC_GPR_CASE)
+#ifndef CONFIG_RVE
+      NPC_GPR_FIELDS_16_31(NPC_GPR_CASE)
+#endif
       default: return false;
     }
+#undef NPC_GPR_CASE
   };
   bool ok = false;
   if (name[0] == 'x' && std::strlen(name) > 1) {

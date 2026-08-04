@@ -2,6 +2,7 @@
 #include <tui/tui_control.hpp>
 #include <tui/tui_events.hpp>
 #include <sim_top.hpp>
+#include "../npc/simulator_impl.hpp"
 #include <utils.hpp>
 
 namespace tui {
@@ -12,13 +13,13 @@ static bool s_wasPaused = false;
 void requestSimStepInst(uint64_t n) {
     if (n == 0)
         return;
-    simExec(n);
+    npc::internal::simExecImpl(n);
 }
 
 void requestSimStepClock(uint64_t n) {
     if (n == 0)
         return;
-    simExecClockPeriod(n);
+    npc::internal::simExecClockPeriodImpl(n);
 }
 
 void requestSimContinue() {
@@ -55,7 +56,7 @@ void requestSimPause() {
 void requestSimReset(int cycles) {
     s_pauseRequested = false;
     s_wasPaused = false;
-    simReset(cycles);
+    npc::internal::simResetImpl(cycles);
     tui::g_eventFeed.push(
         getExecCount(),
         tui::EventType::RESET,

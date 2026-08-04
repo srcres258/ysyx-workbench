@@ -146,7 +146,7 @@ RTL 侧只暴露 `perf_*` 语义信号，不含 counter name 字符串。
 
 ### Derived Metrics
 
-仿真结束时 (`simExec()` 返回前) 或 TUI PerfPanel 中显示：
+仿真结束时（仿真主循环返回前）或 TUI PerfPanel 中显示：
 
 - **CPI** = `core.cycle / core.instret`（`instret == 0` 时显示 0）
 - **IPC** = `core.instret / core.cycle`（`cycle == 0` 时显示 0）

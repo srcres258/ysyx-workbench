@@ -13,6 +13,7 @@
 #include <device/io/mmio.hpp>
 #include <sdb.hpp>
 #include <tui/tui_events.hpp>
+#include "npc/simulator_impl.hpp"
 
 #define NR_WP 32
 
@@ -166,7 +167,7 @@ static void printBadArguments() {
 /* 定义 SDB 的所有命令 */
 
 static int cmd_c(char *args) {
-    simExec(-1);
+    npc::internal::simExecImpl(static_cast<uint64_t>(-1));
 
     return 0;
 }
@@ -197,7 +198,7 @@ static int cmd_si(char *args) {
 
     try {
         n = (args && strlen(args) > 0) ? std::stoi(args) : 1;
-        simExec(n);
+        npc::internal::simExecImpl(static_cast<uint64_t>(n));
     } catch (const std::invalid_argument &e) {
         std::cout << "Error: invalid argument for 'si' command." << std::endl;
     }
@@ -223,7 +224,7 @@ static int cmd_sic(char *args) {
 
     try {
         n = (args && strlen(args) > 0) ? std::stoi(args) : 1;
-        simExecClockPeriod(n);
+        npc::internal::simExecClockPeriodImpl(static_cast<uint64_t>(n));
     } catch (const std::invalid_argument &e) {
         std::cout << "Error: invalid argument for 'si' command." << std::endl;
     }

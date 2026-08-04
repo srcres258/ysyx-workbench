@@ -13,10 +13,6 @@
 //        device stubs, SDB adapter, and ISA helpers, or
 //    b)  Shared data structures (ExecInfo) whose writers and readers still
 //        live in separate translation units, or
-//    c)  Compatibility free‑function wrappers (simExec, simStep, …) that
-//        delegate to npc::internal::*Impl() and keep sdb.cpp / tui_control.cpp
-//        compiling during the transition to npc::Simulator methods.
-//
 //  Authoritative ownership of all lifecycle resources lives in
 //  npc/csrc/npc/simulator.cpp.  Do NOT add new extern declarations here.
 // ═══════════════════════════════════════════════════════════════════════════
@@ -53,14 +49,5 @@ extern ExecInfo simExecInfo;
 uint64_t getExecCount();
 uint64_t getExecCountClockPeriod();
 bool isDifftestActive();
-
-// ── Compatibility simulation wrappers (delegate to npc::internal::*Impl()) ──
-void simStepClockPeriod();
-void simStep();
-void simReset(int n);
-bool simExecOnce();
-void simExecClockPeriod(uint64_t n);
-void simExec(uint64_t n);
-bool simulate(bool sdbEnabled);
 
 #endif /* __SIM_TOP_HPP__ */

@@ -20,23 +20,6 @@ static inline SimulatorImpl& sim() {
     return *getActiveSimulator();
 }
 
-using ref_difftest_memcpy_f_t = void (*)(
-    addr_t addr, void *buf, size_t n, bool direction
-);
-using ref_difftest_regcpy_f_t = void (*)(
-    void *dut, bool direction
-);
-using ref_difftest_exec_f_t = void (*)(uint64_t n);
-using ref_difftest_raise_intr_f_t = void (*)(word_t NO);
-using ref_difftest_set_mem_map_f_t = void (*)(
-    const DiffTestMemRegion *regions, size_t nr_regions
-);
-using ref_difftest_get_mem_map_f_t = size_t (*)(
-    DiffTestMemRegion *regions, size_t max_regions
-);
-using ref_difftest_set_reset_vector_f_t = void (*)(uint64_t reset_vector);
-using ref_difftest_init_f_t = void (*)(int port);
-
 // ── Ownership moved to SimulatorImpl (Task 6):
 //     function ptrs, pendingSkipRefPcs, skipDutNrInst, device mem bases ──
 

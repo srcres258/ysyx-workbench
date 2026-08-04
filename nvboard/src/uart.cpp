@@ -152,7 +152,7 @@ void uart_set_divisor(uint16_t d) {
 }
 
 // 每时钟周期调用一次的轻量级 UART 更新
-//   在 simStepClockPeriod() 中被调用, 保证 UART 采样时序与硬件一致
+//   在仿真每周期钩子中被调用, 保证 UART 采样时序与硬件一致
 void nvboard_uart_update(void) {
   extern int16_t uart_divisor_cnt;
   extern bool is_uart_rx_idle;

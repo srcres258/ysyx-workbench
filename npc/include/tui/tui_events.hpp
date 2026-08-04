@@ -98,7 +98,7 @@ private:
 /** Global event feed — owns events from start of simulation. */
 extern EventFeed g_eventFeed;
 
-/** Initialise the global feed (called once in simulate()). */
+/** Initialise the global feed (called once during simulator startup). */
 void initEventFeed();
 
 } // namespace tui
