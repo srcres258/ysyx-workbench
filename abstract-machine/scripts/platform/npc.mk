@@ -27,7 +27,7 @@ image: image-dep
 	@echo + OBJCOPY "->" $(IMAGE_REL).bin
 	@$(OBJCOPY) -S --set-section-flags .bss=alloc,contents -O binary $(IMAGE).elf $(IMAGE).bin
 
-CONFIG_SDB_ENABLED ?= true
+CONFIG_SDB_ENABLED ?= false
 CONFIG_ITRACE ?= on
 CONFIG_MTRACE ?= on
 CONFIG_FTRACE ?= on
