@@ -6,7 +6,7 @@
 // NpcSimulatorTest fixture and any standalone test that needs a safe baseline.
 //
 
-#include "test_fixture.h"
+#include "test_fixture.hpp"
 
 #include <string>
 

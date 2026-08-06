@@ -4,7 +4,7 @@
 // state queries; no tests call run().
 //
 
-#include "test_fixture.h"
+#include "test_fixture.hpp"
 
 #include <npc/state.hpp>
 

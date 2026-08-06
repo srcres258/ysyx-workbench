@@ -6,7 +6,7 @@
 // stepping/state API only.
 //
 
-#include "test_fixture.h"
+#include "test_fixture.hpp"
 
 #include <npc/state.hpp>
 
