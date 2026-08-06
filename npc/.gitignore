@@ -21,11 +21,10 @@
 !.gitignore
 !README.md
 build/*
-!build/synth/
-!build/synth/coverage_batch_results.json
 !include/**/*.h
 !include/**/*.hpp
 vsrc/generated/
 !vsrc-chisel/
 !docs/*.md
-build/
+!tests/*.cpp
+!tests/*.hpp
