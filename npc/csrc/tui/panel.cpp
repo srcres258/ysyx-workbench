@@ -542,6 +542,54 @@ public:
                 return;
         }
 
+        // ── I-cache summary ──
+        {
+            uint64_t req = pv[perf::Idx::ICACHE_REQUEST_COUNT];
+            uint64_t hit = pv[perf::Idx::ICACHE_HIT_COUNT];
+            uint64_t miss = pv[perf::Idx::ICACHE_MISS_COUNT];
+            uint64_t bypass = pv[perf::Idx::ICACHE_BYPASS_COUNT];
+            uint64_t lowerReq = pv[perf::Idx::ICACHE_LOWER_REQ_COUNT];
+            uint64_t lowerResp = pv[perf::Idx::ICACHE_LOWER_RESP_COUNT];
+            uint64_t refill = pv[perf::Idx::ICACHE_REFILL_COUNT];
+            uint64_t resp = pv[perf::Idx::ICACHE_RESPONSE_COUNT];
+            uint64_t blocked = pv[perf::Idx::ICACHE_RESPONSE_BLOCKED_CYCLE];
+            uint64_t cacheable = hit + miss;
+
+            double hitPct = (cacheable > 0) ?
+                static_cast<double>(hit) * 100.0 / static_cast<double>(cacheable) : 0.0;
+            double missPct = (cacheable > 0) ?
+                static_cast<double>(miss) * 100.0 / static_cast<double>(cacheable) : 0.0;
+            double bypassPct = (req > 0) ?
+                static_cast<double>(bypass) * 100.0 / static_cast<double>(req) : 0.0;
+
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourGreen),
+                "I$: req=%lu hit=%lu miss=%lu bp=%lu",
+                req, hit, miss, bypass
+            );
+            r++;
+            if (r >= endRow)
+                return;
+
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourYellow),
+                "    rates: hit=%.1f%% miss=%.1f%% bp=%.1f%%",
+                hitPct, missPct, bypassPct
+            );
+            r++;
+            if (r >= endRow)
+                return;
+
+            writeClippedF(
+                canvas, r, c, c, innerW, styleFg(kColourCyan),
+                "    flow: lreq=%lu lresp=%lu ref=%lu rsp=%lu blk=%luc",
+                lowerReq, lowerResp, refill, resp, blocked
+            );
+            r++;
+            if (r >= endRow)
+                return;
+        }
+
         // ── Inst Class ──
         {
             writeClippedF(
