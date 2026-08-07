@@ -125,6 +125,16 @@ namespace Idx {
     constexpr size_t EX_CONC_ALU_ONLY_COUNT                       = 106;
     constexpr size_t EX_CONC_PC_ONLY_COUNT                        = 107;
     constexpr size_t EX_CONC_BOTH_COUNT                           = 108;
+    // I-cache counters (appended per contract — start at 109)
+    constexpr size_t ICACHE_REQUEST_COUNT                         = 109;
+    constexpr size_t ICACHE_HIT_COUNT                             = 110;
+    constexpr size_t ICACHE_MISS_COUNT                            = 111;
+    constexpr size_t ICACHE_BYPASS_COUNT                          = 112;
+    constexpr size_t ICACHE_LOWER_REQ_COUNT                       = 113;
+    constexpr size_t ICACHE_LOWER_RESP_COUNT                      = 114;
+    constexpr size_t ICACHE_REFILL_COUNT                          = 115;
+    constexpr size_t ICACHE_RESPONSE_COUNT                        = 116;
+    constexpr size_t ICACHE_RESPONSE_BLOCKED_CYCLE                = 117;
 } // namespace Idx
 
 // ── Single-source-of-truth counter definition ────────────────────────────
@@ -149,7 +159,7 @@ struct PerfCounterView {
 
 class PerfCounters {
 public:
-    static constexpr size_t kNumCounters = 109;
+    static constexpr size_t kNumCounters = 118;
 
     void clear();
 
@@ -229,6 +239,13 @@ public:
         uint64_t adderAgenBranch, uint64_t adderAgenAuipc,
         uint64_t concAluOnly, uint64_t concPcOnly,
         uint64_t concBoth
+    );
+    void accumulateIcache(
+        uint64_t requestFire, uint64_t hit,
+        uint64_t miss, uint64_t bypass,
+        uint64_t lowerReqFire, uint64_t lowerRespFire,
+        uint64_t refillFire, uint64_t responseFire,
+        uint64_t responseBlocked
     );
 
     // Direct indexed access (for dump / derived metric computation)
@@ -388,6 +405,17 @@ public:
             dpi->perf_ex_concurrency_alu_only,
             dpi->perf_ex_concurrency_pc_only,
             dpi->perf_ex_concurrency_both
+        );
+        accumulateIcache(
+            dpi->perf_icache_request_fire,
+            dpi->perf_icache_hit,
+            dpi->perf_icache_miss,
+            dpi->perf_icache_bypass,
+            dpi->perf_icache_lower_req_fire,
+            dpi->perf_icache_lower_resp_fire,
+            dpi->perf_icache_refill_fire,
+            dpi->perf_icache_response_fire,
+            dpi->perf_icache_response_blocked
         );
     }
 
@@ -568,6 +596,20 @@ private:
             adderAgenBranch, adderAgenAuipc,
             concAluOnly, concPcOnly,
             concBoth
+        );
+    }
+    void accumulateIcache(
+        uint64_t requestFire, uint64_t hit,
+        uint64_t miss, uint64_t bypass,
+        uint64_t lowerReqFire, uint64_t lowerRespFire,
+        uint64_t refillFire, uint64_t responseFire,
+        uint64_t responseBlocked
+    ) {
+        m_counters.accumulateIcache(
+            requestFire, hit, miss, bypass,
+            lowerReqFire, lowerRespFire,
+            refillFire, responseFire,
+            responseBlocked
         );
     }
 

@@ -133,6 +133,15 @@ static constexpr PerfCounterDef kCounterTable[PerfCounters::kNumCounters] = {
     /* 106 */ { "ex.concurrency.alu_only.count",                  "count", "EX stage: only ALU output consumed (no PC target)",                       "dpi->perf_ex_concurrency_alu_only (polling)"               },
     /* 107 */ { "ex.concurrency.pc_only.count",                   "count", "EX stage: only PC target consumed (no ALU)",                              "dpi->perf_ex_concurrency_pc_only (polling)"                },
     /* 108 */ { "ex.concurrency.both.count",                      "count", "EX stage: both ALU and PC target consumed concurrently",                  "dpi->perf_ex_concurrency_both (polling)"                   },
+    /* 109 */ { "icache.request.count",                           "count", "I-cache CPU-side request handshakes (cpuReq.fire)",                       "dpi->perf_icache_request_fire (polling)"                   },
+    /* 110 */ { "icache.hit.count",                               "count", "I-cache tag hit (valid + tag match, single-cycle resp)",                  "dpi->perf_icache_hit (polling)"                            },
+    /* 111 */ { "icache.miss.count",                              "count", "I-cache tag miss (not valid or tag mismatch, cacheable addr)",            "dpi->perf_icache_miss (polling)"                           },
+    /* 112 */ { "icache.bypass.count",                            "count", "I-cache bypass (non-cacheable address, forwarded directly)",              "dpi->perf_icache_bypass (polling)"                         },
+    /* 113 */ { "icache.lower_req.count",                         "count", "I-cache lower-memory request handshakes (lowerReq.fire)",                 "dpi->perf_icache_lower_req_fire (polling)"                 },
+    /* 114 */ { "icache.lower_resp.count",                        "count", "I-cache lower-memory response handshakes (lowerResp.fire)",               "dpi->perf_icache_lower_resp_fire (polling)"                },
+    /* 115 */ { "icache.refill.count",                            "count", "I-cache line refill (valid bit set on cacheable-miss OKAY resp)",         "dpi->perf_icache_refill_fire (polling)"                    },
+    /* 116 */ { "icache.response.count",                          "count", "I-cache CPU-side response handshakes (cpuResp.fire)",                     "dpi->perf_icache_response_fire (polling)"                  },
+    /* 117 */ { "icache.response_blocked.cycle",                  "cycle", "I-cache CPU response valid but downstream not ready",                     "dpi->perf_icache_response_blocked (polling)"               },
 };
 
 // Compile-time guard: table size must match counter count.
@@ -372,6 +381,24 @@ void PerfCounters::accumulateEx(
     m_values[Idx::EX_CONC_ALU_ONLY_COUNT]       += concAluOnly;
     m_values[Idx::EX_CONC_PC_ONLY_COUNT]        += concPcOnly;
     m_values[Idx::EX_CONC_BOTH_COUNT]           += concBoth;
+}
+
+void PerfCounters::accumulateIcache(
+    uint64_t requestFire, uint64_t hit,
+    uint64_t miss, uint64_t bypass,
+    uint64_t lowerReqFire, uint64_t lowerRespFire,
+    uint64_t refillFire, uint64_t responseFire,
+    uint64_t responseBlocked
+) {
+    m_values[Idx::ICACHE_REQUEST_COUNT]           += requestFire;
+    m_values[Idx::ICACHE_HIT_COUNT]               += hit;
+    m_values[Idx::ICACHE_MISS_COUNT]              += miss;
+    m_values[Idx::ICACHE_BYPASS_COUNT]            += bypass;
+    m_values[Idx::ICACHE_LOWER_REQ_COUNT]         += lowerReqFire;
+    m_values[Idx::ICACHE_LOWER_RESP_COUNT]        += lowerRespFire;
+    m_values[Idx::ICACHE_REFILL_COUNT]            += refillFire;
+    m_values[Idx::ICACHE_RESPONSE_COUNT]          += responseFire;
+    m_values[Idx::ICACHE_RESPONSE_BLOCKED_CYCLE]  += responseBlocked;
 }
 
 // ── Clear ────────────────────────────────────────────────────────────────
@@ -904,9 +931,116 @@ void PerfMonitor::dumpSummary(std::ostream &os) const {
     }
 
     // ══════════════════════════════════════════════════════════════════════
-    // 10. Area–Performance Candidates
+    // 10. I-cache Performance
     // ══════════════════════════════════════════════════════════════════════
-    os << "\n── 10. Area–Performance Candidates ──\n";
+    auto icReq       = get(Idx::ICACHE_REQUEST_COUNT);
+    auto icHit       = get(Idx::ICACHE_HIT_COUNT);
+    auto icMiss      = get(Idx::ICACHE_MISS_COUNT);
+    auto icBypass    = get(Idx::ICACHE_BYPASS_COUNT);
+    auto icLowerReq  = get(Idx::ICACHE_LOWER_REQ_COUNT);
+    auto icLowerResp = get(Idx::ICACHE_LOWER_RESP_COUNT);
+    auto icRefill    = get(Idx::ICACHE_REFILL_COUNT);
+    auto icResp      = get(Idx::ICACHE_RESPONSE_COUNT);
+    auto icRespBlk   = get(Idx::ICACHE_RESPONSE_BLOCKED_CYCLE);
+
+    auto icReqClassSum = icHit + icMiss + icBypass;
+    double icHitRate   = (icReq > 0) ?
+        static_cast<double>(icHit) / static_cast<double>(icReq) : 0.0;
+    double icMissRate  = (icReq > 0) ?
+        static_cast<double>(icMiss) / static_cast<double>(icReq) : 0.0;
+    double icBypassRate = (icReq > 0) ?
+        static_cast<double>(icBypass) / static_cast<double>(icReq) : 0.0;
+
+    os << "\n── 10. I-cache Performance ──\n";
+    os << "  I-cache events:\n";
+    os << "    requests=" << icReq
+       << "  hit=" << icHit << " (" << std::fixed << std::setprecision(1)
+       << (icHitRate * 100.0) << "%)"
+       << "  miss=" << icMiss << " (" << (icMissRate * 100.0) << "%)"
+       << "  bypass=" << icBypass << " (" << (icBypassRate * 100.0) << "%)\n";
+    os << "    lower_req=" << icLowerReq
+       << "  lower_resp=" << icLowerResp
+       << "  refill=" << icRefill
+       << "  response=" << icResp
+       << "  response_blocked=" << icRespBlk << " cycles\n";
+
+    os << "  AXI load reduction:\n";
+    // With I-cache, lower_req ≪ icache.request (only miss + bypass generate lower requests)
+    double icAxiReduction = (icReq > 0) ?
+        100.0 * (1.0 - static_cast<double>(icLowerReq) / static_cast<double>(icReq)) :
+        0.0;
+    os << "    AXI load-req reduction: " << std::fixed << std::setprecision(1)
+       << icAxiReduction << "%\n";
+    os << "    lower_req/instruction=" << std::fixed << std::setprecision(4)
+       << ((iret > 0) ? static_cast<double>(icLowerReq) / static_cast<double>(iret) : 0.0)
+       << "\n";
+
+    double icLowerReqRespRatio = (icLowerReq > 0) ?
+        static_cast<double>(icLowerResp) / static_cast<double>(icLowerReq) :
+        0.0;
+    os << "    lower_resp/lower_req ratio=" << std::fixed << std::setprecision(2)
+       << icLowerReqRespRatio << " (ideal=1.0 for single-outstanding)\n";
+
+    double icMissWaitAvg = (icMiss > 0) ?
+        static_cast<double>(icLowerResp) / static_cast<double>(icMiss + icBypass) :
+        0.0;
+    os << "    avg lower_resp per miss+bypass=" << std::fixed << std::setprecision(2)
+       << icMissWaitAvg << " (ideal=1.0 for single-outstanding)\n";
+
+    os << "    IFU wait after cache: "
+       << std::fixed << std::setprecision(1)
+       << pct(ifWait, fetchC) << "% of IF active\n";
+
+    if (m_strict) {
+        os << "  --- I-cache Closure Checks ---\n";
+        // Request classification: every request is either hit, miss, or bypass
+        printClosureCheck(
+            os, "icache request == hit + miss + bypass",
+            icReqClassSum, icReq, 1
+        );
+        // Response closure: each request eventually gets a response
+        printClosureCheck(
+            os, "icache response == request",
+            icResp, icReq, 1
+        );
+        // Lower-memory request closure: only miss + bypass generate lower requests
+        // lower_req should be <= request (and realistically <= miss + bypass)
+        auto icLowerReqMax = icMiss + icBypass;
+        if (icLowerReq > icLowerReqMax) {
+            os << "    *** I-cache lower_req exceeds miss+bypass: lower_req="
+               << icLowerReq << " > miss+bypass=" << icLowerReqMax
+               << " (delta=" << (static_cast<int64_t>(icLowerReq) - static_cast<int64_t>(icLowerReqMax))
+               << ") ***\n";
+        } else {
+            os << "    [closure] icache lower_req <= miss + bypass: lower_req="
+               << icLowerReq << " <= miss+bypass=" << icLowerReqMax << "  OK\n";
+        }
+        // Refill closure: refills never exceed misses
+        if (icRefill > icMiss) {
+            os << "    *** I-cache refill exceeds miss: refill="
+               << icRefill << " > miss=" << icMiss << " ***\n";
+        } else {
+            os << "    [closure] icache refill <= miss: refill="
+               << icRefill << " <= miss=" << icMiss << "  OK\n";
+        }
+        // IFU↔ICache closure: IFetch AXI AR fires should roughly equal icache.lower_req fires
+        // (the cache's lower requests are the sole source of IFetch AXI transactions)
+        os << "    [closure] ifetch.axi_ar ≈ icache.lower_req: " << ifARFire
+           << " vs " << icLowerReq;
+        auto ifArVsLowerReq = static_cast<int64_t>(ifARFire) - static_cast<int64_t>(icLowerReq);
+        os << " (delta=" << ifArVsLowerReq << ")";
+        if (ifArVsLowerReq < -1 || ifArVsLowerReq > 1) {
+            os << "  *** VIOLATION ***";
+        } else {
+            os << "  OK";
+        }
+        os << '\n';
+    }
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 11. Area–Performance Candidates
+    // ══════════════════════════════════════════════════════════════════════
+    os << "\n── 11. Area–Performance Candidates ──\n";
     // Derive from collected evidence only, no speculation.
 
     // Candidate 1: Dual-adder requirement

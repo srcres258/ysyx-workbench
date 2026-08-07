@@ -1,7 +1,7 @@
 # NPC Performance Counter System
 
 NPC 通过 `PerfDPIBundle` (Chisel) → `PerfMonitor` (C++) → TUI PerfPanel / summary dump
-的路径，提供 109 个 polling-first 性能计数器以及 CPI / IPC / Stall% 派生指标。
+的路径，提供 118 个 polling-first 性能计数器以及 CPI / IPC / Stall% 派生指标。
 
 ## Configuration
 
@@ -38,7 +38,7 @@ domain.subdomain[.subdomain].metric
 
 | 层级 | 说明 | 示例 |
 |---|---|---|
-| 顶级 domain | `core`, `inst`, `state`, `stall`, `mem`, `trap`, `reg`, `gpr`, `csr`, `ifetch`, `lsu` | `core.cycle` |
+| 顶级 domain | `core`, `inst`, `state`, `stall`, `mem`, `trap`, `reg`, `gpr`, `csr`, `ifetch`, `lsu`, `icache` | `core.cycle` |
 | 子域 | 分类或 pipeline stage 特定 | `inst.class.alu` |
 | metric | 单位指示 (`cycle`, `count`) | `core.cycle` (cycle 单位), `core.instret` (count 单位) |
 
@@ -144,6 +144,20 @@ RTL 侧只暴露 `perf_*` 语义信号，不含 counter name 字符串。
 |---|---|---|---|
 | 25 | `trap.exception.count` | count | Exceptions taken |
 
+### I-Cache
+
+| # | Name | Unit | Description |
+|---|---|---|---|
+| 109 | `icache.request.count` | count | I-cache CPU-side request handshakes (cpuReq.fire) |
+| 110 | `icache.hit.count` | count | I-cache tag hit (valid + tag match, single-cycle response) |
+| 111 | `icache.miss.count` | count | I-cache tag miss (not valid or tag mismatch, cacheable addr) |
+| 112 | `icache.bypass.count` | count | I-cache bypass (non-cacheable address, forwarded directly) |
+| 113 | `icache.lower_req.count` | count | I-cache lower-memory request handshakes (lowerReq.fire) |
+| 114 | `icache.lower_resp.count` | count | I-cache lower-memory response handshakes (lowerResp.fire) |
+| 115 | `icache.refill.count` | count | I-cache line refill (valid bit set on cacheable-miss OKAY response) |
+| 116 | `icache.response.count` | count | I-cache CPU-side response handshakes (cpuResp.fire) |
+| 117 | `icache.response_blocked.cycle` | cycle | I-cache CPU response valid but downstream not ready |
+
 ### Derived Metrics
 
 仿真结束时（仿真主循环返回前）或 TUI PerfPanel 中显示：
@@ -154,7 +168,7 @@ RTL 侧只暴露 `perf_*` 语义信号，不含 counter name 字符串。
 
 ## Perf Summary Chapters
 
-仿真结束时 `dumpSummary()` 输出 10 个章节的结构化分析报告：
+仿真结束时 `dumpSummary()` 输出 11 个章节的结构化分析报告：
 
 | 章节 | 内容 |
 |---|---|
@@ -167,7 +181,8 @@ RTL 侧只暴露 `perf_*` 语义信号，不含 counter name 字符串。
 | 7. Arithmetic Concurrency | ALU 操作分布、加法器意图、执行并发性 |
 | 8. IFetch Decomposition | 取指效率指标摘要 |
 | 9. LSU Decomposition | Load/Store 宽度与对齐分布、AXI 通道计数、Store 串行化 |
-| 10. Area-Performance Candidates | 从实测数据推导的面积—性能优化候选 |
+| 10. I-cache Performance | I-cache 命中率/缺失率/绕过率、lower-req AXI 缩减、响应闭合 |
+| 11. Area-Performance Candidates | 从实测数据推导的面积—性能优化候选 |
 
 ## Strict Closure Checks
 
@@ -193,6 +208,10 @@ make -C npc perf PERF_CHECK_STRICT=on
 | GPR 写入抑制 | `gpr.write.suppressed_x0 <= gpr.write.total` | 0 |
 | CSR 并发读数 | `csr.concurrent_3port <= csr.concurrent_2port` | 0 |
 | 执行并发闭合 | `sum(ex.concurrency.*) == core.instret` | 1 |
+| I-cache 请求分类闭合 | `icache.request == icache.hit + icache.miss + icache.bypass` | 1 |
+| I-cache 响应闭合 | `icache.response == icache.request` | 1 |
+| I-cache lower_req 边界 | `icache.lower_req <= icache.miss + icache.bypass` | 0 |
+| I-cache refill 边界 | `icache.refill <= icache.miss` | 0 |
 
 **实现位置**：
 - C++ `PerfMonitor::dumpSummary()` — 当 `NPC_CONFIG_PERF_CHECK_STRICT=on` 时通过 `setStrict(true)` 激活，将闭合验证结果打印到 stdout
@@ -244,7 +263,7 @@ nix develop --command make -C am-kernels/benchmarks/microbench \
 
 **重要**：新 counter 必须遵守 [Append-Only Counter Contract](#append-only-counter-contract-t1-freeze) 中的全部规则。
 
-1. **定义**：在 `npc/csrc/perf.cpp::kCounterTable` **末尾**追加一行 `{ ... }`，包含 `name` / `unit` / `definition` / `rawSource`。不得插入到现有 109 个 entry 之间。
+1. **定义**：在 `npc/csrc/perf.cpp::kCounterTable` **末尾**追加一行 `{ ... }`，包含 `name` / `unit` / `definition` / `rawSource`。不得插入到现有 118 个 entry 之间。
 2. **索引**：在 `npc/include/perf.hpp::Idx` 命名空间**末尾**添加 `constexpr size_t` 常量。
 3. **表大小**：更新 `PerfCounters::kNumCounters`；编译期 `static_assert` 自动检查一致性。编译期重复名称检查也会自动触发。
 4. **聚合器 baseline**：在 `npc/scripts/perf_aggregator.py::BASELINE_COUNTER_NAMES` **末尾**追加新 counter name。

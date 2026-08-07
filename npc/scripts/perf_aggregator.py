@@ -265,6 +265,33 @@ def _run_strict_checks(
     ]
     check_close("concurrency sum == instret", sum(conc_vals), counter("core.instret"), slack=1)
 
+    # 9. I-cache request classification: hit + miss + bypass == request
+    ic_req_class_sum = (
+        counter("icache.hit.count")
+        + counter("icache.miss.count")
+        + counter("icache.bypass.count")
+    )
+    check_close("icache request == hit + miss + bypass",
+                ic_req_class_sum,
+                counter("icache.request.count"),
+                slack=1)
+
+    # 10. I-cache response closure: every request gets a response
+    check_close("icache response == request",
+                counter("icache.response.count"),
+                counter("icache.request.count"),
+                slack=1)
+
+    # 11. I-cache lower_req bounded by miss + bypass
+    check_le("icache lower_req <= miss + bypass",
+             counter("icache.lower_req.count"),
+             counter("icache.miss.count") + counter("icache.bypass.count"))
+
+    # 12. I-cache refill never exceeds misses
+    check_le("icache refill <= miss",
+             counter("icache.refill.count"),
+             counter("icache.miss.count"))
+
     print("[Perf] Strict closure checks PASSED", file=sys.stderr)
 
 
