@@ -27,6 +27,7 @@
     ieda = nurPackages.packages.${system}.ieda;
     openjdk21 = pkgs.openjdk21;
     buildDeps = with pkgs; [
+      ccache
       gcc
       gnumake
       pkg-config
