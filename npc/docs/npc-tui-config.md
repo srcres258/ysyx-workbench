@@ -47,12 +47,12 @@ file is then parsed and used for the TUI session.
 
 ### [keybindings]
 
-15 key‑to‑action mappings. Each value is a key token string.
+19 key‑to‑action mappings. Each value is a key token string.
 
 **Key syntax:**
 
 ```
-Single chars:   q, s, c, r, h, p, m, t
+Single chars:   q, s, c, r, h, j, k, l, p, m, t
 Named keys:     space, tab, up, down, left, right, enter, esc,
                 backspace, delete, home, end, pgup, pgdn
 Modified keys:  shift+<key>, ctrl+<key>, alt+<key>
@@ -64,7 +64,7 @@ Modified keys:  shift+<key>, ctrl+<key>, alt+<key>
 |---|---|---|
 | `focus_next` | `"tab"` | Next pane |
 | `focus_prev` | `"shift+tab"` | Previous pane |
-| `help_overlay` | `"h"` | Toggle help overlay |
+| `help_overlay` | `"f1"` | Toggle help overlay |
 | `maximize_toggle` | `"m"` | Maximise / restore focused pane |
 | `panel_picker` | `"p"` | Open panel picker |
 | `pause_resume` | `"space"` | Pause / resume simulation |
@@ -77,6 +77,10 @@ Modified keys:  shift+<key>, ctrl+<key>, alt+<key>
 | `step_clock` | `"c"` | Step one clock cycle |
 | `step_instruction` | `"s"` | Step one instruction |
 | `tab_next` | `"t"` | Next tab (tabbed panes) |
+| `scroll_up` | `"k"` | Scroll panel content up |
+| `scroll_down` | `"j"` | Scroll panel content down |
+| `scroll_left` | `"h"` | Scroll panel content left |
+| `scroll_right` | `"l"` | Scroll panel content right |
 
 ### [layout]
 

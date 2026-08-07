@@ -27,9 +27,58 @@ const char *actionName(Action a) {
         case Action::RESIZE_DOWN:     return "resize_down";
         case Action::RESIZE_LEFT:     return "resize_left";
         case Action::RESIZE_RIGHT:    return "resize_right";
+        case Action::SCROLL_UP:       return "scroll_up";
+        case Action::SCROLL_DOWN:     return "scroll_down";
+        case Action::SCROLL_LEFT:     return "scroll_left";
+        case Action::SCROLL_RIGHT:    return "scroll_right";
         case Action::NONE:            return "none";
     }
     return "unknown";
+}
+
+std::string formatKeyChord(const KeyChord &chord) {
+    std::string out;
+    if (chord.mod & kModCtrl) {
+        out += "ctrl+";
+    }
+    if (chord.mod & kModAlt) {
+        out += "alt+";
+    }
+    if (chord.mod & kModShift) {
+        out += "shift+";
+    }
+
+    switch (chord.key) {
+        case SpecialKey::kTab:       out += "tab"; break;
+        case SpecialKey::kEnter:     out += "enter"; break;
+        case SpecialKey::kEsc:       out += "esc"; break;
+        case SpecialKey::kBackspace: out += "backspace"; break;
+        case SpecialKey::kSpace:     out += "space"; break;
+        case SpecialKey::kUp:        out += "up"; break;
+        case SpecialKey::kDown:      out += "down"; break;
+        case SpecialKey::kLeft:      out += "left"; break;
+        case SpecialKey::kRight:     out += "right"; break;
+        case SpecialKey::kF1:        out += "f1"; break;
+        case SpecialKey::kF2:        out += "f2"; break;
+        case SpecialKey::kF3:        out += "f3"; break;
+        case SpecialKey::kF4:        out += "f4"; break;
+        case SpecialKey::kF5:        out += "f5"; break;
+        case SpecialKey::kF6:        out += "f6"; break;
+        case SpecialKey::kF7:        out += "f7"; break;
+        case SpecialKey::kF8:        out += "f8"; break;
+        case SpecialKey::kF9:        out += "f9"; break;
+        case SpecialKey::kF10:       out += "f10"; break;
+        case SpecialKey::kF11:       out += "f11"; break;
+        case SpecialKey::kF12:       out += "f12"; break;
+        default:
+            if (chord.key >= 32 && chord.key <= 126) {
+                out.push_back(static_cast<char>(chord.key));
+            } else {
+                out += "<unknown>";
+            }
+            break;
+    }
+    return out;
 }
 
 namespace {
@@ -343,6 +392,10 @@ void ActionMap::buildFromConfig(const TuiConfig::Keybindings &kb) {
     bind("step_clock",       kb.step_clock,       Action::STEP_CLOCK);
     bind("step_instruction", kb.step_instruction, Action::STEP_INST);
     bind("tab_next",         kb.tab_next,         Action::TAB_NEXT);
+    bind("scroll_up",        kb.scroll_up,        Action::SCROLL_UP);
+    bind("scroll_down",      kb.scroll_down,      Action::SCROLL_DOWN);
+    bind("scroll_left",      kb.scroll_left,      Action::SCROLL_LEFT);
+    bind("scroll_right",     kb.scroll_right,     Action::SCROLL_RIGHT);
 }
 
 Action ActionMap::lookup(const KeyChord &chord) const {

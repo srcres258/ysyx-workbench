@@ -31,10 +31,17 @@ enum class Action : uint8_t {
     RESIZE_DOWN      = 13,  ///< shift split ratio down (reserved)
     RESIZE_LEFT      = 14,  ///< shift split ratio left (reserved)
     RESIZE_RIGHT     = 15,  ///< shift split ratio right (reserved)
+    SCROLL_UP        = 16,  ///< move panel viewport up
+    SCROLL_DOWN      = 17,  ///< move panel viewport down
+    SCROLL_LEFT      = 18,  ///< move panel viewport left
+    SCROLL_RIGHT     = 19,  ///< move panel viewport right
 };
 
 /** Human‑readable name for an Action. */
 const char *actionName(Action a);
+
+/** Human‑readable key chord string for help rendering. */
+std::string formatKeyChord(const struct KeyChord &chord);
 
 // ============================================================================
 // KeyChord — a keypress with optional modifiers

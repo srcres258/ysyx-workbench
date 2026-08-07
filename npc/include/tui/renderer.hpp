@@ -80,9 +80,31 @@ struct Cell {
  */
 class Canvas {
 public:
+    friend class ViewportGuard;
+
     Canvas(uint16_t rows, uint16_t cols);
     Canvas(const Canvas &) = delete;
     Canvas &operator=(const Canvas &) = delete;
+
+    class ViewportGuard {
+    public:
+        ViewportGuard() = default;
+        ViewportGuard(
+            Canvas &canvas,
+            uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+            size_t scrollRow = 0, size_t scrollCol = 0
+        );
+        ~ViewportGuard();
+
+        ViewportGuard(const ViewportGuard &) = delete;
+        ViewportGuard &operator=(const ViewportGuard &) = delete;
+
+        ViewportGuard(ViewportGuard &&other) noexcept;
+        ViewportGuard &operator=(ViewportGuard &&other) noexcept;
+
+    private:
+        Canvas *m_canvas = nullptr;
+    };
 
     uint16_t rows() const { return m_rows; }
     uint16_t cols() const { return m_cols; }
@@ -116,6 +138,26 @@ public:
 
     /** Write a formatted (printf‑style) string. */
     void writeF(uint16_t row, uint16_t col, Style style, const char *fmt, ...);
+
+    /** Push a panel-local viewport.  Coordinates become viewport-local. */
+    ViewportGuard pushViewport(
+        uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+        size_t scrollRow = 0, size_t scrollCol = 0
+    );
+
+    struct Viewport {
+        uint16_t row;
+        uint16_t col;
+        uint16_t h;
+        uint16_t w;
+        size_t scrollRow;
+        size_t scrollCol;
+    };
+
+    void pushViewportEntry(const Viewport &vp);
+    void popViewport();
+    bool hasViewport() const;
+    const Viewport &currentViewport() const;
 
     // ---- Compositing ----
 
@@ -154,6 +196,7 @@ private:
     uint16_t          m_rows;
     uint16_t          m_cols;
     std::vector<Cell> m_cells;
+    std::vector<Viewport> m_viewports;
 };
 
 // ============================================================================

@@ -1,9 +1,67 @@
 #include <cstdio>
 #include <cstring>
 #include <cstdarg>
+#include <algorithm>
 #include <tui/renderer.hpp>
 
 namespace tui {
+
+Canvas::ViewportGuard::ViewportGuard(
+    Canvas &canvas,
+    uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+    size_t scrollRow, size_t scrollCol
+) : m_canvas(&canvas) {
+    m_canvas->pushViewportEntry(
+        Canvas::Viewport { row, col, h, w, scrollRow, scrollCol }
+    );
+}
+
+Canvas::ViewportGuard::~ViewportGuard() {
+    if (m_canvas) {
+        m_canvas->popViewport();
+    }
+}
+
+Canvas::ViewportGuard::ViewportGuard(ViewportGuard &&other) noexcept
+    : m_canvas(other.m_canvas) {
+    other.m_canvas = nullptr;
+}
+
+Canvas::ViewportGuard &Canvas::ViewportGuard::operator=(ViewportGuard &&other) noexcept {
+    if (this != &other) {
+        if (m_canvas) {
+            m_canvas->popViewport();
+        }
+        m_canvas = other.m_canvas;
+        other.m_canvas = nullptr;
+    }
+    return *this;
+}
+
+Canvas::ViewportGuard Canvas::pushViewport(
+    uint16_t row, uint16_t col, uint16_t h, uint16_t w,
+    size_t scrollRow, size_t scrollCol
+) {
+    return ViewportGuard(*this, row, col, h, w, scrollRow, scrollCol);
+}
+
+void Canvas::pushViewportEntry(const Canvas::Viewport &vp) {
+    m_viewports.push_back(vp);
+}
+
+void Canvas::popViewport() {
+    if (!m_viewports.empty()) {
+        m_viewports.pop_back();
+    }
+}
+
+bool Canvas::hasViewport() const {
+    return !m_viewports.empty();
+}
+
+const Canvas::Viewport &Canvas::currentViewport() const {
+    return m_viewports.back();
+}
 
 static constexpr uint16_t minU16(uint16_t a, uint16_t b) {
     return a < b ? a : b;
@@ -88,6 +146,17 @@ Canvas::Canvas(uint16_t rows, uint16_t cols)
     : m_rows(rows), m_cols(cols), m_cells(rows * cols) {}
 
 void Canvas::put(uint16_t row, uint16_t col, char ch, Style style) {
+    if (hasViewport()) {
+        const auto &vp = currentViewport();
+        if (row < vp.scrollRow || col < vp.scrollCol)
+            return;
+        size_t visRow = row - vp.scrollRow;
+        size_t visCol = col - vp.scrollCol;
+        if (visRow >= vp.h || visCol >= vp.w)
+            return;
+        row = static_cast<uint16_t>(vp.row + visRow);
+        col = static_cast<uint16_t>(vp.col + visCol);
+    }
     if (row >= m_rows || col >= m_cols)
         return;
     Cell &cell = m_cells[row * m_cols + col];
@@ -97,7 +166,58 @@ void Canvas::put(uint16_t row, uint16_t col, char ch, Style style) {
 }
 
 void Canvas::write(uint16_t row, uint16_t col, const char *text, Style style) {
-    if (!text || row >= m_rows)
+    if (!text)
+        return;
+    if (hasViewport()) {
+        const auto &vp = currentViewport();
+        if (row < vp.scrollRow || row >= vp.scrollRow + vp.h)
+            return;
+        if (col >= vp.scrollCol + vp.w)
+            return;
+
+        size_t textOffset = 0;
+        if (col < vp.scrollCol) {
+            textOffset = static_cast<size_t>(vp.scrollCol - col);
+            col = static_cast<uint16_t>(vp.scrollCol);
+        }
+
+        size_t textLen = std::strlen(text);
+        if (textOffset >= textLen)
+            return;
+
+        size_t visRow = static_cast<size_t>(row - vp.scrollRow);
+        size_t visCol = static_cast<size_t>(col - vp.scrollCol);
+        if (visCol >= vp.w)
+            return;
+
+        row = static_cast<uint16_t>(vp.row + visRow);
+        col = static_cast<uint16_t>(vp.col + visCol);
+        if (row >= m_rows || col >= m_cols)
+            return;
+
+        size_t avail = vp.w - visCol;
+        if (avail == 0)
+            return;
+
+        const char *p = text + textOffset;
+        size_t off = row * m_cols;
+        while (*p && col < m_cols && avail > 0) {
+            Cell &cell = m_cells[off + col];
+            unsigned char ch = static_cast<unsigned char>(*p);
+            if (ch < 0x20 || ch == 0x7f) {
+                ch = ' ';
+            }
+            cell.ch[0] = static_cast<char>(ch);
+            cell.ch[1] = '\0';
+            cell.style = style;
+            p++;
+            col++;
+            avail--;
+        }
+        return;
+    }
+
+    if (row >= m_rows)
         return;
     const char *p = text;
     size_t off = row * m_cols;
@@ -125,6 +245,38 @@ void Canvas::fill(
     uint16_t row, uint16_t col, uint16_t h, uint16_t w,
     char ch, Style style
 ) {
+    if (hasViewport()) {
+        const auto &vp = currentViewport();
+        size_t startRow = row;
+        size_t startCol = col;
+        size_t endRow = static_cast<size_t>(row) + h;
+        size_t endCol = static_cast<size_t>(col) + w;
+
+        if (endRow <= vp.scrollRow || endCol <= vp.scrollCol)
+            return;
+
+        size_t visStartRow = (startRow < vp.scrollRow) ? vp.scrollRow : startRow;
+        size_t visStartCol = (startCol < vp.scrollCol) ? vp.scrollCol : startCol;
+        size_t visEndRow = std::min(endRow, vp.scrollRow + vp.h);
+        size_t visEndCol = std::min(endCol, vp.scrollCol + vp.w);
+        if (visStartRow >= visEndRow || visStartCol >= visEndCol)
+            return;
+
+        for (size_t r = visStartRow; r < visEndRow; r++) {
+            for (size_t c = visStartCol; c < visEndCol; c++) {
+                uint16_t ar = static_cast<uint16_t>(vp.row + (r - vp.scrollRow));
+                uint16_t ac = static_cast<uint16_t>(vp.col + (c - vp.scrollCol));
+                if (ar >= m_rows || ac >= m_cols)
+                    continue;
+                Cell &cell = m_cells[static_cast<size_t>(ar) * m_cols + ac];
+                cell.ch[0] = ch;
+                cell.ch[1] = '\0';
+                cell.style = style;
+            }
+        }
+        return;
+    }
+
     if (row >= m_rows || col >= m_cols)
         return;
     uint16_t endRow = minU16(row + h, m_rows);
@@ -146,6 +298,35 @@ void Canvas::clear(Style style) {
 void Canvas::applyStyle(
     uint16_t row, uint16_t col, uint16_t h, uint16_t w, Style style
 ) {
+    if (hasViewport()) {
+        const auto &vp = currentViewport();
+        size_t startRow = row;
+        size_t startCol = col;
+        size_t endRow = static_cast<size_t>(row) + h;
+        size_t endCol = static_cast<size_t>(col) + w;
+
+        if (endRow <= vp.scrollRow || endCol <= vp.scrollCol)
+            return;
+
+        size_t visStartRow = (startRow < vp.scrollRow) ? vp.scrollRow : startRow;
+        size_t visStartCol = (startCol < vp.scrollCol) ? vp.scrollCol : startCol;
+        size_t visEndRow = std::min(endRow, vp.scrollRow + vp.h);
+        size_t visEndCol = std::min(endCol, vp.scrollCol + vp.w);
+        if (visStartRow >= visEndRow || visStartCol >= visEndCol)
+            return;
+
+        for (size_t r = visStartRow; r < visEndRow; r++) {
+            for (size_t c = visStartCol; c < visEndCol; c++) {
+                uint16_t ar = static_cast<uint16_t>(vp.row + (r - vp.scrollRow));
+                uint16_t ac = static_cast<uint16_t>(vp.col + (c - vp.scrollCol));
+                if (ar >= m_rows || ac >= m_cols)
+                    continue;
+                m_cells[static_cast<size_t>(ar) * m_cols + ac].style = style;
+            }
+        }
+        return;
+    }
+
     if (row >= m_rows || col >= m_cols)
         return;
     uint16_t endRow = minU16(row + h, m_rows);

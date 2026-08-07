@@ -1011,7 +1011,8 @@ bool npc::Simulator::run(bool sdbEnabled) {
                 std::snprintf(
                     rightBuf, sizeof(rightBuf),
                     "q:quit  "
-                        "h:overlay  "
+                        "f1:help  "
+                        "h/j/k/l:scroll  "
                         "tab:focus  "
                         "m:max  "
                         "space:pause  "
@@ -1119,6 +1120,18 @@ bool npc::Simulator::run(bool sdbEnabled) {
                         if (layout.isFocusedInTabbed())
                             layout.focusTabNext();
                         break;
+                    case tui::Action::SCROLL_UP:
+                    case tui::Action::SCROLL_DOWN:
+                    case tui::Action::SCROLL_LEFT:
+                    case tui::Action::SCROLL_RIGHT: {
+                        auto *panel = tui::PanelRegistry::instance().get(
+                            layout.focusedPanel()
+                        );
+                        if (panel) {
+                            panel->handleAction(act);
+                        }
+                        break;
+                    }
                     case tui::Action::HELP_OVERLAY:
                         overlay.open();
                         overlay.appendOutput("── Keybindings ──");
@@ -1126,7 +1139,8 @@ bool npc::Simulator::run(bool sdbEnabled) {
                             char buf[64];
                             std::snprintf(
                                 buf, sizeof(buf), "  %-16s → %s",
-                                "key", tui::actionName(a)
+                                tui::formatKeyChord(ch).c_str(),
+                                tui::actionName(a)
                             );
                             overlay.appendOutput(buf);
                         }

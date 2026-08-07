@@ -138,6 +138,18 @@ TuiConfig parseTuiConfig(const std::string &path) {
         cfg.keybindings.tab_next         = getOr<std::string>(
             *kb, "tab_next",         cfg.keybindings.tab_next
         );
+        cfg.keybindings.scroll_up        = getOr<std::string>(
+            *kb, "scroll_up",        cfg.keybindings.scroll_up
+        );
+        cfg.keybindings.scroll_down      = getOr<std::string>(
+            *kb, "scroll_down",      cfg.keybindings.scroll_down
+        );
+        cfg.keybindings.scroll_left      = getOr<std::string>(
+            *kb, "scroll_left",      cfg.keybindings.scroll_left
+        );
+        cfg.keybindings.scroll_right     = getOr<std::string>(
+            *kb, "scroll_right",     cfg.keybindings.scroll_right
+        );
     }
 
     // [layout]
@@ -284,13 +296,13 @@ bool validateTuiConfig(TuiConfig &cfg) {
 static void emitKeybindings(std::ostream &os, const TuiConfig &cfg, bool full) {
     os << "# ── Keybindings ───────────────────────────────────────────────\n";
     os << "# Key syntax:\n";
-    os << "#   Single chars:    q, s, c, r, h, p, m, t\n";
+    os << "#   Single chars:    q, s, c, r, h, j, k, l, p, m, t\n";
     os << "#   Named keys:      space, tab, up, down, left, right, enter, esc, "
         << "backspace, delete, home, end, pgup, pgdn\n";
     os << "#   Modified keys:   shift+<key>, ctrl+<key>, alt+<key>\n";
     if (full) {
         os << "#\n";
-        os << "# These 15 keys cover the v1 interaction surface.\n";
+        os << "# These 19 keys cover the v1 interaction surface.\n";
         os << "# All bindings must be valid key tokens; unbound actions are "
             << "no-ops.\n";
     }
@@ -310,6 +322,10 @@ static void emitKeybindings(std::ostream &os, const TuiConfig &cfg, bool full) {
     os << "step_clock = \""       << cfg.keybindings.step_clock       << "\"\n";
     os << "step_instruction = \"" << cfg.keybindings.step_instruction << "\"\n";
     os << "tab_next = \""         << cfg.keybindings.tab_next         << "\"\n";
+    os << "scroll_up = \""        << cfg.keybindings.scroll_up        << "\"\n";
+    os << "scroll_down = \""      << cfg.keybindings.scroll_down      << "\"\n";
+    os << "scroll_left = \""      << cfg.keybindings.scroll_left      << "\"\n";
+    os << "scroll_right = \""     << cfg.keybindings.scroll_right     << "\"\n";
     os << "\n";
 }
 

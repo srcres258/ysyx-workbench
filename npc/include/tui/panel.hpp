@@ -11,6 +11,7 @@
 #include <tui/renderer.hpp>
 #include <tui/layout.hpp>
 #include <tui/npc_snapshot.hpp>
+#include <tui/tui_actions.hpp>
 
 namespace tui {
 
@@ -40,6 +41,26 @@ public:
         Canvas &canvas, const Rect &rect,
          const TuiFrameModel &fm, bool focused
     ) = 0;
+
+    /** Handle a semantic navigation/action event.  Returns true if consumed. */
+    virtual bool handleAction(Action action) {
+        switch (action) {
+            case Action::SCROLL_UP:
+                scrollVertical(-1);
+                return true;
+            case Action::SCROLL_DOWN:
+                scrollVertical(1);
+                return true;
+            case Action::SCROLL_LEFT:
+                scrollHorizontal(-1);
+                return true;
+            case Action::SCROLL_RIGHT:
+                scrollHorizontal(1);
+                return true;
+            default:
+                return false;
+        }
+    }
 
 protected:
     static void writeClipped(
@@ -79,6 +100,53 @@ protected:
 
         canvas.writeStr(row, col, std::string(buf, len), style);
     }
+
+    void scrollVertical(int delta) {
+        if (delta < 0) {
+            size_t amount = static_cast<size_t>(-delta);
+            m_scrollRow = (amount >= m_scrollRow) ? 0 : (m_scrollRow - amount);
+        } else {
+            m_scrollRow += static_cast<size_t>(delta);
+        }
+    }
+
+    void scrollHorizontal(int delta) {
+        if (delta < 0) {
+            size_t amount = static_cast<size_t>(-delta);
+            m_scrollCol = (amount >= m_scrollCol) ? 0 : (m_scrollCol - amount);
+        } else {
+            m_scrollCol += static_cast<size_t>(delta);
+        }
+    }
+
+    void clampScrollToContent(
+        size_t contentRows, size_t contentCols,
+        uint16_t viewRows, uint16_t viewCols
+    ) {
+        if (contentRows <= viewRows) {
+            m_scrollRow = 0;
+        } else if (m_scrollRow + viewRows > contentRows) {
+            m_scrollRow = contentRows - viewRows;
+        }
+
+        if (contentCols <= viewCols) {
+            m_scrollCol = 0;
+        } else if (m_scrollCol + viewCols > contentCols) {
+            m_scrollCol = contentCols - viewCols;
+        }
+    }
+
+    size_t scrollRow() const { return m_scrollRow; }
+    size_t scrollCol() const { return m_scrollCol; }
+
+    void resetScroll() {
+        m_scrollRow = 0;
+        m_scrollCol = 0;
+    }
+
+private:
+    size_t m_scrollRow = 0;
+    size_t m_scrollCol = 0;
 };
 
 // ============================================================================

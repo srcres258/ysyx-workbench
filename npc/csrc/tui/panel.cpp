@@ -820,6 +820,25 @@ public:
     const char *id()          const override { return "trace"; }
     const char *displayName() const override { return "Trace"; }
 
+    bool handleAction(Action action) override {
+        switch (action) {
+            case Action::SCROLL_UP:
+                m_followTail = false;
+                m_scrollOffset++;
+                return true;
+            case Action::SCROLL_DOWN:
+                if (m_scrollOffset > 0) {
+                    m_scrollOffset--;
+                }
+                if (m_scrollOffset == 0) {
+                    m_followTail = true;
+                }
+                return true;
+            default:
+                return Panel::handleAction(action);
+        }
+    }
+
     void render(
         Canvas &canvas, const Rect &rect,
         const TuiFrameModel &fm, bool focused
@@ -968,6 +987,25 @@ class EventsPanel : public Panel {
 public:
     const char *id()          const override { return "events"; }
     const char *displayName() const override { return "Events"; }
+
+    bool handleAction(Action action) override {
+        switch (action) {
+            case Action::SCROLL_UP:
+                m_followTail = false;
+                m_scrollOffset++;
+                return true;
+            case Action::SCROLL_DOWN:
+                if (m_scrollOffset > 0) {
+                    m_scrollOffset--;
+                }
+                if (m_scrollOffset == 0) {
+                    m_followTail = true;
+                }
+                return true;
+            default:
+                return Panel::handleAction(action);
+        }
+    }
 
     void render(
         Canvas &canvas, const Rect &rect,
@@ -1162,13 +1200,20 @@ public:
     ) override {
         drawPanelBorder(canvas, rect, " Raw Perf ", focused);
 
-        uint16_t r = rect.row + 1;
-        const uint16_t c = rect.col + 1;
         const uint16_t innerW = (rect.w > 2) ? (rect.w - 2) : 0;
         const uint16_t innerH = (rect.h > 2) ? (rect.h - 2) : 0;
         if (innerW < 20 || innerH == 0) return;
 
-        const uint16_t endRow = rect.row + rect.h;
+        [[maybe_unused]] auto viewport = canvas.pushViewport(
+            static_cast<uint16_t>(rect.row + 1),
+            static_cast<uint16_t>(rect.col + 1),
+            innerH, innerW,
+            scrollRow(), scrollCol()
+        );
+
+        uint16_t r = 0;
+        const uint16_t c = 0;
+
         const size_t numCounters = static_cast<size_t>(
             perf::PerfCounters::kNumCounters
         );
@@ -1187,14 +1232,10 @@ public:
             canvas, r, c, c, innerW, styleFgBold(kColourCyan),
             "%-40s %s", "Name", "Value"
         );
-        r++;
-        if (r >= endRow)
-            return;
 
         // ── Counter rows ──
         for (size_t i = 0; i < numCounters; i++) {
-            if (r >= endRow)
-                break;
+            r = static_cast<uint16_t>(i + 1);
 
             const auto &def = perf::PerfMonitor::counterDef(i);
             uint64_t val = fm.perfValues[i];
@@ -1208,7 +1249,13 @@ public:
                 canvas, r, static_cast<uint16_t>(c + 41), c, innerW,
                 styleFg(kColourWhite), "%lu", val
             );
-            r++;
+        }
+
+        if (innerW > 12 && (scrollRow() > 0 || scrollCol() > 0)) {
+            writeClippedF(
+                canvas, 0, static_cast<uint16_t>(innerW - 12), c, innerW,
+                styleFgBold(kColourYellow), "[scroll]"
+            );
         }
     }
 };

@@ -16,7 +16,7 @@ struct TuiConfig {
     struct Keybindings {
         std::string focus_next        = "tab";
         std::string focus_prev        = "shift+tab";
-        std::string help_overlay      = "h";
+        std::string help_overlay      = "f1";
         std::string maximize_toggle   = "m";
         std::string panel_picker      = "p";
         std::string pause_resume      = "space";
@@ -29,6 +29,10 @@ struct TuiConfig {
         std::string step_clock        = "c";
         std::string step_instruction  = "s";
         std::string tab_next          = "t";
+        std::string scroll_up         = "k";
+        std::string scroll_down       = "j";
+        std::string scroll_left       = "h";
+        std::string scroll_right      = "l";
     } keybindings;
 
     // ---- [layout] ----
