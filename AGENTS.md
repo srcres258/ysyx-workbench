@@ -93,7 +93,7 @@ make -C ysyxSoC clean
 ```
 
 - `ysyxSoC/src/CPU.scala` wraps the student CPU as `ysyx_25070190`.
-- Firtool is pinned to version **1.105.0** via `patch/update-firtool.sh`. If firtool updates upstream, this pin may need adjustment.
+- Firtool is provided by the root `flake.nix` dev shell via `circt` on `PATH`; `ysyxSoC/Makefile` now expects `firtool` to be discoverable directly and no longer bootstraps its own copy.
 - `dev-init` runs `git submodule update --init --recursive` then applies `patch/rocket-chip.patch` (zeros AXI4 lock/cache/prot/qos bits that the student CPU doesn't implement).
 - Build system: Mill **0.12.4**, Chisel **7.0.0-M2**, Scala **2.13.14**. Entry point: `mill -i ysyxsoc.runMain ysyx.Elaborate` → `build/ysyxSoCTop.sv` → sed post-processing → `build/ysyxSoCFull.v`.
 - `ready-to-run/D-stage/` contains a pre-built reference SoC verilog; note that the D-stage CPU interface uses **SimpleBus** (not AXI4) and differs from the current SoC spec.
@@ -114,7 +114,7 @@ make -C yosys-sta              # setup (auto-bootstraps on first npc synth if YO
 ```
 
 - The default target is `init` (downloads iEDA binary + icsprout55 PDK). The `sta` target runs synthesis + STA for the example GCD design. Use `DESIGN=mydesign SDC_FILE=/path/to/my.sdc RTL_FILES="/path/to/*.v"` to evaluate other designs.
-- Firtool version pin (1.105.0) is in `ysyxSoC/patch/update-firtool.sh` lines 61, 72. NPC synth invokes yosys-sta via `npc/scripts/synth.sh`.
+- Firtool comes from the nix dev shell `circt` package; `nix develop` is the supported way to make it available on `PATH`. NPC synth invokes yosys-sta via `npc/scripts/synth.sh`.
 
 ## Verification
 

@@ -26,6 +26,7 @@
     hasIeda = system == "x86_64-linux";
     ieda = nurPackages.packages.${system}.ieda;
     openjdk21 = pkgs.openjdk21;
+    firtool = pkgs.circt;
     pythonEnv = pkgs.python313.withPackages (pythonPackages: with pythonPackages; [ matplotlib numpy pytest ]);
     bashEnv = pkgs.writeText "ysyx-bash-env" ''
       export PATH="${pythonEnv}/bin:$PATH"
@@ -41,7 +42,7 @@
 
       verilator
       gtkwave
-      circt
+      firtool
       iverilog
       yosys
 
