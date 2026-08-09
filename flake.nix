@@ -26,6 +26,10 @@
     hasIeda = system == "x86_64-linux";
     ieda = nurPackages.packages.${system}.ieda;
     openjdk21 = pkgs.openjdk21;
+    pythonEnv = pkgs.python313.withPackages (pythonPackages: with pythonPackages; [ matplotlib numpy pytest ]);
+    bashEnv = pkgs.writeText "ysyx-bash-env" ''
+      export PATH="${pythonEnv}/bin:$PATH"
+    '';
     buildDeps = with pkgs; [
       ccache
       gcc
@@ -33,9 +37,7 @@
       pkg-config
 
       openjdk21
-      python313
-      python313Packages.matplotlib
-      python313Packages.numpy
+      pythonEnv
 
       verilator
       gtkwave
@@ -95,6 +97,8 @@
       ];
 
       shellHook = ''
+        export BASH_ENV="${bashEnv}"
+
         export PKG_CONFIG_PATH="${pkgs.lib.makeSearchPath "lib/pkgconfig" runtimeDeps}:$PKG_CONFIG_PATH"
         export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath runtimeLibDeps}:$LD_LIBRARY_PATH"
 

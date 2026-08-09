@@ -135,6 +135,12 @@ namespace Idx {
     constexpr size_t ICACHE_REFILL_COUNT                          = 115;
     constexpr size_t ICACHE_RESPONSE_COUNT                        = 116;
     constexpr size_t ICACHE_RESPONSE_BLOCKED_CYCLE                = 117;
+    // I-cache line-size-aware counters (T4, append at 118+)
+    constexpr size_t ICACHE_REFILL_WORD_COUNT                     = 118;
+    constexpr size_t ICACHE_REFILL_TRANSACTION_COUNT              = 119;
+    constexpr size_t ICACHE_MISS_WAIT_CYCLE                       = 120;
+    constexpr size_t ICACHE_BYPASS_WAIT_CYCLE                     = 121;
+    constexpr size_t ICACHE_TOTAL_MISS_TIME_CYCLE                 = 122;
 } // namespace Idx
 
 // ── Single-source-of-truth counter definition ────────────────────────────
@@ -159,7 +165,7 @@ struct PerfCounterView {
 
 class PerfCounters {
 public:
-    static constexpr size_t kNumCounters = 118;
+    static constexpr size_t kNumCounters = 123;
 
     void clear();
 
@@ -246,6 +252,11 @@ public:
         uint64_t lowerReqFire, uint64_t lowerRespFire,
         uint64_t refillFire, uint64_t responseFire,
         uint64_t responseBlocked
+    );
+    void accumulateIcacheLine(
+        uint64_t refillWordFire, uint64_t refillTransactionFire,
+        uint64_t missWaitCycle, uint64_t bypassWaitCycle,
+        uint64_t totalMissTimeCycle
     );
 
     // Direct indexed access (for dump / derived metric computation)
@@ -416,6 +427,13 @@ public:
             dpi->perf_icache_refill_fire,
             dpi->perf_icache_response_fire,
             dpi->perf_icache_response_blocked
+        );
+        accumulateIcacheLine(
+            dpi->perf_icache_refill_word_fire,
+            dpi->perf_icache_refill_transaction_fire,
+            dpi->perf_icache_miss_wait_cycle,
+            dpi->perf_icache_bypass_wait_cycle,
+            dpi->perf_icache_total_miss_time_cycle
         );
     }
 
@@ -610,6 +628,17 @@ private:
             lowerReqFire, lowerRespFire,
             refillFire, responseFire,
             responseBlocked
+        );
+    }
+    void accumulateIcacheLine(
+        uint64_t refillWordFire, uint64_t refillTransactionFire,
+        uint64_t missWaitCycle, uint64_t bypassWaitCycle,
+        uint64_t totalMissTimeCycle
+    ) {
+        m_counters.accumulateIcacheLine(
+            refillWordFire, refillTransactionFire,
+            missWaitCycle, bypassWaitCycle,
+            totalMissTimeCycle
         );
     }
 

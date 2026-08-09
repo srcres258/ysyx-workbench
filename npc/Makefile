@@ -47,6 +47,11 @@ ifeq ($(RUN_CONFIG_DPI),off)
 CHISEL_ARGS += disableDPI
 endif
 
+# I-cache geometry parameters (flow through Chisel elaboration)
+ICACHE_BLOCK_BYTES ?= 4
+ICACHE_NUM_ENTRIES ?= 16
+CHISEL_ARGS += icacheBlockBytes=$(ICACHE_BLOCK_BYTES) icacheNumEntries=$(ICACHE_NUM_ENTRIES)
+
 chisel-gen:
 	@echo "[Chisel] Building RTL from vsrc-chisel (mode: $(RUN_CONFIG_SIM_MODE))..."
 	@$(MAKE) -C $(CHISEL_DIR) $(CHISEL_TARGET) MILL_ARGS="$(CHISEL_ARGS)"

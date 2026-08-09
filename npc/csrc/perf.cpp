@@ -142,6 +142,11 @@ static constexpr PerfCounterDef kCounterTable[PerfCounters::kNumCounters] = {
     /* 115 */ { "icache.refill.count",                            "count", "I-cache line refill (valid bit set on cacheable-miss OKAY resp)",         "dpi->perf_icache_refill_fire (polling)"                    },
     /* 116 */ { "icache.response.count",                          "count", "I-cache CPU-side response handshakes (cpuResp.fire)",                     "dpi->perf_icache_response_fire (polling)"                  },
     /* 117 */ { "icache.response_blocked.cycle",                  "cycle", "I-cache CPU response valid but downstream not ready",                     "dpi->perf_icache_response_blocked (polling)"               },
+    /* 118 */ { "icache.refill_word.count",                       "count", "I-cache per-word refill beats (lowerResp.fire during cacheable refill)",  "dpi->perf_icache_refill_word_fire (polling)"               },
+    /* 119 */ { "icache.refill_transaction.count",                "count", "I-cache full-line refill completions (valid-bit set)",                    "dpi->perf_icache_refill_transaction_fire (polling)"        },
+    /* 120 */ { "icache.miss_wait.cycle",                         "cycle", "I-cache cycles handling cacheable miss (send+wait states)",               "dpi->perf_icache_miss_wait_cycle (polling)"                },
+    /* 121 */ { "icache.bypass_wait.cycle",                       "cycle", "I-cache cycles handling bypass (send+wait states)",                       "dpi->perf_icache_bypass_wait_cycle (polling)"              },
+    /* 122 */ { "icache.total_miss_time.cycle",                   "cycle", "I-cache non-hit response delay cycles (any miss or bypass)",              "dpi->perf_icache_total_miss_time_cycle (polling)"          },
 };
 
 // Compile-time guard: table size must match counter count.
@@ -399,6 +404,18 @@ void PerfCounters::accumulateIcache(
     m_values[Idx::ICACHE_REFILL_COUNT]            += refillFire;
     m_values[Idx::ICACHE_RESPONSE_COUNT]          += responseFire;
     m_values[Idx::ICACHE_RESPONSE_BLOCKED_CYCLE]  += responseBlocked;
+}
+
+void PerfCounters::accumulateIcacheLine(
+    uint64_t refillWordFire, uint64_t refillTransactionFire,
+    uint64_t missWaitCycle, uint64_t bypassWaitCycle,
+    uint64_t totalMissTimeCycle
+) {
+    m_values[Idx::ICACHE_REFILL_WORD_COUNT]        += refillWordFire;
+    m_values[Idx::ICACHE_REFILL_TRANSACTION_COUNT] += refillTransactionFire;
+    m_values[Idx::ICACHE_MISS_WAIT_CYCLE]          += missWaitCycle;
+    m_values[Idx::ICACHE_BYPASS_WAIT_CYCLE]        += bypassWaitCycle;
+    m_values[Idx::ICACHE_TOTAL_MISS_TIME_CYCLE]    += totalMissTimeCycle;
 }
 
 // ── Clear ────────────────────────────────────────────────────────────────
@@ -933,15 +950,20 @@ void PerfMonitor::dumpSummary(std::ostream &os) const {
     // ══════════════════════════════════════════════════════════════════════
     // 10. I-cache Performance
     // ══════════════════════════════════════════════════════════════════════
-    auto icReq       = get(Idx::ICACHE_REQUEST_COUNT);
-    auto icHit       = get(Idx::ICACHE_HIT_COUNT);
-    auto icMiss      = get(Idx::ICACHE_MISS_COUNT);
-    auto icBypass    = get(Idx::ICACHE_BYPASS_COUNT);
-    auto icLowerReq  = get(Idx::ICACHE_LOWER_REQ_COUNT);
-    auto icLowerResp = get(Idx::ICACHE_LOWER_RESP_COUNT);
-    auto icRefill    = get(Idx::ICACHE_REFILL_COUNT);
-    auto icResp      = get(Idx::ICACHE_RESPONSE_COUNT);
-    auto icRespBlk   = get(Idx::ICACHE_RESPONSE_BLOCKED_CYCLE);
+    auto icReq          = get(Idx::ICACHE_REQUEST_COUNT);
+    auto icHit          = get(Idx::ICACHE_HIT_COUNT);
+    auto icMiss         = get(Idx::ICACHE_MISS_COUNT);
+    auto icBypass       = get(Idx::ICACHE_BYPASS_COUNT);
+    auto icLowerReq     = get(Idx::ICACHE_LOWER_REQ_COUNT);
+    auto icLowerResp    = get(Idx::ICACHE_LOWER_RESP_COUNT);
+    auto icRefill       = get(Idx::ICACHE_REFILL_COUNT);
+    auto icResp         = get(Idx::ICACHE_RESPONSE_COUNT);
+    auto icRespBlk      = get(Idx::ICACHE_RESPONSE_BLOCKED_CYCLE);
+    auto icRefillWord   = get(Idx::ICACHE_REFILL_WORD_COUNT);
+    auto icRefillTx     = get(Idx::ICACHE_REFILL_TRANSACTION_COUNT);
+    auto icMissWait     = get(Idx::ICACHE_MISS_WAIT_CYCLE);
+    auto icBypassWait   = get(Idx::ICACHE_BYPASS_WAIT_CYCLE);
+    auto icTotalMissT   = get(Idx::ICACHE_TOTAL_MISS_TIME_CYCLE);
 
     auto icReqClassSum = icHit + icMiss + icBypass;
     double icHitRate   = (icReq > 0) ?
@@ -963,6 +985,11 @@ void PerfMonitor::dumpSummary(std::ostream &os) const {
        << "  refill=" << icRefill
        << "  response=" << icResp
        << "  response_blocked=" << icRespBlk << " cycles\n";
+    os << "    refill_word=" << icRefillWord
+       << "  refill_transaction=" << icRefillTx
+       << "  miss_wait=" << icMissWait
+       << "  bypass_wait=" << icBypassWait
+       << "  total_miss_time=" << icTotalMissT << " cycles\n";
 
     os << "  AXI load reduction:\n";
     // With I-cache, lower_req ≪ icache.request (only miss + bypass generate lower requests)
@@ -990,6 +1017,35 @@ void PerfMonitor::dumpSummary(std::ostream &os) const {
     os << "    IFU wait after cache: "
        << std::fixed << std::setprecision(1)
        << pct(ifWait, fetchC) << "% of IF active\n";
+
+    os << "  Derived AMAT/TMT metrics:\n";
+    double amatHitTime   = 1.0;
+    double amatMissPenAvg = (icMiss > 0) ?
+        static_cast<double>(icMissWait) / static_cast<double>(icMiss) :
+        0.0;
+    double amatBypassPenAvg = (icBypass > 0) ?
+        static_cast<double>(icBypassWait) / static_cast<double>(icBypass) :
+        0.0;
+    double amat = (icReq > 0) ?
+        (static_cast<double>(icHit) * amatHitTime + static_cast<double>(icMissWait) + static_cast<double>(icBypassWait))
+            / static_cast<double>(icReq) :
+        0.0;
+    double tmtRate = (icReq > 0) ?
+        static_cast<double>(icTotalMissT) / static_cast<double>(icReq) :
+        0.0;
+    double refillWordPerMiss = (icMiss > 0) ?
+        static_cast<double>(icRefillWord) / static_cast<double>(icMiss) :
+        0.0;
+    os << "    AMAT=" << std::fixed << std::setprecision(4) << amat
+       << " cycles/request (hit_time=" << amatHitTime
+       << ", miss_penalty_avg=" << std::setprecision(2) << amatMissPenAvg
+       << ", bypass_penalty_avg=" << std::setprecision(2) << amatBypassPenAvg
+       << ")\n";
+    os << "    TMT-rate=" << std::fixed << std::setprecision(4) << tmtRate
+       << " cycles/request (total non-hit response delay)\n";
+    os << "    refill_words/miss=" << std::fixed << std::setprecision(2)
+       << refillWordPerMiss
+       << " (expected=words_per_line, line-size-aware check)\n";
 
     if (m_strict) {
         os << "  --- I-cache Closure Checks ---\n";
@@ -1024,7 +1080,6 @@ void PerfMonitor::dumpSummary(std::ostream &os) const {
                << icRefill << " <= miss=" << icMiss << "  OK\n";
         }
         // IFU↔ICache closure: IFetch AXI AR fires should roughly equal icache.lower_req fires
-        // (the cache's lower requests are the sole source of IFetch AXI transactions)
         os << "    [closure] ifetch.axi_ar ≈ icache.lower_req: " << ifARFire
            << " vs " << icLowerReq;
         auto ifArVsLowerReq = static_cast<int64_t>(ifARFire) - static_cast<int64_t>(icLowerReq);
@@ -1035,6 +1090,40 @@ void PerfMonitor::dumpSummary(std::ostream &os) const {
             os << "  OK";
         }
         os << '\n';
+        // ── Line-size-aware strict checks (T4) ──
+        // refill_transaction == refill (same event, independent counter check)
+        printClosureCheck(
+            os, "icache refill_transaction == refill",
+            icRefillTx, icRefill, 0
+        );
+        // refill_word >= lower_req (each lower_req during cacheable refill is a word beat)
+        // For single-line request with blocking: refill_word = cacheable lower_req events
+        if (icRefillWord > icLowerReq) {
+            os << "    *** I-cache refill_word exceeds lower_req: refill_word="
+               << icRefillWord << " > lower_req=" << icLowerReq
+               << " (delta=" << (static_cast<int64_t>(icRefillWord) - static_cast<int64_t>(icLowerReq))
+               << ") ***\n";
+        } else {
+            os << "    [closure] icache refill_word <= lower_req: refill_word="
+               << icRefillWord << " <= lower_req=" << icLowerReq << "  OK\n";
+        }
+        // miss_wait + bypass_wait == total_miss_time
+        auto icMWBWSum = icMissWait + icBypassWait;
+        printClosureCheck(
+            os, "icache miss_wait + bypass_wait == total_miss_time",
+            icMWBWSum, icTotalMissT, 1
+        );
+        // lower_req <= bypass + refill_words (closure: each lower request is bypass OR refill word)
+        auto icLowerReqExpected = icBypass + icRefillWord;
+        if (icLowerReq > icLowerReqExpected) {
+            os << "    *** I-cache lower_req exceeds bypass+refill_word: lower_req="
+               << icLowerReq << " > bypass+refill_word=" << icLowerReqExpected
+               << " (delta=" << (static_cast<int64_t>(icLowerReq) - static_cast<int64_t>(icLowerReqExpected))
+               << ") ***\n";
+        } else {
+            os << "    [closure] icache lower_req <= bypass + refill_word: lower_req="
+               << icLowerReq << " <= bypass+refill_word=" << icLowerReqExpected << "  OK\n";
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════

@@ -31,6 +31,17 @@ DEFAULT_SAMPLE_STEP = 10
 DEFAULT_ASSUMED_MISS_PENALTY_CYCLES = 20
 DEFAULT_ASSUMED_HIT_LATENCY_CYCLES = 1
 
+# Calibrated miss penalty per 4B word from T4 measured RTL data (4Bx16 baseline).
+# Measured miss_wait / miss = 15688626 / 933952 ≈ 16.80 cycles per word.
+# Bypass single-word AXI turnaround = 2422260 / 484452 ≈ 5.00 cycles (not used in default model).
+# Source: T4 perf counter measurement on microbench workload, 100 MHz.
+CALIBRATED_MISS_PENALTY_PER_WORD = 16.80
+
+# Latency provenance labels for distinguishing data sources in outputs.
+LATENCY_SOURCE_ESTIMATED = "estimated"
+LATENCY_SOURCE_CALIBRATED = "calibrated-from-t4-4B-baseline"
+LATENCY_SOURCE_MEASURED = "measured-baseline"
+
 
 def fail(msg: str) -> NoReturn:
     print(f"[mtrace] ERROR: {msg}", file=sys.stderr)
@@ -263,12 +274,24 @@ class CacheConfig:
     def key(self) -> Tuple[str, int, int, int]:
         return self.stream_kind, self.line_size, self.capacity_bytes, self.associativity
 
+    @property
+    def words_per_line(self) -> int:
+        """Number of 4B words in each cache line."""
+        return max(1, self.line_size // 4)
+
+    @property
+    def num_entries(self) -> int:
+        """Number of cache entries (lines) in the cache."""
+        return max(1, self.capacity_bytes // max(1, self.line_size))
+
 
 @dataclass
 class CacheSimulator:
     config: CacheConfig
     assumed_hit_latency: int
     assumed_miss_penalty: int
+    miss_penalty_per_word: Optional[float] = None
+    latency_source: str = LATENCY_SOURCE_ESTIMATED
     hits: int = 0
     misses: int = 0
     compulsory_misses: int = 0
@@ -284,6 +307,34 @@ class CacheSimulator:
     @property
     def num_sets(self) -> int:
         return len(self._sets)
+
+    @property
+    def words_per_line(self) -> int:
+        return self.config.words_per_line
+
+    @property
+    def refill_words(self) -> int:
+        """Total 4B words fetched from lower memory for cacheable misses."""
+        return self.misses * self.words_per_line
+
+    @property
+    def estimated_miss_cycles(self) -> float:
+        """Line-size-aware miss cost using calibrated (or CLI-provided) per-word penalty."""
+        if self.miss_penalty_per_word is not None:
+            return self.misses * self.miss_penalty_per_word * self.words_per_line
+        return float(self.misses * self.assumed_miss_penalty)
+
+    @property
+    def tmt(self) -> float:
+        """Total Miss Time per request (offline analog of RTL TMT)."""
+        if self.total_accesses:
+            return self.estimated_miss_cycles / self.total_accesses
+        return 0.0
+
+    @property
+    def estimated_ifetch_cycles(self) -> float:
+        """Estimated total IFetch cycles: hit latency + miss handling."""
+        return self.hits * self.assumed_hit_latency + self.estimated_miss_cycles
 
     def access(self, line_addr: int) -> None:
         self.total_accesses += 1
@@ -546,6 +597,8 @@ class TraceAnalyzer:
         self._access_index = 0
         self._seen_input_records = 0
         self._total_streamable_eligible = 0
+        self._miss_penalty_per_word: Optional[float] = getattr(args, "miss_penalty_per_word", None)
+        self._latency_source: str = getattr(args, "latency_source", LATENCY_SOURCE_ESTIMATED)
 
         for stream_kind in ("ifetch", "load", "store", "eligible"):
             for line_size in self.line_sizes:
@@ -556,6 +609,8 @@ class TraceAnalyzer:
                             cfg,
                             args.assumed_hit_latency_cycles,
                             args.assumed_miss_penalty_cycles,
+                            miss_penalty_per_word=self._miss_penalty_per_word,
+                            latency_source=self._latency_source,
                         )
 
     def _region_matches(self, record: TraceRecord) -> bool:
@@ -745,6 +800,9 @@ class TraceAnalyzer:
                     "line_size": line_size,
                     "capacity_bytes": sim.config.capacity_bytes,
                     "associativity": sim.config.associativity,
+                    "block_bytes": line_size,
+                    "num_entries": sim.config.num_entries,
+                    "words_per_line": sim.words_per_line,
                     "accesses": sim.total_accesses,
                     "hits": sim.hits,
                     "misses": sim.misses,
@@ -752,6 +810,13 @@ class TraceAnalyzer:
                     "miss_rate": sim.miss_rate,
                     "compulsory_miss_estimate": compulsory,
                     "capacity_conflict_miss_aggregate": max(0, sim.misses - compulsory),
+                    "refill_words": sim.refill_words,
+                    "estimated_miss_cycles": sim.estimated_miss_cycles,
+                    "tmt": sim.tmt,
+                    "estimated_ifetch_cycles": sim.estimated_ifetch_cycles,
+                    "assumed_hit_latency": sim.assumed_hit_latency,
+                    "miss_penalty_per_word": sim.miss_penalty_per_word,
+                    "latency_source": sim.latency_source,
                     "estimated_stall_cycles": sim.estimated_stall_cycles,
                     "estimated_saved_cycles": sim.estimated_saved_cycles,
                     "estimated_amat_cycles": sim.amat_cycles,
@@ -1118,6 +1183,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     ap.add_argument("--max-records", "--mtrace-max-records", dest="max_records", type=int, default=None, help="Maximum kept records after filtering")
     ap.add_argument("--assumed-miss-penalty-cycles", type=int, default=DEFAULT_ASSUMED_MISS_PENALTY_CYCLES)
     ap.add_argument("--assumed-hit-latency-cycles", type=int, default=DEFAULT_ASSUMED_HIT_LATENCY_CYCLES)
+    ap.add_argument("--miss-penalty-per-word", type=float, default=None,
+                    help="Calibrated per-4B-word miss penalty for line-size-aware DSE "
+                         f"(default: {CALIBRATED_MISS_PENALTY_PER_WORD} from T4 4Bx16 baseline)")
+    ap.add_argument("--latency-source", type=str, default=LATENCY_SOURCE_ESTIMATED,
+                    help="Provenance label for estimated miss penalty "
+                         f"(choices: {LATENCY_SOURCE_ESTIMATED}, {LATENCY_SOURCE_CALIBRATED}, {LATENCY_SOURCE_MEASURED})")
     return ap.parse_args(argv)
 
 

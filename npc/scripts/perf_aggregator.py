@@ -292,6 +292,28 @@ def _run_strict_checks(
              counter("icache.refill.count"),
              counter("icache.miss.count"))
 
+    # 13. I-cache refill_transaction == refill (same event)
+    check_close("icache refill_transaction == refill",
+                counter("icache.refill_transaction.count"),
+                counter("icache.refill.count"),
+                slack=0)
+
+    # 14. I-cache refill_word <= lower_req (refill words are a subset of lower requests)
+    check_le("icache refill_word <= lower_req",
+             counter("icache.refill_word.count"),
+             counter("icache.lower_req.count"))
+
+    # 15. I-cache miss_wait + bypass_wait == total_miss_time
+    check_close("icache miss_wait + bypass_wait == total_miss_time",
+                counter("icache.miss_wait.cycle") + counter("icache.bypass_wait.cycle"),
+                counter("icache.total_miss_time.cycle"),
+                slack=1)
+
+    # 16. I-cache lower_req <= bypass + refill_word (every lower request is bypass or refill word)
+    check_le("icache lower_req <= bypass + refill_word",
+             counter("icache.lower_req.count"),
+             counter("icache.bypass.count") + counter("icache.refill_word.count"))
+
     print("[Perf] Strict closure checks PASSED", file=sys.stderr)
 
 
@@ -384,6 +406,40 @@ def build_perf_block(
         name = ctr["name"]
         value = ctr["value"]
         lines.append(f"{name}: {format_value(value)}")
+
+    lines.append("")
+    lines.append("--- derived AMAT/TMT ---")
+
+    by_name_derived: Dict[str, int] = {}
+    for ctr in perf_counters:
+        by_name_derived[ctr["name"]] = ctr.get("value", 0)
+
+    def dc(name: str) -> int:
+        return by_name_derived.get(name, 0)
+
+    ic_req    = dc("icache.request.count")
+    ic_hit    = dc("icache.hit.count")
+    ic_miss   = dc("icache.miss.count")
+    ic_bypass = dc("icache.bypass.count")
+    ic_refill_word = dc("icache.refill_word.count")
+    ic_miss_wait   = dc("icache.miss_wait.cycle")
+    ic_bypass_wait = dc("icache.bypass_wait.cycle")
+    ic_total_miss  = dc("icache.total_miss_time.cycle")
+
+    amat_hit_time = 1.0
+    amat_miss_pen = (float(ic_miss_wait) / float(ic_miss)) if ic_miss > 0 else 0.0
+    amat_bypass_pen = (float(ic_bypass_wait) / float(ic_bypass)) if ic_bypass > 0 else 0.0
+    amat_val = ((float(ic_hit) * amat_hit_time + float(ic_miss_wait) + float(ic_bypass_wait))
+                / float(ic_req)) if ic_req > 0 else 0.0
+    tmt_rate = (float(ic_total_miss) / float(ic_req)) if ic_req > 0 else 0.0
+    refill_word_per_miss = (float(ic_refill_word) / float(ic_miss)) if ic_miss > 0 else 0.0
+
+    lines.append(f"AMAT: {format_value(amat_val)} cycles/request")
+    lines.append(f"AMAT.hit_time: {format_value(amat_hit_time)}")
+    lines.append(f"AMAT.miss_penalty_avg: {format_value(amat_miss_pen)}")
+    lines.append(f"AMAT.bypass_penalty_avg: {format_value(amat_bypass_pen)}")
+    lines.append(f"TMT_rate: {format_value(tmt_rate)} cycles/request")
+    lines.append(f"refill_words_per_miss: {format_value(refill_word_per_miss)}")
 
     return "\n".join(lines) + "\n"
 
