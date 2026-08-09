@@ -1,0 +1,10 @@
+top=top
+
+# 输入a、b绑开关
+a SW0
+b SW1
+
+# 输出f绑3个LED
+f LD0
+f LD1
+f LD2

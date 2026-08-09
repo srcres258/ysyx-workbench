@@ -10,6 +10,7 @@
 !*.cpp
 !*.sh
 !*.sdc
+!*.nxdc
 !*.py
 !csrc/
 !csrc/npc/
