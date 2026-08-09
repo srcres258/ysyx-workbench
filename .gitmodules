@@ -11,9 +11,6 @@
 [submodule "rt-thread"]
 	path = rt-thread
 	url = https://github.com/srcres258/rt-thread-am.git
-[submodule "standard"]
-	path = rt-thread
-	url = https://github.com/srcres258/ysyx-standard.git
 [submodule "yosys-sta"]
 	path = yosys-sta
 	url = https://github.com/srcres258/yosys-sta.git
