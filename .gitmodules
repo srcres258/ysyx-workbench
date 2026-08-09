@@ -18,3 +18,7 @@
 	path = yosys-sta
 	url = https://github.com/srcres258/yosys-sta.git
 	branch = own
+[submodule "fceux-am"]
+	path = fceux-am
+	url = https://github.com/srcres258/fceux-am.git
+	branch = master
