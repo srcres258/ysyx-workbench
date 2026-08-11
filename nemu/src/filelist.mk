@@ -15,6 +15,8 @@
 
 SRCS-y += src/nemu-main.c
 DIRS-y += src/cpu src/monitor src/utils src/lib
+DIRS-y += src/machine
+DIRS-y += src/trace
 DIRS-$(CONFIG_MODE_SYSTEM) += src/memory
 DIRS-BLACKLIST-$(CONFIG_TARGET_AM) += src/monitor/sdb
 

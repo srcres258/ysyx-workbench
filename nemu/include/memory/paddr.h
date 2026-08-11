@@ -17,6 +17,7 @@
 #define __MEMORY_PADDR_H__
 
 #include <common.h>
+#include <memory/region.h>
 
 #define PMEM_LEFT  ((paddr_t)CONFIG_MBASE)
 #define PMEM_RIGHT ((paddr_t)CONFIG_MBASE + CONFIG_MSIZE - 1)
@@ -28,6 +29,11 @@ uint8_t* guest_to_host(paddr_t paddr);
 paddr_t host_to_guest(uint8_t *haddr);
 
 bool in_pmem(paddr_t addr);
+
+void paddr_set_region_map(const MemoryRegionDesc *regions, size_t nr_regions);
+size_t paddr_get_region_map(MemoryRegionDesc *regions, size_t max_regions);
+MemoryRegion *paddr_find_region(paddr_t addr, size_t len);
+void paddr_load(paddr_t addr, const void *buf, size_t len);
 
 word_t paddr_read(paddr_t addr, int len);
 word_t paddr_read_mtrace(paddr_t addr, int len, bool mtrace_on);

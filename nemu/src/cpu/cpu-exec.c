@@ -17,6 +17,8 @@
 #include <cpu/decode.h>
 #include <cpu/difftest.h>
 #include <locale.h>
+#include <machine.h>
+#include <trace/observer.h>
 #include <utils.h>
 
 /* The assembly code of instructions executed is only output to the screen
@@ -30,9 +32,6 @@ CPU_state cpu = {};
 uint64_t g_nr_guest_inst = 0;
 static uint64_t g_timer = 0; // unit: us
 static bool g_print_step = false;
-
-void device_update();
-
 static void trace_and_difftest(Decode *_this, vaddr_t dnpc) {
 #ifdef CONFIG_ITRACE_COND
   if (ITRACE_COND) {
@@ -153,9 +152,10 @@ static void execute(uint64_t n) {
     IFDEF(CONFIG_PC_OUTPUT, printf("PC is at 0x%08x\n", cpu.pc));
     exec_once(&s, cpu.pc);
     g_nr_guest_inst ++;
+    exec_observer_on_instruction(s.pc, s.dnpc);
     trace_and_difftest(&s, cpu.pc);
     if (nemu_state.state != NEMU_RUNNING) break;
-    IFDEF(CONFIG_DEVICE, device_update());
+    machine_step();
   }
 
 #ifdef CONFIG_ITRACE

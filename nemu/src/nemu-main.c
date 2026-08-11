@@ -16,6 +16,7 @@
 #include <common.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <trace/pc_trace.h>
 #include <utils.h>
 
 void init_monitor(int, char *[]);
@@ -91,6 +92,8 @@ int main(int argc, char *argv[]) {
 
   /* Start engine. */
   engine_start();
+
+  pc_trace_disable();
 
 #ifdef CONFIG_ITRACE
   nemu_iringbuf_destroy();

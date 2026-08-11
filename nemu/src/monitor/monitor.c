@@ -14,13 +14,13 @@
 ***************************************************************************************/
 
 #include <isa.h>
+#include <machine.h>
 #include <memory/paddr.h>
+#include <trace/pc_trace.h>
 
 void init_rand();
 void init_log(const char *log_file);
-void init_mem();
 void init_difftest(char *ref_so_file, long img_size, int port);
-void init_device();
 void init_sdb();
 void init_disasm();
 
@@ -46,29 +46,11 @@ static char *log_file = NULL;
 static char *diff_so_file = NULL;
 static char *img_file = NULL;
 static char *elf_file = NULL;
+static const char *pc_trace_path = NULL;
+static const char *pc_trace_format_name = "raw";
+static const char *pc_trace_compress_name = "none";
+static const char *selected_machine = "nemu";
 static int difftest_port = 1234;
-
-static long load_img() {
-  if (img_file == NULL) {
-    Log("No image is given. Use the default build-in image.");
-    return 4096; // built-in image size
-  }
-
-  FILE *fp = fopen(img_file, "rb");
-  Assert(fp, "Can not open '%s'", img_file);
-
-  fseek(fp, 0, SEEK_END);
-  long size = ftell(fp);
-
-  Log("The image is %s, size = %ld", img_file, size);
-
-  fseek(fp, 0, SEEK_SET);
-  int ret = fread(guest_to_host(RESET_VECTOR), size, 1, fp);
-  assert(ret == 1);
-
-  fclose(fp);
-  return size;
-}
 
 #ifdef CONFIG_FTRACE
 static size_t load_elf(void) {
@@ -110,27 +92,31 @@ static size_t load_elf(void) {
 #endif
 
 static int parse_args(int argc, char *argv[]) {
-  printf("argc = %d\n", argc);
-  for (int i = 0; i < argc; i++) {
-    printf("argv[%d] = %s\n", i, argv[i]);
-  }
   const struct option table[] = {
     {"batch"    , no_argument      , NULL, 'b'},
     {"log"      , required_argument, NULL, 'l'},
     {"diff"     , required_argument, NULL, 'd'},
     {"port"     , required_argument, NULL, 'p'},
     {"elf"      , required_argument, NULL, 'e'},
+    {"machine"  , required_argument, NULL, 'm'},
+    {"pc-trace" , required_argument, NULL, 'P'},
+    {"pc-trace-format", required_argument, NULL, 'F'},
+    {"pc-trace-compress", required_argument, NULL, 'C'},
     {"help"     , no_argument      , NULL, 'h'},
     {0          , 0                , NULL,  0 },
   };
   int o;
-  while ( (o = getopt_long(argc, argv, "-bhl:d:p:e:", table, NULL)) != -1) {
+  while ( (o = getopt_long(argc, argv, "-bhl:d:p:e:m:P:F:C:", table, NULL)) != -1) {
     switch (o) {
       case 'b': sdb_set_batch_mode(); break;
       case 'p': sscanf(optarg, "%d", &difftest_port); break;
       case 'l': log_file = optarg; break;
       case 'd': diff_so_file = optarg; break;
       case 'e': elf_file = optarg; break;
+      case 'm': selected_machine = optarg; break;
+      case 'P': pc_trace_path = optarg; break;
+      case 'F': pc_trace_format_name = optarg; break;
+      case 'C': pc_trace_compress_name = optarg; break;
       case 1: img_file = optarg; return 0;
       default:
         printf("Usage: %s [OPTION...] IMAGE [args]\n\n", argv[0]);
@@ -139,6 +125,10 @@ static int parse_args(int argc, char *argv[]) {
         printf("\t-d,--diff=REF_SO        run DiffTest with reference REF_SO\n");
         printf("\t-p,--port=PORT          run DiffTest with port PORT\n");
         printf("\t-e,--elf=FILE           specify the ELF file to load\n");
+        printf("\t-m,--machine=NAME       select machine profile (nemu|ysyxsoc)\n");
+        printf("\t-P,--pc-trace=FILE      write dynamic PC trace to FILE\n");
+        printf("\t-F,--pc-trace-format=FMT  select trace format (raw|run)\n");
+        printf("\t-C,--pc-trace-compress=MODE select compression (none|bzip2)\n");
         printf("\n");
         exit(0);
     }
@@ -151,6 +141,7 @@ void init_monitor(int argc, char *argv[]) {
 
   /* Parse arguments. */
   parse_args(argc, argv);
+  Assert(machine_select(selected_machine), "Unknown machine '%s'", selected_machine);
 
   /* Set random seed. */
   init_rand();
@@ -158,17 +149,24 @@ void init_monitor(int argc, char *argv[]) {
   /* Open the log file. */
   init_log(log_file);
 
-  /* Initialize memory. */
-  init_mem();
-
-  /* Initialize devices. */
-  IFDEF(CONFIG_DEVICE, init_device());
+  machine_init();
 
   /* Perform ISA dependent initialization. */
   init_isa();
 
-  /* Load the image to memory. This will overwrite the built-in image. */
-  long img_size = load_img();
+  /* Load the image to memory. This belongs to the selected machine profile. */
+  long img_size = machine_load_image(img_file);
+  machine_reset();
+
+  if (pc_trace_path != NULL) {
+    PcTraceFormat pc_trace_format;
+    PcTraceCompress pc_trace_compress;
+    Assert(pc_trace_parse_format(pc_trace_format_name, &pc_trace_format),
+        "Unsupported pc trace format '%s'", pc_trace_format_name);
+    Assert(pc_trace_parse_compress(pc_trace_compress_name, &pc_trace_compress),
+        "Unsupported pc trace compression mode '%s'", pc_trace_compress_name);
+    pc_trace_enable(pc_trace_path, pc_trace_format, pc_trace_compress);
+  }
 
 #ifdef CONFIG_FTRACE
   /* Load function symbols from ELF file. */
@@ -192,16 +190,16 @@ static long load_img() {
   extern char bin_start, bin_end;
   size_t size = &bin_end - &bin_start;
   Log("img size = %ld", size);
-  memcpy(guest_to_host(RESET_VECTOR), &bin_start, size);
-  return size;
+  return machine_load_embedded_image(&bin_start, size);
 }
 
 void am_init_monitor() {
   init_rand();
-  init_mem();
+  Assert(machine_select("nemu"), "failed to select default machine");
+  machine_init();
   init_isa();
   load_img();
-  IFDEF(CONFIG_DEVICE, init_device());
+  machine_reset();
   welcome();
 }
 #endif

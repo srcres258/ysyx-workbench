@@ -70,6 +70,8 @@
       readline
 
       gtest
+      
+      bzip2
     ];
     # Safe for LD_LIBRARY_PATH — excludes libz which conflicts with binutils' own zlib
     runtimeLibDeps = with pkgs; [

@@ -27,6 +27,7 @@ typedef concat(__GUEST_ISA__, _ISADecodeInfo) ISADecodeInfo;
 // monitor
 extern unsigned char isa_logo[];
 void init_isa();
+void isa_reset(vaddr_t reset_pc);
 
 // reg
 extern CPU_state cpu;

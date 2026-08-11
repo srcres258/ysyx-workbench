@@ -14,39 +14,18 @@
 ***************************************************************************************/
 
 #include <isa.h>
-#include <memory/paddr.h>
-
 #include "local-include/reg.h"
 
-// this is not consistent with uint8_t
-// but it is ok since we do not access the array directly
-static const uint32_t img [] = {
-  0x00000297,  // auipc t0,0
-  0x00028823,  // sb  zero,16(t0)
-  0x0102c503,  // lbu a0,16(t0)
-  0x00100073,  // ebreak (used as nemu_trap)
-  0xdeadbeef,  // some data
-};
+void init_isa() {
+}
 
-static void restart() {
-  /* Set the initial program counter. */
-  cpu.pc = RESET_VECTOR;
-
-  /* The zero register is always 0. */
+void isa_reset(vaddr_t reset_pc) {
+  memset(&cpu, 0, sizeof(cpu));
+  cpu.pc = reset_pc;
   cpu.gpr[0] = 0;
-
-  /* For difftest purpose, the mstatus CSR needs to be initialized. */
 #ifdef CONFIG_RV64
   cpu.csr[CSR_MSTATUS] = 0xa00001800;
 #else
   cpu.csr[CSR_MSTATUS] = 0x1800;
 #endif
-}
-
-void init_isa() {
-  /* Load built-in image. */
-  memcpy(guest_to_host(RESET_VECTOR), img, sizeof(img));
-
-  /* Initialize this virtual computer system. */
-  restart();
 }
