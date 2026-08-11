@@ -68,6 +68,11 @@ chisel-gen-standalone:
 	@cp -r $(CHISEL_GEN_OUT) $(NPC_GEN_DIR)
 	@echo "[Chisel] Done. Generated $$(find $(NPC_GEN_DIR) -name '*.sv' | wc -l) .sv files."
 
+chisel-test:
+	@echo "[Chisel] Running Scala tests from vsrc-chisel via Mill..."
+	@$(MAKE) -C $(CHISEL_DIR) test
+	@echo "[Chisel] Scala tests completed."
+
 chisel-clean:
 	rm -rf $(CHISEL_GEN_OUT)
 	rm -rf $(NPC_GEN_DIR)
@@ -535,4 +540,4 @@ synth-flow-diff:
 		--target-mhz $(SYNTH_CLK_MHZ) \
 		|| echo "[Synth] WARNING: Flow diff generation failed (some experiments may not have run yet)"
 
-.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-clean synth synth-search synth-clean perf perf-clean mtrace locality locality-report test-locality synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff libnpc npc-runner npc-test test test-run
+.PHONY: default all clean run git_commit_sim auto_bind gen_header chisel-gen chisel-test chisel-clean synth synth-search synth-clean perf perf-clean mtrace locality locality-report test-locality synth-exp-a synth-exp-b synth-exp-c synth-exp-d synth-exp-all synth-flow-diff libnpc npc-runner npc-test test test-run
