@@ -38,6 +38,7 @@
       pkg-config
 
       openjdk21
+      mill
       pythonEnv
 
       verilator
