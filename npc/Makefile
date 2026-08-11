@@ -49,7 +49,7 @@ endif
 
 # I-cache geometry parameters (flow through Chisel elaboration)
 ICACHE_BLOCK_BYTES ?= 4
-ICACHE_NUM_ENTRIES ?= 16
+ICACHE_NUM_ENTRIES ?= 8
 CHISEL_ARGS += icacheBlockBytes=$(ICACHE_BLOCK_BYTES) icacheNumEntries=$(ICACHE_NUM_ENTRIES)
 
 chisel-gen:
