@@ -36,6 +36,10 @@
       gcc
       gnumake
       pkg-config
+      cargo
+      rustc
+      rustfmt
+      clippy
 
       openjdk21
       mill
