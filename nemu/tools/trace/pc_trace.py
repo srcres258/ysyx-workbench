@@ -2,16 +2,23 @@
 from __future__ import annotations
 
 import bz2
-import io
 import struct
 from pathlib import Path
-from typing import BinaryIO, Iterable, Iterator
+from typing import BinaryIO, Iterator, cast
+
+from pctr_format import (
+    MAGIC,
+    PCTR_ENDIANNESS_LITTLE,
+    PCTR_V1_ADDRESS_WIDTH,
+    PCTR_V1_HEADER_SIZE,
+    PCTR_V1_RUN_STRIDE,
+    PCTR_V1_TAG_RUN,
+    PCTR_V1_TAG_SINGLE_PC,
+    PCTR_V1_VERSION,
+)
 
 
-MAGIC = b"PCTR"
 HEADER_STRUCT = struct.Struct("<4sHHBBBBI")
-TAG_SINGLE_PC = 0x01
-TAG_SEQ_RUN = 0x02
 FORMAT_RAW = 1
 FORMAT_RUN = 2
 
@@ -23,8 +30,8 @@ class TraceFormatError(RuntimeError):
 def _open_binary(path: str | Path) -> BinaryIO:
     path = Path(path)
     if path.suffix == ".bz2":
-        return bz2.open(path, "rb")
-    return path.open("rb")
+        return cast(BinaryIO, bz2.open(path, "rb"))
+    return cast(BinaryIO, path.open("rb"))
 
 
 def _read_header(stream: BinaryIO) -> int:
@@ -34,13 +41,13 @@ def _read_header(stream: BinaryIO) -> int:
     magic, version, header_size, addr_width, encoding, endianness, _reserved0, _reserved1 = HEADER_STRUCT.unpack(data)
     if magic != MAGIC:
         raise TraceFormatError(f"bad magic: {magic!r}")
-    if version != 1:
+    if version != PCTR_V1_VERSION:
         raise TraceFormatError(f"unsupported version: {version}")
-    if header_size != HEADER_STRUCT.size:
+    if header_size != PCTR_V1_HEADER_SIZE:
         raise TraceFormatError(f"unsupported header size: {header_size}")
-    if addr_width != 4:
+    if addr_width != PCTR_V1_ADDRESS_WIDTH:
         raise TraceFormatError(f"unsupported address width: {addr_width}")
-    if endianness != 1:
+    if endianness != PCTR_ENDIANNESS_LITTLE:
         raise TraceFormatError(f"unsupported endianness flag: {endianness}")
     if encoding not in (FORMAT_RAW, FORMAT_RUN):
         raise TraceFormatError(f"unsupported encoding: {encoding}")
@@ -64,18 +71,18 @@ def iter_pcs(path: str | Path) -> Iterator[int]:
                 if not tag_raw:
                     return
                 tag = tag_raw[0]
-                if tag == TAG_SINGLE_PC:
+                if tag == PCTR_V1_TAG_SINGLE_PC:
                     chunk = stream.read(4)
                     if len(chunk) != 4:
                       raise TraceFormatError("single-pc record is truncated")
                     yield struct.unpack("<I", chunk)[0]
-                elif tag == TAG_SEQ_RUN:
+                elif tag == PCTR_V1_TAG_RUN:
                     chunk = stream.read(8)
                     if len(chunk) != 8:
                         raise TraceFormatError("seq-run record is truncated")
                     start_pc, count = struct.unpack("<II", chunk)
                     for i in range(count):
-                        yield start_pc + i * 4
+                        yield start_pc + i * PCTR_V1_RUN_STRIDE
                 else:
                     raise TraceFormatError(f"unknown run-encoding tag: 0x{tag:02x}")
 

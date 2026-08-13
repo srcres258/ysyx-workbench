@@ -14,7 +14,6 @@
 ***************************************************************************************/
 
 #include <device/mmio.h>
-#include <difftest-def.h>
 #include <inttypes.h>
 #include <isa.h>
 #include <machine.h>
@@ -186,63 +185,6 @@ void paddr_load(paddr_t addr, const void *buf, size_t len) {
   memory_load_bytes(addr, buf, len);
 }
 
-#ifdef CONFIG_TARGET_SHARE
-static MemoryRegionType difftest_type_to_memory_type(DiffTestMemRegionType type) {
-  switch (type) {
-    case DIFFTEST_MEM_REGION_RAM: return MEMORY_REGION_RAM;
-    case DIFFTEST_MEM_REGION_MMIO: return MEMORY_REGION_MMIO;
-    default: panic("unsupported difftest memory region type %d", type);
-  }
-}
-
-__EXPORT void difftest_set_mem_map(const DiffTestMemRegion *new_regions, size_t new_nr_regions) {
-  MemoryRegionDesc *regions = NULL;
-  size_t i;
-
-  if (new_nr_regions > 0) {
-    regions = (MemoryRegionDesc *)calloc(new_nr_regions, sizeof(MemoryRegionDesc));
-    assert(regions != NULL);
-  }
-  for (i = 0; i < new_nr_regions; i++) {
-    regions[i].name = NULL;
-    regions[i].base = new_regions[i].base;
-    regions[i].size = new_regions[i].size;
-    regions[i].type = difftest_type_to_memory_type(new_regions[i].type);
-  }
-  paddr_set_region_map(regions, new_nr_regions);
-  free(regions);
-}
-
-__EXPORT size_t difftest_get_mem_map(DiffTestMemRegion *out, size_t max_regions) {
-  size_t total = paddr_get_region_map(NULL, 0);
-  MemoryRegionDesc *regions;
-  size_t i;
-  size_t ncopy = total;
-
-  if (out != NULL && max_regions < ncopy) {
-    ncopy = max_regions;
-  }
-  if (out == NULL) {
-    return total;
-  }
-
-  regions = (MemoryRegionDesc *)calloc(total == 0 ? 1 : total, sizeof(MemoryRegionDesc));
-  assert(regions != NULL);
-  paddr_get_region_map(regions, total);
-  for (i = 0; i < ncopy; i++) {
-    out[i].base = regions[i].base;
-    out[i].size = regions[i].size;
-    out[i].type = regions[i].type == MEMORY_REGION_MMIO ? DIFFTEST_MEM_REGION_MMIO : DIFFTEST_MEM_REGION_RAM;
-  }
-  free(regions);
-  return total;
-}
-
-__EXPORT void difftest_set_reset_vector(uint64_t reset_vector) {
-  cpu.pc = reset_vector;
-}
-#endif
-
 static void out_of_bound(paddr_t addr) {
 #ifdef CONFIG_ITRACE
   nemu_iringbuf_dump();
@@ -294,7 +236,7 @@ word_t paddr_read_mtrace(paddr_t addr, int len, bool mtrace_on) {
     return res;
   }
   if (use_region_backend() && memory_find_region(addr, len) != NULL) {
-    panic("MMIO access to " FMT_PADDR " requires difftest skip on the DUT side", addr);
+    panic("MMIO access to non-host-backed region at " FMT_PADDR " is not handled by the active machine", addr);
   }
   out_of_bound(addr);
   return 0;
@@ -318,7 +260,7 @@ void paddr_write_mtrace(paddr_t addr, int len, word_t data, bool mtrace_on) {
     return;
   }
   if (use_region_backend() && memory_find_region(addr, len) != NULL) {
-    panic("MMIO write to " FMT_PADDR " requires difftest skip on the DUT side", addr);
+    panic("MMIO write to non-host-backed region at " FMT_PADDR " is not handled by the active machine", addr);
   }
   if (machine_mmio_write(addr, len, data)) {
     return;

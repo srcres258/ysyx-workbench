@@ -1,24 +1,11 @@
 #include <isa.h>
 #include <machine.h>
 #include <machine/ysyxsoc.h>
-#include <memory/host.h>
 #include <memory/paddr.h>
 
+#include "internal.h"
+
 void init_mem(void);
-
-extern uint64_t g_nr_guest_inst;
-
-static uint8_t uart_regs[YSYXSOC_UART_SIZE] = {};
-static uint8_t timer_regs[YSYXSOC_CLINT_MTIME_SIZE] = {};
-static uint8_t vga_regs[YSYXSOC_VGA_SIZE] = {};
-
-static void reset_ysyxsoc_devices(void) {
-  memset(uart_regs, 0, sizeof(uart_regs));
-  memset(timer_regs, 0, sizeof(timer_regs));
-  memset(vga_regs, 0, sizeof(vga_regs));
-  uart_regs[5] = 0x60;
-  *(uint32_t *)(void *)vga_regs = (400u << 16) | 300u;
-}
 
 static long load_file_to_flash(const char *path) {
   FILE *fp = fopen(path, "rb");
@@ -43,6 +30,12 @@ static long load_file_to_flash(const char *path) {
 static long load_blob_to_flash(const void *buf, size_t size) {
   paddr_load(YSYXSOC_FLASH_BASE, buf, size);
   return size;
+}
+
+static void reset_ysyxsoc_devices(void) {
+  ysyxsoc_uart_reset();
+  ysyxsoc_timer_reset();
+  ysyxsoc_vga_reset();
 }
 
 static void init_ysyxsoc_machine(void) {
@@ -72,63 +65,28 @@ static void ysyxsoc_step(void) {
 }
 
 static bool ysyxsoc_mmio_read(paddr_t addr, int len, word_t *data) {
-  if (addr >= YSYXSOC_UART_BASE && addr + len <= YSYXSOC_UART_BASE + YSYXSOC_UART_SIZE) {
-    uint32_t offset = addr - YSYXSOC_UART_BASE;
-    if (offset == 0) {
-      uart_regs[offset] = 0;
-    } else if (offset == 5) {
-      uart_regs[offset] = 0x60;
-    }
-    *data = host_read(uart_regs + offset, len);
+  if (ysyxsoc_uart_read(addr, len, data)) {
     return true;
   }
-
-  if (addr >= YSYXSOC_CLINT_MTIME_BASE && addr + len <= YSYXSOC_CLINT_MTIME_BASE + YSYXSOC_CLINT_MTIME_SIZE) {
-    uint64_t mtime = g_nr_guest_inst;
-    uint32_t lo = (uint32_t)(mtime & 0xffffffffu);
-    uint32_t hi = (uint32_t)(mtime >> 32);
-    uint32_t offset = addr - YSYXSOC_CLINT_MTIME_BASE;
-    memcpy(timer_regs, &lo, sizeof(lo));
-    memcpy(timer_regs + 4, &hi, sizeof(hi));
-    *data = host_read(timer_regs + offset, len);
+  if (ysyxsoc_timer_read(addr, len, data)) {
     return true;
   }
-
-  if (addr >= YSYXSOC_VGA_BASE && addr + len <= YSYXSOC_VGA_BASE + YSYXSOC_VGA_SIZE) {
-    uint32_t offset = addr - YSYXSOC_VGA_BASE;
-    *data = host_read(vga_regs + offset, len);
+  if (ysyxsoc_vga_read(addr, len, data)) {
     return true;
   }
-
   return false;
 }
 
 static bool ysyxsoc_mmio_write(paddr_t addr, int len, word_t data) {
-  if (addr >= YSYXSOC_UART_BASE && addr + len <= YSYXSOC_UART_BASE + YSYXSOC_UART_SIZE) {
-    uint32_t offset = addr - YSYXSOC_UART_BASE;
-    host_write(uart_regs + offset, len, data);
-    if (offset == 0 && (uart_regs[3] & 0x80) == 0) {
-      char ch = uart_regs[offset];
-      fputc(ch, stdout);
-      if (ch == '\n' || ch == '\r') {
-        fflush(stdout);
-      }
-    }
+  if (ysyxsoc_uart_write(addr, len, data)) {
     return true;
   }
-
-  if (addr >= YSYXSOC_CLINT_MTIME_BASE && addr + len <= YSYXSOC_CLINT_MTIME_BASE + YSYXSOC_CLINT_MTIME_SIZE) {
-    uint32_t offset = addr - YSYXSOC_CLINT_MTIME_BASE;
-    host_write(timer_regs + offset, len, data);
+  if (ysyxsoc_timer_write(addr, len, data)) {
     return true;
   }
-
-  if (addr >= YSYXSOC_VGA_BASE && addr + len <= YSYXSOC_VGA_BASE + YSYXSOC_VGA_SIZE) {
-    uint32_t offset = addr - YSYXSOC_VGA_BASE;
-    host_write(vga_regs + offset, len, data);
+  if (ysyxsoc_vga_write(addr, len, data)) {
     return true;
   }
-
   return false;
 }
 

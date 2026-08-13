@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <trace/observer.h>
+#include <trace/pctr_format.h>
 
 typedef enum {
   PC_TRACE_FORMAT_RAW = 1,

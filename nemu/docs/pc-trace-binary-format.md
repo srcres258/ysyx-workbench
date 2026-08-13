@@ -136,6 +136,12 @@ The header is exactly **16 bytes**:
 | `address_width` | `4` |
 | `endianness` | `1` |
 
+For **PCTR v1**, the RUN encoding also defines one additional semantic constant:
+
+| Property | Value |
+|---|---|
+| sequential RUN stride | `4` bytes |
+
 ### Encoding field values
 
 | Value | Name | Meaning |
@@ -272,7 +278,7 @@ Serialized form:
 | 1 | 4 | uint32le | `start_pc` |
 | 5 | 4 | uint32le | `count` |
 
-Decoded result:
+Decoded result in **PCTR v1**:
 
 ```text
 [start_pc,
@@ -284,7 +290,7 @@ Decoded result:
 
 ### Version-1 writer rule
 
-The current writer accumulates **maximal sequential +4 runs**.
+`PCTR v1` accumulates **maximal sequential runs using the fixed v1 stride of 4 bytes**.
 
 When a run is flushed:
 
@@ -312,7 +318,7 @@ can be encoded as:
 2. confirm `encoding == 2`;
 3. read one tag byte;
 4. if tag is `0x01`, read one `uint32le` and emit one PC;
-5. if tag is `0x02`, read `start_pc` and `count`, emit `count` PCs spaced by `+4`;
+5. if tag is `0x02`, read `start_pc` and `count`, emit `count` PCs spaced by the `PCTR v1` stride (`+4`);
 6. if tag is anything else, fail the decode.
 
 ### Python implementation
@@ -401,7 +407,12 @@ When one instruction commits:
 The accumulated run is flushed when:
 
 - a non-sequential PC breaks the run;
+- trace recording transitions from enabled to disabled;
 - tracing is disabled at process shutdown.
+
+Recording boundaries are also encoding boundaries: a RUN that was in progress before
+`pc_trace_set_recording(false)` must be finalized before the pause, and the first PC
+recorded after `pc_trace_set_recording(true)` starts a new independent RUN.
 
 ---
 
@@ -550,7 +561,7 @@ provided they were generated from the same execution interval.
 
 - only 32-bit PCs are encoded;
 - only `pc` is recorded, not instruction bytes or `next_pc`;
-- run compression only recognizes strict `+4` sequential progressions;
+- `PCTR v1` run compression only recognizes strict `+4` sequential progressions;
 - no per-record timestamps or instruction counters are serialized;
 - no random-access index is stored;
 - the format is designed for streaming decode, not seeking.

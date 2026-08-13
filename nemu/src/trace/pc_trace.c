@@ -20,6 +20,11 @@ static PcTraceState state = {0};
 
 void pc_trace_disable(void);
 
+static void reset_pending_run(void) {
+  state.run_start_pc = 0;
+  state.run_count = 0;
+}
+
 static void write_u8(FILE *stream, uint8_t value) {
   Assert(fputc(value, stream) != EOF, "failed to write pc trace byte");
 }
@@ -64,12 +69,13 @@ static FILE *open_compressed_stream(const char *path, pid_t *pid_out) {
 }
 
 static void write_header(FILE *stream, PcTraceFormat format) {
-  Assert(fwrite("PCTR", 1, 4, stream) == 4, "failed to write pc trace header magic");
-  write_u16_le(stream, 1);
-  write_u16_le(stream, 16);
-  write_u8(stream, 4);
+  Assert(fwrite(PCTR_MAGIC, 1, PCTR_MAGIC_SIZE, stream) == PCTR_MAGIC_SIZE,
+      "failed to write pc trace header magic");
+  write_u16_le(stream, PCTR_V1_VERSION);
+  write_u16_le(stream, PCTR_V1_HEADER_SIZE);
+  write_u8(stream, PCTR_V1_ADDRESS_WIDTH);
   write_u8(stream, (uint8_t)format);
-  write_u8(stream, 1);
+  write_u8(stream, PCTR_ENDIANNESS_LITTLE);
   write_u8(stream, 0);
   write_u32_le(stream, 0);
 }
@@ -80,20 +86,20 @@ static void flush_run(void) {
   }
 
   if (state.format == PC_TRACE_FORMAT_RUN && state.run_count > 1) {
-    write_u8(state.stream, 0x02);
+    write_u8(state.stream, PCTR_V1_TAG_RUN);
     write_u32_le(state.stream, state.run_start_pc);
     write_u32_le(state.stream, state.run_count);
   } else if (state.format == PC_TRACE_FORMAT_RUN) {
-    write_u8(state.stream, 0x01);
+    write_u8(state.stream, PCTR_V1_TAG_SINGLE_PC);
     write_u32_le(state.stream, state.run_start_pc);
   } else {
     uint32_t i;
     for (i = 0; i < state.run_count; i++) {
-      write_u32_le(state.stream, state.run_start_pc + i * 4);
+      write_u32_le(state.stream, state.run_start_pc + i * PCTR_V1_RUN_STRIDE);
     }
   }
 
-  state.run_count = 0;
+  reset_pending_run();
 }
 
 static void on_instruction(vaddr_t pc, vaddr_t next_pc) {
@@ -110,7 +116,7 @@ static void on_instruction(vaddr_t pc, vaddr_t next_pc) {
     return;
   }
 
-  if (current_pc == state.run_start_pc + state.run_count * 4 && state.run_count != UINT32_MAX) {
+  if (current_pc == state.run_start_pc + state.run_count * PCTR_V1_RUN_STRIDE && state.run_count != UINT32_MAX) {
     state.run_count++;
     return;
   }
@@ -156,8 +162,7 @@ void pc_trace_enable(const char *path, PcTraceFormat format, PcTraceCompress com
   state.recording = true;
   state.format = format;
   state.compress = compress;
-  state.run_start_pc = 0;
-  state.run_count = 0;
+  reset_pending_run();
   state.compressor_pid = -1;
 
   if (compress == PC_TRACE_COMPRESS_NONE) {
@@ -196,6 +201,14 @@ bool pc_trace_is_enabled(void) {
 }
 
 void pc_trace_set_recording(bool enabled) {
+  if (!state.enabled || state.recording == enabled) {
+    return;
+  }
+  if (!enabled) {
+    flush_run();
+  } else {
+    reset_pending_run();
+  }
   state.recording = enabled;
 }
 

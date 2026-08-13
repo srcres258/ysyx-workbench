@@ -57,7 +57,7 @@ The current timer model is **deterministic**: MTIME is derived from retired gues
 - **simple backend**: classic contiguous PMEM;
 - **region backend**: explicit `MemoryRegionDesc[]` map.
 
-The generic region implementation lives in `region.c`; DiffTest now uses it through `difftest_set_mem_map()` as a wrapper instead of owning the region allocator itself.
+The generic region implementation lives in `region.c`; DiffTest now uses it through the adapter in `nemu/src/cpu/difftest/memory_adapter.c` instead of letting generic memory code include the DiffTest ABI directly.
 
 ## PC trace format
 
@@ -81,7 +81,7 @@ After the header, each record is one `uint32_t` PC.
 After the header, records are tagged:
 
 - `0x01` + `uint32_t pc`: one single PC
-- `0x02` + `uint32_t start_pc` + `uint32_t count`: a sequential `pc, pc+4, ...` run
+- `0x02` + `uint32_t start_pc` + `uint32_t count`: a sequential `pc, pc+4, ...` run (`PCTR v1` defines the RUN stride as 4 bytes)
 
 Compression is external to the semantic trace format. `--pc-trace-compress=bzip2` streams the same binary format through `bzip2 -c`.
 

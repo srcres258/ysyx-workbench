@@ -54,13 +54,12 @@ __EXPORT void difftest_raise_intr(word_t NO) {
 
 __EXPORT void difftest_init(int port) {
   void init_mem();
+  (void) port;
   init_mem();
-  /* Do NOT call init_isa() here.
-   * init_isa() loads a built-in test stub at RESET_VECTOR (MROM 0x20000000)
-   * that would conflict with the actual memory content the NPC DUT injects
-   * via difftest_memcpy().
-   * The NPC side fully initialises the REF CPU state (PC, GPRs, CSRs) via
-   * difftest_regcpy(DIFFTEST_TO_REF) after memcpy.
-   * Ensure x0 is hardwired to zero (required by the RISC-V spec). */
+  /* DiffTest REF mode does not boot a standalone machine profile.
+   * The DUT side supplies the REF memory map, reset vector, image bytes, and
+   * architectural register state through the DiffTest setup ABI before any
+   * instruction is executed. Keep init_isa() out of this path so the REF does
+   * not inject its own built-in image or standalone reset flow. */
   cpu.gpr[0] = 0;
 }
