@@ -66,6 +66,17 @@ CONFIG_DIFFTEST_PAYLOAD_BIN_FILE_PATH ?=
 CONFIG_DIFFTEST_PAYLOAD_LOAD_ADDR ?= 0x80000000
 CONFIG_DIFFTEST_MEM_MODE ?= auto
 CONFIG_MROM_BIN_FILE_PATH ?= mrom.bin
+COMPRESS ?= off
+
+ifeq ($(COMPRESS),on)
+  CACHESIM_TRACE_COMPRESS_ARG := --pc-trace-compress=bzip2
+  CACHESIM_TRACE_SUFFIX := .pctrace.bz2
+else ifeq ($(COMPRESS),off)
+  CACHESIM_TRACE_COMPRESS_ARG :=
+  CACHESIM_TRACE_SUFFIX := .pctrace
+else
+  $(error COMPRESS must be 'on' or 'off', got '$(COMPRESS)')
+endif
 
 # Flash XIP 模式下每次取指都触发 flash_read() DPI 调用, dtrace 会产生海量日志
 ifeq ($(USE_FLASH_XIP),1)
@@ -73,6 +84,25 @@ ifeq ($(USE_FLASH_XIP),1)
 endif
 
 TRACE_LOG_DIR = $(abspath ./build/trace-logs)
+CACHESIM_OUT_DIR ?= $(abspath ./build/cachesim-result)
+CACHESIM_JSON ?= $(abspath $(CACHESIM_OUT_DIR)/cachesim.json)
+CACHESIM_TRACE ?= $(abspath $(CACHESIM_OUT_DIR)/$(NAME)-run$(CACHESIM_TRACE_SUFFIX))
+CACHESIM_MACHINE ?= ysyxsoc-current
+CACHESIM_BLOCK_BYTES ?= 4
+CACHESIM_LINES ?= 8
+CACHESIM_WAYS ?= 1
+CACHESIM_REPLACEMENT ?= lru
+NEMU_GUEST_ISA ?= riscv32
+NEMU_MACHINE ?= ysyxsoc
+NEMU_BINARY ?= $(abspath $(NEMU_HOME)/build/$(NEMU_GUEST_ISA)-nemu-interpreter)
+
+ifeq ($(USE_FLASH_XIP)$(USE_SDRAM)$(USE_PSRAM),)
+cachesim:
+	@echo "[CacheSim] No boot memory mode selected; defaulting to USE_SDRAM=1 for cachesim workflow."
+	@$(MAKE) cachesim-inner USE_SDRAM=1 mainargs="$(mainargs)"
+else
+cachesim: cachesim-inner
+endif
 
 RUN_ARGS = RUN_SDB_ENABLED=$(CONFIG_SDB_ENABLED) \
 	RUN_CONFIG_ITRACE=$(CONFIG_ITRACE) \
@@ -124,4 +154,28 @@ gdb: insert-arg
 	IMG=$(abspath $(IMAGE).bin) \
 	$(RUN_ARGS)
 
-.PHONY: insert-arg
+cachesim-inner: insert-arg
+	@command -v cargo >/dev/null 2>&1 || { echo "[CacheSim] ERROR: cargo not found on PATH. Run inside 'nix develop'." >&2; exit 1; }
+	@echo "[CacheSim] Building NEMU ($(NEMU_GUEST_ISA))..."
+	@$(MAKE) -C $(NEMU_HOME) GUEST_ISA=$(NEMU_GUEST_ISA)
+	@test -x $(NEMU_BINARY) || { echo "[CacheSim] ERROR: NEMU binary not found at $(NEMU_BINARY). Ensure NEMU is configured for standalone riscv32 interpreter mode." >&2; exit 1; }
+	@echo "[CacheSim] Generating NEMU PC trace ($(COMPRESS))..."
+	@/bin/sh -c "if [ ! -d $(CACHESIM_OUT_DIR) ]; then mkdir -p $(CACHESIM_OUT_DIR); fi"
+	@$(NEMU_BINARY) -b --machine=$(NEMU_MACHINE) \
+		--pc-trace=$(CACHESIM_TRACE) --pc-trace-format=run \
+		$(CACHESIM_TRACE_COMPRESS_ARG) \
+		$(abspath $(IMAGE).bin)
+	@echo "[CacheSim] Running Rust cachesim..."
+	@cargo run --release --manifest-path $(abspath $(NPC_HOME)/cachesim/Cargo.toml) -- simulate \
+		--trace $(CACHESIM_TRACE) \
+		--elf $(abspath $(IMAGE).elf) \
+		--bin $(abspath $(IMAGE).bin) \
+		--machine $(CACHESIM_MACHINE) \
+		--block-bytes $(CACHESIM_BLOCK_BYTES) \
+		--lines $(CACHESIM_LINES) \
+		--ways $(CACHESIM_WAYS) \
+		--replacement $(CACHESIM_REPLACEMENT) \
+		--output $(CACHESIM_JSON)
+	@echo "[CacheSim] Result written to $(CACHESIM_JSON)"
+
+.PHONY: insert-arg cachesim cachesim-inner
