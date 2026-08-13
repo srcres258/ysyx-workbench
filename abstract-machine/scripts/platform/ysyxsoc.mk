@@ -86,6 +86,7 @@ endif
 TRACE_LOG_DIR = $(abspath ./build/trace-logs)
 CACHESIM_OUT_DIR ?= $(abspath ./build/cachesim-result)
 CACHESIM_JSON ?= $(abspath $(CACHESIM_OUT_DIR)/cachesim.json)
+CACHESIM_TXT ?= $(basename $(CACHESIM_JSON)).txt
 CACHESIM_TRACE ?= $(abspath $(CACHESIM_OUT_DIR)/$(NAME)-run$(CACHESIM_TRACE_SUFFIX))
 CACHESIM_MACHINE ?= ysyxsoc-current
 CACHESIM_BLOCK_BYTES ?= 4
@@ -175,7 +176,9 @@ cachesim-inner: insert-arg
 		--lines $(CACHESIM_LINES) \
 		--ways $(CACHESIM_WAYS) \
 		--replacement $(CACHESIM_REPLACEMENT) \
-		--output $(CACHESIM_JSON)
+		--output $(CACHESIM_JSON) \
+		--output-txt $(CACHESIM_TXT)
 	@echo "[CacheSim] Result written to $(CACHESIM_JSON)"
+	@echo "[CacheSim] Summary written to $(CACHESIM_TXT)"
 
 .PHONY: insert-arg cachesim cachesim-inner

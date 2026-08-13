@@ -46,6 +46,8 @@ struct SimulateArgs {
     replacement: ReplacementPolicy,
     #[arg(long)]
     output: Option<PathBuf>,
+    #[arg(long = "output-txt")]
+    output_txt: Option<PathBuf>,
     #[arg(long)]
     timing_config: Option<PathBuf>,
     #[arg(long, default_value_t = true)]
@@ -138,11 +140,27 @@ fn simulate(args: SimulateArgs) -> Result<()> {
 
     let json = serde_json::to_string_pretty(&report)?;
     if let Some(output) = args.output {
-        std::fs::write(&output, &json)
-            .with_context(|| format!("failed to write report: {}", output.display()))?;
+        write_output_file(&output, &json, "JSON report")?;
+    }
+    if let Some(output_txt) = args.output_txt {
+        let summary = report.summary_report_text();
+        write_output_file(&output_txt, &summary, "text summary")?;
     }
     println!("{}\n", report.summary_text());
     println!("{json}");
+    Ok(())
+}
+
+fn write_output_file(path: &PathBuf, contents: &str, label: &str) -> Result<()> {
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).with_context(|| {
+                format!("failed to create parent directory for {label}: {}", path.display())
+            })?;
+        }
+    }
+    std::fs::write(path, contents)
+        .with_context(|| format!("failed to write {label}: {}", path.display()))?;
     Ok(())
 }
 

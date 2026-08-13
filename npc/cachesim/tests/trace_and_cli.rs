@@ -76,6 +76,48 @@ fn raw_run_and_bzip2_cli_outputs_match() {
 }
 
 #[test]
+fn simulate_can_emit_optional_text_summary() {
+    let dir = tempdir().unwrap();
+    let trace = dir.path().join("trace.pctrace");
+    let out_json = dir.path().join("summary.json");
+    let out_txt = dir.path().join("summary.txt");
+
+    {
+        let mut fp = std::fs::File::create(&trace).unwrap();
+        write_header(&mut fp, 1);
+        for pc in [
+            0x3000_0000_u32,
+            0x3000_0004,
+            0x3000_0000,
+            0x2000_0000,
+            0x3000_0010,
+        ] {
+            fp.write_all(&pc.to_le_bytes()).unwrap();
+        }
+    }
+
+    Command::cargo_bin("cachesim")
+        .unwrap()
+        .args([
+            "simulate",
+            "--trace",
+            trace.to_str().unwrap(),
+            "--output",
+            out_json.to_str().unwrap(),
+            "--output-txt",
+            out_txt.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let summary = std::fs::read_to_string(out_txt).unwrap();
+    assert!(summary.contains("NPC CACHE SUMMARY"));
+    assert!(summary.contains("I-cache DSE Signals"));
+    assert!(summary.contains("3C Miss Breakdown"));
+    assert!(summary.contains("Top regions by non-hit pressure"));
+}
+
+#[test]
 fn elf_bin_invariance_holds() {
     let dir = tempdir().unwrap();
     let trace = dir.path().join("trace.pctrace");

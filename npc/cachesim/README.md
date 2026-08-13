@@ -39,12 +39,17 @@ cargo run --release -- simulate \
   --lines 8 \
   --ways 1 \
   --replacement lru \
-  --output result.json
+  --output result.json \
+  --output-txt result.txt
 
 cargo run --release -- compare \
   --cachesim-json result.json \
   --perf-json ../build/perf/perf.json
 ```
+
+`--output-txt` is optional. When provided, cachesim emits a human-readable text
+summary alongside the JSON report; when omitted, no text summary file is
+written.
 
 ## Scope boundaries
 
