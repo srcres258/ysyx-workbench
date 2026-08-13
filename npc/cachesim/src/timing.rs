@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+use log::{debug, info, warn};
 use serde::{Deserialize, Serialize};
 
 use crate::cache::RefillMode;
@@ -37,9 +38,18 @@ pub struct TimingModel {
 
 impl TimingModel {
     pub fn from_path(path: &Path) -> Result<Self> {
+        info!("loading timing calibration from {}", path.display());
         let text = std::fs::read_to_string(path)
             .with_context(|| format!("failed to read timing file: {}", path.display()))?;
-        let parsed = if path.extension().and_then(|ext| ext.to_str()) == Some("json") {
+        let extension = path.extension().and_then(|ext| ext.to_str());
+        if extension != Some("json") && extension != Some("toml") {
+            warn!(
+                "timing file {} has extension {:?}; attempting TOML parse by default",
+                path.display(),
+                extension,
+            );
+        }
+        let parsed = if extension == Some("json") {
             serde_json::from_str::<TimingCalibrationFile>(&text)
                 .with_context(|| format!("failed to parse JSON timing file: {}", path.display()))?
         } else {
@@ -47,16 +57,23 @@ impl TimingModel {
                 .with_context(|| format!("failed to parse TOML timing file: {}", path.display()))?
         };
 
-        let miss_penalties = parsed
+        let miss_penalties: HashMap<(String, u32, String), u64> = parsed
             .cache_miss_penalties
             .into_iter()
             .map(|entry| ((entry.region, entry.block_bytes, entry.refill_mode), entry.cycles))
             .collect();
-        let bypass_penalties = parsed
+        let bypass_penalties: HashMap<String, u64> = parsed
             .bypass_penalties
             .into_iter()
             .map(|entry| (entry.region, entry.cycles))
             .collect();
+
+        debug!(
+            "loaded timing calibration {} with {} miss penalties and {} bypass penalties",
+            path.display(),
+            miss_penalties.len(),
+            bypass_penalties.len(),
+        );
 
         Ok(Self {
             source: path.display().to_string(),

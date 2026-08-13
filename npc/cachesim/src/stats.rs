@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use anyhow::{Result, bail};
+use log::debug;
 use serde::Serialize;
 
 use crate::cache::{CacheAccessKind, CacheConfig};
@@ -157,6 +158,17 @@ impl StatsCollector {
             }
         }
 
+        debug!(
+            "stats updated pc=0x{pc:08x} region={} kind={:?} requests={} hits={} misses={} bypasses={} lower_requests={}",
+            classification.region_name,
+            access_kind,
+            self.exact.requests,
+            self.exact.hits,
+            self.exact.misses,
+            self.exact.bypasses,
+            self.exact.lower_requests,
+        );
+
         let region = self
             .per_region
             .entry(classification.region_name.clone())
@@ -203,7 +215,10 @@ impl StatsCollector {
             *region_slot += 1;
 
             if let Some(section_name) = section_name {
-                let section = self.section_stats.get_mut(section_name).unwrap();
+                let section = self
+                    .section_stats
+                    .get_mut(section_name)
+                    .expect("section stats entry must exist before miss_3c attribution");
                 let section_slot = match miss_3c {
                     crate::cache::MissKind3C::Compulsory => &mut section.miss_3c.compulsory,
                     crate::cache::MissKind3C::Capacity => &mut section.miss_3c.capacity,
@@ -219,6 +234,16 @@ impl StatsCollector {
             self.exact.hit_rate = self.exact.hits as f64 / self.exact.requests as f64;
             self.exact.miss_rate = self.exact.misses as f64 / self.exact.requests as f64;
         }
+
+        debug!(
+            "finalizing stats requests={} hits={} misses={} bypasses={} hit_rate={:.6} miss_rate={:.6}",
+            self.exact.requests,
+            self.exact.hits,
+            self.exact.misses,
+            self.exact.bypasses,
+            self.exact.hit_rate,
+            self.exact.miss_rate,
+        );
 
         self.validate()?;
 
@@ -272,5 +297,21 @@ impl StatsCollector {
             bail!("invariant failed: lower_responses != lower_requests");
         }
         Ok(())
+    }
+
+    pub fn decoded_requests(&self) -> u64 {
+        self.decoded_requests
+    }
+
+    pub fn hits(&self) -> u64 {
+        self.exact.hits
+    }
+
+    pub fn misses(&self) -> u64 {
+        self.exact.misses
+    }
+
+    pub fn bypasses(&self) -> u64 {
+        self.exact.bypasses
     }
 }

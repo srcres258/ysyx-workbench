@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
 use bzip2::read::BzDecoder;
+use log::{debug, info};
 use serde::Serialize;
 use thiserror::Error;
 
@@ -121,8 +122,10 @@ fn open_trace_reader(path: &Path) -> Result<(Box<dyn Read>, TraceCompression)> {
     let reader = BufReader::new(file);
 
     if count == 3 && prefix == *b"BZh" {
+        info!("detected bzip2-compressed trace input: {}", path.display());
         Ok((Box::new(BzDecoder::new(reader)), TraceCompression::Bzip2))
     } else {
+        info!("detected uncompressed trace input: {}", path.display());
         Ok((Box::new(reader), TraceCompression::None))
     }
 }
@@ -139,6 +142,14 @@ impl TraceReader {
         let path = path.as_ref().to_path_buf();
         let (mut reader, compression) = open_trace_reader(&path)?;
         let header = Self::read_header(&mut reader)?;
+        info!(
+            "opened trace {} with encoding={:?} compression={:?} address_width={} version={}",
+            path.display(),
+            header.encoding,
+            compression,
+            header.address_width,
+            header.version,
+        );
         Ok(Self {
             path,
             reader,
@@ -181,6 +192,16 @@ impl TraceReader {
             return Err(TraceFormatError::ReservedFieldsNonZero.into());
         }
 
+        debug!(
+            "trace header parsed: magic={:?} version={} header_size={} address_width={} encoding={:?} endianness={}",
+            magic,
+            version,
+            header_size,
+            address_width,
+            encoding,
+            endianness,
+        );
+
         Ok(TraceHeader {
             version,
             header_size,
@@ -209,7 +230,9 @@ impl TraceReader {
                 if !read_exact_or_truncated(&mut *self.reader, &mut chunk, TraceFormatError::TruncatedRawRecord)? {
                     return Ok(None);
                 }
-                Ok(Some(TraceRecord::SinglePc(u32::from_le_bytes(chunk))))
+                let pc = u32::from_le_bytes(chunk);
+                debug!("decoded raw trace record pc=0x{pc:08x}");
+                Ok(Some(TraceRecord::SinglePc(pc)))
             }
             TraceEncoding::Run => {
                 let mut tag = [0_u8; 1];
@@ -220,16 +243,31 @@ impl TraceReader {
                     PCTR_V1_TAG_SINGLE_PC => {
                         let mut chunk = [0_u8; 4];
                         read_exact_or_truncated(&mut *self.reader, &mut chunk, TraceFormatError::TruncatedSinglePcRecord)?;
-                        Ok(Some(TraceRecord::SinglePc(u32::from_le_bytes(chunk))))
+                        let pc = u32::from_le_bytes(chunk);
+                        debug!("decoded run-encoded single-pc record pc=0x{pc:08x}");
+                        Ok(Some(TraceRecord::SinglePc(pc)))
                     }
                     PCTR_V1_TAG_RUN => {
                         let mut chunk = [0_u8; 8];
                         read_exact_or_truncated(&mut *self.reader, &mut chunk, TraceFormatError::TruncatedRunRecord)?;
-                        let start_pc = u32::from_le_bytes(chunk[0..4].try_into().unwrap());
-                        let count = u32::from_le_bytes(chunk[4..8].try_into().unwrap());
+                        let start_pc = u32::from_le_bytes(
+                            chunk[0..4]
+                                .try_into()
+                                .expect("fixed-size run record must decode 4-byte start_pc"),
+                        );
+                        let count = u32::from_le_bytes(
+                            chunk[4..8]
+                                .try_into()
+                                .expect("fixed-size run record must decode 4-byte count"),
+                        );
                         if count == 0 {
                             return Err(TraceFormatError::ZeroCountRun.into());
                         }
+                        debug!(
+                            "decoded run record start_pc=0x{start_pc:08x} count={} stride={}",
+                            count,
+                            PCTR_V1_RUN_STRIDE,
+                        );
                         Ok(Some(TraceRecord::Run { start_pc, count }))
                     }
                     other => Err(TraceFormatError::UnknownRunTag(other).into()),

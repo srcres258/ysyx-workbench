@@ -3,6 +3,7 @@ use std::io::{BufReader, Read};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result};
+use log::{debug, info, warn};
 use object::{Object, ObjectSection};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
@@ -42,6 +43,11 @@ pub fn hash_file(path: &Path) -> Result<ArtifactIdentity> {
     let metadata = file
         .metadata()
         .with_context(|| format!("failed to stat file: {}", path.display()))?;
+    info!(
+        "hashing file {} ({} bytes)",
+        path.display(),
+        metadata.len(),
+    );
     let mut reader = BufReader::new(file);
     let mut hasher = Sha256::new();
     let mut buffer = [0_u8; 8192];
@@ -52,14 +58,22 @@ pub fn hash_file(path: &Path) -> Result<ArtifactIdentity> {
         }
         hasher.update(&buffer[..count]);
     }
-    Ok(ArtifactIdentity {
+    let identity = ArtifactIdentity {
         path: path.to_path_buf(),
         sha256: hex::encode(hasher.finalize()),
         size_bytes: metadata.len(),
-    })
+    };
+    debug!(
+        "hashed file {} sha256={} size_bytes={}",
+        identity.path.display(),
+        identity.sha256,
+        identity.size_bytes,
+    );
+    Ok(identity)
 }
 
 pub fn load_elf_info(path: &Path) -> Result<ElfInfo> {
+    info!("loading ELF metadata from {}", path.display());
     let identity = hash_file(path)?;
     let bytes = std::fs::read(path).with_context(|| format!("failed to read ELF: {}", path.display()))?;
     let object = object::File::parse(&*bytes)
@@ -87,6 +101,23 @@ pub fn load_elf_info(path: &Path) -> Result<ElfInfo> {
         })
         .collect::<Vec<_>>();
     executable_sections.sort_by_key(|section| section.start);
+
+    if executable_sections.is_empty() {
+        warn!(
+            "ELF {} contains no executable sections; section-level attribution will be unavailable",
+            path.display(),
+        );
+    } else {
+        debug!(
+            "ELF {} executable sections: {}",
+            path.display(),
+            executable_sections
+                .iter()
+                .map(|section| format!("{}@0x{:x}-0x{:x}", section.name, section.start, section.end_exclusive))
+                .collect::<Vec<_>>()
+                .join(", "),
+        );
+    }
 
     Ok(ElfInfo {
         identity,

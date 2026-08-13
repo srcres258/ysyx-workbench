@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::path::Path;
 
 use anyhow::{Context, Result, bail};
+use log::{debug, info};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -16,6 +17,11 @@ struct PerfJson {
 }
 
 pub fn compare_reports(cachesim_json: &Path, perf_json: &Path) -> Result<String> {
+    info!(
+        "comparing cachesim report {} against perf report {}",
+        cachesim_json.display(),
+        perf_json.display(),
+    );
     let cachesim_text = std::fs::read_to_string(cachesim_json)
         .with_context(|| format!("failed to read cachesim JSON: {}", cachesim_json.display()))?;
     let perf_text = std::fs::read_to_string(perf_json)
@@ -59,10 +65,12 @@ pub fn compare_reports(cachesim_json: &Path, perf_json: &Path) -> Result<String>
             .get(name)
             .copied()
             .ok_or_else(|| anyhow::anyhow!("perf counter missing: {name}"))?;
+        debug!("compare counter {name}: cachesim={} perf={}", expected, actual);
         if actual != expected {
             bail!("counter mismatch: {name}: cachesim={expected}, perf={actual}");
         }
     }
 
+    info!("all structural I-cache counters matched between cachesim and perf reports");
     Ok("All structural I-cache counters match.".to_string())
 }

@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use log::warn;
 use serde::Serialize;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
@@ -123,6 +124,11 @@ impl MachineProfile {
                 recognized_region: true,
             };
         }
+
+        warn!(
+            "address 0x{addr:08x} is outside known machine regions for profile {} and will be treated as non-cacheable unknown",
+            self.name,
+        );
 
         ClassifiedAddress {
             region_name: "unknown".to_string(),

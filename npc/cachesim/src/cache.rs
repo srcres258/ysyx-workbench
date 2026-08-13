@@ -1,6 +1,7 @@
 use std::collections::{HashSet, VecDeque};
 
 use anyhow::{Result, bail};
+use log::{debug, info};
 use serde::Serialize;
 
 use crate::replacement::ReplacementPolicy;
@@ -62,6 +63,10 @@ impl CacheConfig {
 
     pub fn capacity_bytes(self) -> u32 {
         self.block_bytes * self.total_lines
+    }
+
+    pub fn describes_direct_mapped(self) -> bool {
+        self.ways == 1
     }
 }
 
@@ -142,10 +147,21 @@ pub struct CacheModel {
 
 impl CacheModel {
     pub fn new(config: CacheConfig) -> Self {
-        let config = config.validate().unwrap();
+        let config = config
+            .validate()
+            .expect("CacheModel::new requires a validated CacheConfig");
         let sets = (0..config.sets())
             .map(|_| vec![CacheLine::default(); config.ways as usize])
             .collect();
+        info!(
+            "initialized cache model: block_bytes={} total_lines={} ways={} sets={} capacity_bytes={} replacement={:?}",
+            config.block_bytes,
+            config.total_lines,
+            config.ways,
+            config.sets(),
+            config.capacity_bytes(),
+            config.replacement,
+        );
         Self {
             config,
             sets,
@@ -182,6 +198,7 @@ impl CacheModel {
 
     pub fn access(&mut self, pc: u32, cacheable: bool) -> CacheAccessResult {
         if !cacheable {
+            debug!("pc=0x{pc:08x} bypassed cache because region is non-cacheable");
             return CacheAccessResult {
                 kind: CacheAccessKind::Bypass,
                 block_number: None,
@@ -194,6 +211,11 @@ impl CacheModel {
         let block_number = (pc / self.config.block_bytes) as u64;
         let set_index = (block_number & ((self.config.sets() - 1) as u64)) as usize;
         let tag = (block_number / self.config.sets() as u64) as u32;
+        debug!(
+            "cache access pc=0x{pc:08x} block={} set={} tag=0x{tag:x} cacheable=true",
+            block_number,
+            set_index,
+        );
         let set = &mut self.sets[set_index];
 
         if let Some((way_idx, _line)) = set
@@ -205,6 +227,13 @@ impl CacheModel {
                 set[way_idx].last_used_at = self.timestamp;
             }
             self.shadow_fa.access(block_number);
+            debug!(
+                "cache hit pc=0x{pc:08x} block={} set={} way={} policy={:?}",
+                block_number,
+                set_index,
+                way_idx,
+                self.config.replacement,
+            );
             return CacheAccessResult {
                 kind: CacheAccessKind::Hit,
                 block_number: Some(block_number),
@@ -220,8 +249,21 @@ impl CacheModel {
         } else {
             MissKind3C::Capacity
         };
+        debug!(
+            "cache miss pc=0x{pc:08x} block={} set={} classified_as={:?}",
+            block_number,
+            set_index,
+            miss_3c,
+        );
 
         let victim_idx = if let Some((idx, _)) = set.iter().enumerate().find(|(_, line)| !line.valid) {
+            debug!(
+                "allocating cache line without eviction pc=0x{pc:08x} block={} set={} way={} direct_mapped={}",
+                block_number,
+                set_index,
+                idx,
+                self.config.describes_direct_mapped(),
+            );
             idx
         } else {
             match self.config.replacement {
@@ -230,15 +272,27 @@ impl CacheModel {
                     .enumerate()
                     .min_by_key(|(idx, line)| (line.last_used_at, *idx))
                     .map(|(idx, _)| idx)
-                    .unwrap(),
+                    .expect("validated cache set must contain at least one way"),
                 ReplacementPolicy::Fifo => set
                     .iter()
                     .enumerate()
                     .min_by_key(|(idx, line)| (line.inserted_at, *idx))
                     .map(|(idx, _)| idx)
-                    .unwrap(),
+                    .expect("validated cache set must contain at least one way"),
             }
         };
+
+        let evicted_line = &set[victim_idx];
+        if evicted_line.valid {
+            debug!(
+                "evicting cache line pc=0x{pc:08x} block={} set={} way={} old_tag=0x{:x} policy={:?}",
+                block_number,
+                set_index,
+                victim_idx,
+                evicted_line.tag,
+                self.config.replacement,
+            );
+        }
 
         set[victim_idx] = CacheLine {
             valid: true,
@@ -247,6 +301,13 @@ impl CacheModel {
             last_used_at: self.timestamp,
         };
         self.shadow_fa.access(block_number);
+        debug!(
+            "refilled cache line pc=0x{pc:08x} block={} set={} way={} refill_words={}",
+            block_number,
+            set_index,
+            victim_idx,
+            self.config.words_per_line(),
+        );
 
         CacheAccessResult {
             kind: CacheAccessKind::Miss,

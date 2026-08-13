@@ -1,7 +1,9 @@
 use std::path::PathBuf;
+use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
+use log::{LevelFilter, debug, error, info, warn};
 
 use cachesim::cache::{CacheConfig, CacheModel};
 use cachesim::compare::compare_reports;
@@ -63,7 +65,34 @@ struct CompareArgs {
 }
 
 fn simulate(args: SimulateArgs) -> Result<()> {
+    info!(
+        "starting cachesim simulate trace={} machine={} block_bytes={} total_lines={} ways={} replacement={:?} strict_pc_alignment={} elf={} bin={} timing_config={}",
+        args.trace.display(),
+        args.machine,
+        args.block_bytes,
+        args.total_lines,
+        args.ways,
+        args.replacement,
+        args.strict_pc_alignment,
+        args.elf
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "none".to_string()),
+        args.bin
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "none".to_string()),
+        args.timing_config
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "none".to_string()),
+    );
     let machine = MachineProfile::builtin(&args.machine)?;
+    info!(
+        "using machine profile {} with {} regions",
+        machine.name,
+        machine.regions.len(),
+    );
     let cache_config = CacheConfig {
         block_bytes: args.block_bytes,
         total_lines: args.total_lines,
@@ -71,19 +100,55 @@ fn simulate(args: SimulateArgs) -> Result<()> {
         replacement: args.replacement,
     }
     .validate()?;
+    info!(
+        "validated cache geometry: block_bytes={} total_lines={} ways={} sets={} capacity_bytes={} replacement={:?}",
+        cache_config.block_bytes,
+        cache_config.total_lines,
+        cache_config.ways,
+        cache_config.sets(),
+        cache_config.capacity_bytes(),
+        cache_config.replacement,
+    );
     let mut cache = CacheModel::new(cache_config);
     let trace_identity = hash_file(&args.trace)?;
-    let elf_info = args.elf.as_deref().map(load_elf_info).transpose()?;
+    let elf_info = match args.elf.as_deref() {
+        Some(path) => Some(load_elf_info(path)?),
+        None => {
+            warn!("no ELF provided; section-level attribution will be unavailable");
+            None
+        }
+    };
     let elf_identity = elf_info.as_ref().map(|info| info.identity.clone());
-    let bin_identity = args.bin.as_deref().map(hash_file).transpose()?;
-    let timing_model = args.timing_config.as_deref().map(TimingModel::from_path).transpose()?;
+    let bin_identity = match args.bin.as_deref() {
+        Some(path) => Some(hash_file(path)?),
+        None => {
+            warn!("no BIN provided; binary artifact identity will be omitted from the report");
+            None
+        }
+    };
+    let timing_model = match args.timing_config.as_deref() {
+        Some(path) => Some(TimingModel::from_path(path)?),
+        None => {
+            warn!("no timing calibration provided; timing-derived miss impact will remain uncalibrated");
+            None
+        }
+    };
 
     let mut trace = TraceReader::open(&args.trace)?;
     let mut stats = StatsCollector::new(cache_config, args.strict_pc_alignment);
+    info!(
+        "beginning trace replay for {} (encoding={:?}, compression={:?})",
+        trace.path().display(),
+        trace.header().encoding,
+        trace.compression(),
+    );
+    let mut last_progress_report = Instant::now();
+    let mut logical_requests = 0_u64;
 
     while let Some(record) = trace.next_record()? {
         match record {
             TraceRecord::SinglePc(pc) => {
+                logical_requests += 1;
                 simulate_pc(
                     pc,
                     &machine,
@@ -94,7 +159,13 @@ fn simulate(args: SimulateArgs) -> Result<()> {
                 )?;
             }
             TraceRecord::Run { start_pc, count } => {
+                debug!(
+                    "expanding run record start_pc=0x{start_pc:08x} count={} stride={}",
+                    count,
+                    PCTR_V1_RUN_STRIDE,
+                );
                 for i in 0..count {
+                    logical_requests += 1;
                     let pc = start_pc.wrapping_add(i.wrapping_mul(PCTR_V1_RUN_STRIDE));
                     simulate_pc(
                         pc,
@@ -107,9 +178,30 @@ fn simulate(args: SimulateArgs) -> Result<()> {
                 }
             }
         }
+
+        if logical_requests % 100_000 == 0 || last_progress_report.elapsed().as_secs() >= 1 {
+            info!(
+                "trace replay progress: logical_requests={} decoded_requests={} hits={} misses={} bypasses={}",
+                logical_requests,
+                stats.decoded_requests(),
+                stats.hits(),
+                stats.misses(),
+                stats.bypasses(),
+            );
+            last_progress_report = Instant::now();
+        }
     }
 
     let stats = stats.finish()?;
+    info!(
+        "finished trace replay: requests={} hits={} misses={} bypasses={} hit_rate={:.6} miss_rate={:.6}",
+        stats.exact.requests,
+        stats.exact.hits,
+        stats.exact.misses,
+        stats.exact.bypasses,
+        stats.exact.hit_rate,
+        stats.exact.miss_rate,
+    );
     let timing = build_timing_metrics(&stats, cache_config, cache.refill_mode(), timing_model.as_ref());
     let report = build_report(
         trace_identity,
@@ -146,6 +238,7 @@ fn simulate(args: SimulateArgs) -> Result<()> {
         let summary = report.summary_report_text();
         write_output_file(&output_txt, &summary, "text summary")?;
     }
+    info!("completed cachesim simulate for {}", trace.header().version);
     println!("{}\n", report.summary_text());
     println!("{json}");
     Ok(())
@@ -161,6 +254,12 @@ fn write_output_file(path: &PathBuf, contents: &str, label: &str) -> Result<()> 
     }
     std::fs::write(path, contents)
         .with_context(|| format!("failed to write {label}: {}", path.display()))?;
+    info!(
+        "wrote {} to {} ({} bytes)",
+        label,
+        path.display(),
+        contents.len(),
+    );
     Ok(())
 }
 
@@ -175,9 +274,23 @@ fn simulate_pc(
     if strict_pc_alignment && (pc & 0b11) != 0 {
         bail!("misaligned PC in strict mode: 0x{pc:08x}");
     }
+    if !strict_pc_alignment && (pc & 0b11) != 0 {
+        warn!("observed misaligned PC in non-strict mode: 0x{pc:08x}");
+    }
     let classification = machine.classify(pc);
     let section_name = elf_info.and_then(|elf| elf.find_section(pc));
     let access = cache.access(pc, classification.instruction_cacheable);
+    debug!(
+        "simulate_pc pc=0x{pc:08x} region={} cacheable={} recognized_region={} section={} access={:?} block={:?} miss_3c={:?} refill_words={}",
+        classification.region_name,
+        classification.instruction_cacheable,
+        classification.recognized_region,
+        section_name.unwrap_or("<none>"),
+        access.kind,
+        access.block_number,
+        access.miss_3c,
+        access.refill_words,
+    );
     stats.note_request(
         pc,
         &classification,
@@ -197,6 +310,7 @@ fn build_timing_metrics(
     timing_model: Option<&TimingModel>,
 ) -> TimingMetrics {
     let Some(model) = timing_model else {
+        warn!("timing model unavailable; returning uncalibrated timing metrics");
         return TimingMetrics {
             calibrated: false,
             penalty_source: None,
@@ -213,18 +327,38 @@ fn build_timing_metrics(
         if region_stats.misses != 0 {
             match model.lookup_miss(region, cache_config.block_bytes, refill_mode) {
                 Some(cycles) => miss_cycles += cycles * region_stats.misses,
-                None => calibrated = false,
+                None => {
+                    warn!(
+                        "missing timing calibration for miss penalties: region={} block_bytes={} refill_mode={:?} misses={}",
+                        region,
+                        cache_config.block_bytes,
+                        refill_mode,
+                        region_stats.misses,
+                    );
+                    calibrated = false;
+                }
             }
         }
         if region_stats.bypasses != 0 {
             match model.lookup_bypass(region) {
                 Some(cycles) => bypass_cycles += cycles * region_stats.bypasses,
-                None => calibrated = false,
+                None => {
+                    warn!(
+                        "missing timing calibration for bypass penalties: region={} bypasses={}",
+                        region,
+                        region_stats.bypasses,
+                    );
+                    calibrated = false;
+                }
             }
         }
     }
 
     if !calibrated {
+        warn!(
+            "timing calibration incomplete for source {}; report will omit derived timing totals",
+            model.source(),
+        );
         return TimingMetrics {
             calibrated: false,
             penalty_source: Some(model.source().to_string()),
@@ -233,6 +367,14 @@ fn build_timing_metrics(
             total_nonhit_wait_cycles: None,
         };
     }
+
+    info!(
+        "timing calibration applied from {}: miss_cycles={} bypass_cycles={} total_nonhit_wait_cycles={}",
+        model.source(),
+        miss_cycles,
+        bypass_cycles,
+        miss_cycles + bypass_cycles,
+    );
 
     TimingMetrics {
         calibrated: true,
@@ -244,13 +386,24 @@ fn build_timing_metrics(
 }
 
 fn main() -> Result<()> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .filter_module("cachesim", LevelFilter::Info)
+        .try_init()
+        .ok();
+
     let cli = Cli::parse();
-    match cli.command {
+    let result = match cli.command {
         Commands::Simulate(args) => simulate(args),
         Commands::Compare(args) => {
             let message = compare_reports(&args.cachesim_json, &args.perf_json)?;
             println!("{message}");
             Ok(())
         }
+    };
+
+    if let Err(err) = &result {
+        error!("cachesim failed: {err:#}");
     }
+
+    result
 }
