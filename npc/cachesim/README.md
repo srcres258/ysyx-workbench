@@ -57,3 +57,124 @@ written.
 - Cycle timing is optional and calibration-driven.
 - No instruction decoding is used for cache behavior.
 - No speculative fetches, prefetching, burst refill, coherence, or self-modifying-code support is claimed.
+
+## Output semantics (schema v2)
+
+CacheSim now separates four kinds of statistics explicitly:
+
+- **Exact structural/workload metrics**: exact counters and byte totals derived directly from the simulated request stream and current refill model.
+- **Derived locality/traffic metrics**: rates, per-1k normalizations, traffic amplification, observed footprint, and refill-utilization metrics computed from exact counts.
+- **Configuration-derived quantities**: cache geometry, words per line, lower transactions per full refill, capacity bytes, and stable `config_id`.
+- **Calibrated/estimated timing metrics**: optional timing/TMT metrics derived only when a timing calibration file is available.
+
+When a denominator is zero, derived rates are emitted as `null` in JSON and shown as `N/A` in the text summary.
+
+### Request-rate naming
+
+- `rates.hit_share_all_requests = hits / requests`
+- `rates.miss_share_all_requests = misses / requests`
+- `rates.bypass_share_all_requests = bypasses / requests`
+
+These are **shares of all requests**, not the primary cache-effectiveness rates.
+
+- `rates.cacheable_hit_rate = hits / cacheable_requests`
+- `rates.cacheable_miss_rate = misses / cacheable_requests`
+- `exact.cacheable_requests = hits + misses`
+
+These are the primary I-cache effectiveness metrics because they exclude bypass traffic.
+
+### Current instruction-side byte model
+
+The current simulator assumes one architectural I-side demand corresponds to **4 bytes**:
+
+- `exact.instruction_demand_bytes = requests * 4`
+- `exact.cacheable_instruction_demand_bytes = cacheable_requests * 4`
+- `exact.bypass_bytes = bypasses * 4`
+
+The current refill transport model is **independent-word refill** with 32-bit lower requests:
+
+- `exact.refill_bytes = exact.refill_words * 4`
+- `exact.lower_fetch_bytes = exact.refill_bytes + exact.bypass_bytes`
+- `exact.lower_fetch_bytes = exact.lower_requests * 4`
+
+### Traffic amplification
+
+CacheSim uses the term **traffic amplification** to mean lower-memory fetch traffic relative to architectural demand bytes for the measured trace window:
+
+- `traffic.lower_traffic_amplification = lower_fetch_bytes / instruction_demand_bytes`
+- `traffic.refill_traffic_amplification = refill_bytes / cacheable_instruction_demand_bytes`
+
+Interpretation:
+
+- `< 1.0`: reuse reduces lower-memory traffic below demanded bytes
+- `= 1.0`: roughly one lower byte transferred per demanded byte
+- `> 1.0`: overfetch and/or refill re-traffic exceed demanded bytes
+
+This is **not** a bandwidth-utilization metric because no bandwidth model is implied.
+
+### Observed footprint metrics
+
+CacheSim reports trace-window footprint observations, not sliding-window working-set estimates:
+
+- `exact.unique_dynamic_pcs`
+- `exact.unique_cacheable_pcs`
+- `exact.unique_bypass_pcs`
+- `exact.unique_cacheable_blocks`
+- `exact.cacheable_block_footprint_bytes = unique_cacheable_blocks * block_bytes`
+- `locality.capacity_to_observed_footprint_ratio = capacity_bytes / cacheable_block_footprint_bytes`
+
+`cacheable_block_footprint_bytes` is therefore an **observed executable block footprint** for the chosen block size, not a statement that all blocks must fit simultaneously.
+
+### Refill line-utilization semantics
+
+CacheSim tracks refill utilization per **cache-line incarnation**.
+
+For each successfully allocated line, it records which 4-byte words in that line were ever demanded before:
+
+- eviction, or
+- simulation end.
+
+Repeated execution of the same word counts once for utilization, but still contributes normally to hit counts.
+
+Reported fields include:
+
+- `exact.line_fill_count`
+- `exact.refill_words_fetched`
+- `exact.refill_words_used`
+- `exact.useful_refill_bytes`
+- `exact.unused_refill_words`
+- `exact.unused_refill_bytes`
+- `traffic.refill_word_utilization = refill_words_used / refill_words_fetched`
+- `traffic.refill_overfetch_ratio = unused_refill_bytes / refill_bytes`
+- `traffic.avg_unique_words_used_per_fill`
+
+Important limitation: unused refill bytes are **unused within the measured trace/window**. A resident line at trace end may have been used later if execution had continued.
+
+### 3C miss semantics
+
+Raw miss classes are exposed in `miss_3c` and normalized in `miss_3c_metrics`.
+
+Important limitation: **3C miss counts are defined relative to the selected block size.** A compulsory miss count for 4B lines is not directly identical in meaning to a compulsory miss count for 32B lines.
+
+For block-size DSE, compare 3C counts together with:
+
+- miss rates
+- lower bytes per request
+- traffic amplification
+- refill utilization
+- timing/TMT
+
+### Timing/TMT semantics
+
+If no complete calibration is available, timing metrics remain uncalibrated:
+
+- `timing.calibrated = false`
+- timing-derived numeric fields are `null`
+
+CacheSim does **not** synthesize default miss penalties.
+
+### JSON compatibility notes
+
+- Schema version is now `2`.
+- The exact structural bridge used by `cachesim compare` remains under `exact.*`.
+- Legacy `exact.hit_rate` and `exact.miss_rate` are still emitted for compatibility, but they retain the original denominator of **all requests** and should be interpreted as all-request shares.

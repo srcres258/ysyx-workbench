@@ -3,6 +3,7 @@ use std::io::Write;
 use assert_cmd::Command;
 use bzip2::write::BzEncoder;
 use bzip2::Compression;
+use serde_json::json;
 use tempfile::tempdir;
 
 const MAGIC: &[u8; 4] = b"PCTR";
@@ -110,11 +111,26 @@ fn simulate_can_emit_optional_text_summary() {
         .assert()
         .success();
 
+    let report: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&out_json).unwrap()).unwrap();
     let summary = std::fs::read_to_string(out_txt).unwrap();
+    assert_eq!(report["schema_version"], 2);
+    assert_eq!(report["exact"]["requests"], 5);
+    assert_eq!(report["exact"]["cacheable_requests"], 4);
+    assert_eq!(report["exact"]["misses"], 3);
+    assert_eq!(report["exact"]["bypasses"], 1);
+    assert_eq!(report["rates"]["cacheable_hit_rate"], serde_json::json!(0.25));
+    assert_eq!(report["traffic"]["refill_word_utilization"], serde_json::json!(1.0));
+    assert_eq!(report["invariants"]["request_partition_ok"], true);
     assert!(summary.contains("NPC CACHE SUMMARY"));
-    assert!(summary.contains("I-cache DSE Signals"));
-    assert!(summary.contains("3C Miss Breakdown"));
-    assert!(summary.contains("Top regions by non-hit pressure"));
+    assert!(summary.contains("Schema version:   v2"));
+    assert!(summary.contains("Request Behavior"));
+    assert!(summary.contains("Cacheable requests:    4"));
+    assert!(summary.contains("Cacheable hit rate:    25.00%"));
+    assert!(summary.contains("Misses / 1k fetches:   600.00"));
+    assert!(summary.contains("Refill word utilization:  100.00%"));
+    assert!(summary.contains("Request partition:      true"));
+    assert!(summary.contains("Miss Composition"));
+    assert!(summary.contains("Region Pressure"));
 }
 
 #[test]
@@ -185,4 +201,64 @@ fn malformed_run_is_rejected() {
         .args(["simulate", "--trace", trace.to_str().unwrap()])
         .assert()
         .failure();
+}
+
+#[test]
+fn compare_accepts_v2_exact_counters() {
+    let dir = tempdir().unwrap();
+    let cachesim_json = dir.path().join("cachesim.json");
+    let perf_json = dir.path().join("perf.json");
+
+    std::fs::write(
+        &cachesim_json,
+        serde_json::to_vec_pretty(&json!({
+            "schema_version": 2,
+            "exact": {
+                "requests": 10,
+                "hits": 6,
+                "misses": 3,
+                "bypasses": 1,
+                "responses": 10,
+                "refill_count": 3,
+                "refill_transactions": 3,
+                "refill_words": 12,
+                "lower_requests": 13,
+                "lower_responses": 13
+            }
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    std::fs::write(
+        &perf_json,
+        serde_json::to_vec_pretty(&json!({
+            "perf_counters": [
+                {"name": "icache.request.count", "value": 10},
+                {"name": "icache.hit.count", "value": 6},
+                {"name": "icache.miss.count", "value": 3},
+                {"name": "icache.bypass.count", "value": 1},
+                {"name": "icache.refill.count", "value": 3},
+                {"name": "icache.refill_transaction.count", "value": 3},
+                {"name": "icache.refill_word.count", "value": 12},
+                {"name": "icache.lower_req.count", "value": 13},
+                {"name": "icache.lower_resp.count", "value": 13},
+                {"name": "icache.response.count", "value": 10}
+            ]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+
+    Command::cargo_bin("cachesim")
+        .unwrap()
+        .args([
+            "compare",
+            "--cachesim-json",
+            cachesim_json.to_str().unwrap(),
+            "--perf-json",
+            perf_json.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
 }

@@ -11,7 +11,7 @@ use cachesim::image::{hash_file, load_elf_info};
 use cachesim::machine::MachineProfile;
 use cachesim::output::{ReferenceStatus, build_report};
 use cachesim::replacement::ReplacementPolicy;
-use cachesim::stats::{StatsCollector, TimingMetrics};
+use cachesim::stats::{StatsCollector, TimingMetrics, TimingRegionMetrics};
 use cachesim::timing::TimingModel;
 use cachesim::trace::{PCTR_V1_RUN_STRIDE, TraceReader, TraceRecord};
 
@@ -200,6 +200,8 @@ fn simulate(args: SimulateArgs) -> Result<()> {
         );
     }
 
+    let line_utilization = cache.finalize_line_utilization();
+    stats.set_line_utilization(line_utilization);
     let stats = stats.finish()?;
     info!(
         "finished trace replay: requests={} hits={} misses={} bypasses={} hit_rate={:.6} miss_rate={:.6}",
@@ -359,16 +361,28 @@ fn build_timing_metrics(
             cache_miss_tmt_cycles: None,
             bypass_wait_cycles: None,
             total_nonhit_wait_cycles: None,
+            cache_miss_tmt_cycles_per_request: None,
+            total_nonhit_wait_cycles_per_request: None,
+            cache_miss_tmt_cycles_per_1k_requests: None,
+            total_nonhit_wait_cycles_per_1k_requests: None,
+            cache_miss_tmt_cycles_per_cacheable_request: None,
+            per_region: std::collections::BTreeMap::new(),
         };
     };
 
     let mut miss_cycles = 0_u64;
     let mut bypass_cycles = 0_u64;
     let mut calibrated = true;
+    let mut per_region = std::collections::BTreeMap::new();
     for (region, region_stats) in &stats.per_region {
+        let mut region_miss_cycles = 0_u64;
+        let mut region_bypass_cycles = 0_u64;
         if region_stats.misses != 0 {
             match model.lookup_miss(region, cache_config.block_bytes, refill_mode) {
-                Some(cycles) => miss_cycles += cycles * region_stats.misses,
+                Some(cycles) => {
+                    region_miss_cycles = cycles * region_stats.misses;
+                    miss_cycles += region_miss_cycles;
+                }
                 None => {
                     warn!(
                         "missing timing calibration for miss penalties: region={} block_bytes={} refill_mode={:?} misses={}",
@@ -383,7 +397,10 @@ fn build_timing_metrics(
         }
         if region_stats.bypasses != 0 {
             match model.lookup_bypass(region) {
-                Some(cycles) => bypass_cycles += cycles * region_stats.bypasses,
+                Some(cycles) => {
+                    region_bypass_cycles = cycles * region_stats.bypasses;
+                    bypass_cycles += region_bypass_cycles;
+                }
                 None => {
                     warn!(
                         "missing timing calibration for bypass penalties: region={} bypasses={}",
@@ -394,6 +411,16 @@ fn build_timing_metrics(
                 }
             }
         }
+
+        per_region.insert(
+            region.clone(),
+            TimingRegionMetrics {
+                estimated_miss_wait_cycles: Some(region_miss_cycles),
+                estimated_bypass_wait_cycles: Some(region_bypass_cycles),
+                estimated_total_nonhit_cycles: Some(region_miss_cycles + region_bypass_cycles),
+                share_of_total_nonhit_cycles: None,
+            },
+        );
     }
 
     if !calibrated {
@@ -407,7 +434,20 @@ fn build_timing_metrics(
             cache_miss_tmt_cycles: None,
             bypass_wait_cycles: None,
             total_nonhit_wait_cycles: None,
+            cache_miss_tmt_cycles_per_request: None,
+            total_nonhit_wait_cycles_per_request: None,
+            cache_miss_tmt_cycles_per_1k_requests: None,
+            total_nonhit_wait_cycles_per_1k_requests: None,
+            cache_miss_tmt_cycles_per_cacheable_request: None,
+            per_region: std::collections::BTreeMap::new(),
         };
+    }
+
+    let total_wait = miss_cycles + bypass_cycles;
+    for region_metrics in per_region.values_mut() {
+        region_metrics.share_of_total_nonhit_cycles = region_metrics
+            .estimated_total_nonhit_cycles
+            .and_then(|cycles| if total_wait == 0 { None } else { Some(cycles as f64 / total_wait as f64) });
     }
 
     info!(
@@ -415,7 +455,7 @@ fn build_timing_metrics(
         model.source(),
         miss_cycles,
         bypass_cycles,
-        miss_cycles + bypass_cycles,
+        total_wait,
     );
 
     TimingMetrics {
@@ -423,7 +463,13 @@ fn build_timing_metrics(
         penalty_source: Some(model.source().to_string()),
         cache_miss_tmt_cycles: Some(miss_cycles),
         bypass_wait_cycles: Some(bypass_cycles),
-        total_nonhit_wait_cycles: Some(miss_cycles + bypass_cycles),
+        total_nonhit_wait_cycles: Some(total_wait),
+        cache_miss_tmt_cycles_per_request: if stats.exact.requests == 0 { None } else { Some(miss_cycles as f64 / stats.exact.requests as f64) },
+        total_nonhit_wait_cycles_per_request: if stats.exact.requests == 0 { None } else { Some(total_wait as f64 / stats.exact.requests as f64) },
+        cache_miss_tmt_cycles_per_1k_requests: if stats.exact.requests == 0 { None } else { Some(miss_cycles as f64 * 1000.0 / stats.exact.requests as f64) },
+        total_nonhit_wait_cycles_per_1k_requests: if stats.exact.requests == 0 { None } else { Some(total_wait as f64 * 1000.0 / stats.exact.requests as f64) },
+        cache_miss_tmt_cycles_per_cacheable_request: if stats.exact.cacheable_requests == 0 { None } else { Some(miss_cycles as f64 / stats.exact.cacheable_requests as f64) },
+        per_region,
     }
 }
 

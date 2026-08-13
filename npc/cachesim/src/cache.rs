@@ -76,6 +76,8 @@ struct CacheLine {
     tag: u32,
     inserted_at: u64,
     last_used_at: u64,
+    used_words: Box<[bool]>,
+    utilization_accounted: bool,
 }
 
 impl Default for CacheLine {
@@ -85,8 +87,17 @@ impl Default for CacheLine {
             tag: 0,
             inserted_at: 0,
             last_used_at: 0,
+            used_words: Box::new([]),
+            utilization_accounted: false,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct LineUtilizationStats {
+    pub line_fill_count: u64,
+    pub refill_words_fetched: u64,
+    pub refill_words_used: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -143,6 +154,7 @@ pub struct CacheModel {
     timestamp: u64,
     seen_blocks: HashSet<u64>,
     shadow_fa: ShadowFaLru,
+    line_utilization: LineUtilizationStats,
 }
 
 impl CacheModel {
@@ -168,6 +180,7 @@ impl CacheModel {
             timestamp: 0,
             seen_blocks: HashSet::new(),
             shadow_fa: ShadowFaLru::new(config.total_lines as usize),
+            line_utilization: LineUtilizationStats::default(),
         }
     }
 
@@ -217,12 +230,14 @@ impl CacheModel {
             set_index,
         );
         let set = &mut self.sets[set_index];
+        let word_index = ((pc % self.config.block_bytes) / 4) as usize;
 
         if let Some((way_idx, _line)) = set
             .iter_mut()
             .enumerate()
             .find(|(_, line)| line.valid && line.tag == tag)
         {
+            set[way_idx].used_words[word_index] = true;
             if self.config.replacement == ReplacementPolicy::Lru {
                 set[way_idx].last_used_at = self.timestamp;
             }
@@ -282,8 +297,9 @@ impl CacheModel {
             }
         };
 
-        let evicted_line = &set[victim_idx];
+        let evicted_line = &mut set[victim_idx];
         if evicted_line.valid {
+            Self::finalize_line_utilization_for(evicted_line, &mut self.line_utilization);
             debug!(
                 "evicting cache line pc=0x{pc:08x} block={} set={} way={} old_tag=0x{:x} policy={:?}",
                 block_number,
@@ -294,11 +310,15 @@ impl CacheModel {
             );
         }
 
+        let mut used_words = vec![false; self.config.words_per_line() as usize].into_boxed_slice();
+        used_words[word_index] = true;
         set[victim_idx] = CacheLine {
             valid: true,
             tag,
             inserted_at: self.timestamp,
             last_used_at: self.timestamp,
+            used_words,
+            utilization_accounted: false,
         };
         self.shadow_fa.access(block_number);
         debug!(
@@ -315,5 +335,25 @@ impl CacheModel {
             miss_3c: Some(miss_3c),
             refill_words: self.config.words_per_line() as u64,
         }
+    }
+
+    pub fn finalize_line_utilization(&mut self) -> LineUtilizationStats {
+        for set in &mut self.sets {
+            for line in set {
+                Self::finalize_line_utilization_for(line, &mut self.line_utilization);
+            }
+        }
+        self.line_utilization.clone()
+    }
+
+    fn finalize_line_utilization_for(line: &mut CacheLine, totals: &mut LineUtilizationStats) {
+        if !line.valid || line.utilization_accounted {
+            return;
+        }
+
+        totals.line_fill_count += 1;
+        totals.refill_words_fetched += line.used_words.len() as u64;
+        totals.refill_words_used += line.used_words.iter().filter(|used| **used).count() as u64;
+        line.utilization_accounted = true;
     }
 }
