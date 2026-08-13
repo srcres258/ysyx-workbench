@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand};
-use log::{LevelFilter, debug, error, info, warn};
+use log::{debug, error, info, warn};
 
 use cachesim::cache::{CacheConfig, CacheModel};
 use cachesim::compare::compare_reports;
@@ -87,7 +87,7 @@ fn simulate(args: SimulateArgs) -> Result<()> {
             .map(|path| path.display().to_string())
             .unwrap_or_else(|| "none".to_string()),
     );
-    let machine = MachineProfile::builtin(&args.machine)?;
+    let mut machine = MachineProfile::builtin(&args.machine)?;
     info!(
         "using machine profile {} with {} regions",
         machine.name,
@@ -144,6 +144,8 @@ fn simulate(args: SimulateArgs) -> Result<()> {
     );
     let mut last_progress_report = Instant::now();
     let mut logical_requests = 0_u64;
+    let mut next_progress_request = 100_000_u64;
+    let mut warned_misaligned_pcs = std::collections::BTreeSet::new();
 
     while let Some(record) = trace.next_record()? {
         match record {
@@ -151,12 +153,14 @@ fn simulate(args: SimulateArgs) -> Result<()> {
                 logical_requests += 1;
                 simulate_pc(
                     pc,
-                    &machine,
+                    &mut machine,
                     elf_info.as_ref(),
                     args.strict_pc_alignment,
                     &mut cache,
                     &mut stats,
+                    &mut warned_misaligned_pcs,
                 )?;
+                report_progress(&stats, logical_requests, &mut next_progress_request, &mut last_progress_report);
             }
             TraceRecord::Run { start_pc, count } => {
                 debug!(
@@ -169,27 +173,31 @@ fn simulate(args: SimulateArgs) -> Result<()> {
                     let pc = start_pc.wrapping_add(i.wrapping_mul(PCTR_V1_RUN_STRIDE));
                     simulate_pc(
                         pc,
-                        &machine,
+                        &mut machine,
                         elf_info.as_ref(),
                         args.strict_pc_alignment,
                         &mut cache,
                         &mut stats,
+                        &mut warned_misaligned_pcs,
                     )?;
+                    report_progress(&stats, logical_requests, &mut next_progress_request, &mut last_progress_report);
                 }
             }
         }
+    }
 
-        if logical_requests % 100_000 == 0 || last_progress_report.elapsed().as_secs() >= 1 {
-            info!(
-                "trace replay progress: logical_requests={} decoded_requests={} hits={} misses={} bypasses={}",
-                logical_requests,
-                stats.decoded_requests(),
-                stats.hits(),
-                stats.misses(),
-                stats.bypasses(),
-            );
-            last_progress_report = Instant::now();
-        }
+    if !warned_misaligned_pcs.is_empty() {
+        let examples = warned_misaligned_pcs
+            .iter()
+            .take(8)
+            .map(|pc| format!("0x{pc:08x}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+        warn!(
+            "observed {} distinct misaligned PCs in non-strict mode; examples: {}",
+            warned_misaligned_pcs.len(),
+            examples,
+        );
     }
 
     let stats = stats.finish()?;
@@ -202,6 +210,7 @@ fn simulate(args: SimulateArgs) -> Result<()> {
         stats.exact.hit_rate,
         stats.exact.miss_rate,
     );
+    let completed_request_count = stats.exact.requests;
     let timing = build_timing_metrics(&stats, cache_config, cache.refill_mode(), timing_model.as_ref());
     let report = build_report(
         trace_identity,
@@ -238,10 +247,42 @@ fn simulate(args: SimulateArgs) -> Result<()> {
         let summary = report.summary_report_text();
         write_output_file(&output_txt, &summary, "text summary")?;
     }
-    info!("completed cachesim simulate for {}", trace.header().version);
+    info!(
+        "completed cachesim simulate for trace={} requests={}",
+        trace.path().display(),
+        completed_request_count,
+    );
     println!("{}\n", report.summary_text());
     println!("{json}");
     Ok(())
+}
+
+fn report_progress(
+    stats: &StatsCollector,
+    logical_requests: u64,
+    next_progress_request: &mut u64,
+    last_progress_report: &mut Instant,
+) {
+    let reached_request_checkpoint = logical_requests >= *next_progress_request;
+    let reached_time_checkpoint = logical_requests % 1_000 == 0 && last_progress_report.elapsed().as_secs() >= 1;
+    if !reached_request_checkpoint && !reached_time_checkpoint {
+        return;
+    }
+
+    info!(
+        "trace replay progress: requests={} hits={} misses={} bypasses={}",
+        logical_requests,
+        stats.hits(),
+        stats.misses(),
+        stats.bypasses(),
+    );
+
+    if reached_request_checkpoint {
+        while logical_requests >= *next_progress_request {
+            *next_progress_request += 100_000;
+        }
+    }
+    *last_progress_report = Instant::now();
 }
 
 fn write_output_file(path: &PathBuf, contents: &str, label: &str) -> Result<()> {
@@ -265,17 +306,18 @@ fn write_output_file(path: &PathBuf, contents: &str, label: &str) -> Result<()> 
 
 fn simulate_pc(
     pc: u32,
-    machine: &MachineProfile,
+    machine: &mut MachineProfile,
     elf_info: Option<&cachesim::image::ElfInfo>,
     strict_pc_alignment: bool,
     cache: &mut CacheModel,
     stats: &mut StatsCollector,
+    warned_misaligned_pcs: &mut std::collections::BTreeSet<u32>,
 ) -> Result<()> {
     if strict_pc_alignment && (pc & 0b11) != 0 {
         bail!("misaligned PC in strict mode: 0x{pc:08x}");
     }
     if !strict_pc_alignment && (pc & 0b11) != 0 {
-        warn!("observed misaligned PC in non-strict mode: 0x{pc:08x}");
+        warned_misaligned_pcs.insert(pc);
     }
     let classification = machine.classify(pc);
     let section_name = elf_info.and_then(|elf| elf.find_section(pc));
@@ -386,19 +428,19 @@ fn build_timing_metrics(
 }
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
-        .filter_module("cachesim", LevelFilter::Info)
-        .try_init()
-        .ok();
+    let _ = env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info"))
+        .try_init();
 
     let cli = Cli::parse();
     let result = match cli.command {
         Commands::Simulate(args) => simulate(args),
-        Commands::Compare(args) => {
-            let message = compare_reports(&args.cachesim_json, &args.perf_json)?;
-            println!("{message}");
-            Ok(())
-        }
+        Commands::Compare(args) => match compare_reports(&args.cachesim_json, &args.perf_json) {
+            Ok(message) => {
+                println!("{message}");
+                Ok(())
+            }
+            Err(err) => Err(err),
+        },
     };
 
     if let Err(err) = &result {

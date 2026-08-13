@@ -1,6 +1,7 @@
 use anyhow::{Result, bail};
 use log::warn;
 use serde::Serialize;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -81,6 +82,7 @@ pub struct MachineProfile {
     pub description: &'static str,
     pub regions: Vec<MemoryRegion>,
     pub notes: Vec<&'static str>,
+    warned_unknown_addresses: HashSet<u32>,
 }
 
 impl MachineProfile {
@@ -112,10 +114,11 @@ impl MachineProfile {
                 "Current AM boot flow executes from flash, then SRAM SSBL, then PSRAM/SDRAM application text.",
                 "Current refill transport is independent-word 32-bit lower requests, not AXI burst refill.",
             ],
+            warned_unknown_addresses: HashSet::new(),
         }
     }
 
-    pub fn classify(&self, addr: u32) -> ClassifiedAddress {
+    pub fn classify(&mut self, addr: u32) -> ClassifiedAddress {
         if let Some(region) = self.regions.iter().find(|region| region.contains(addr)) {
             return ClassifiedAddress {
                 region_name: region.name.to_string(),
@@ -125,10 +128,12 @@ impl MachineProfile {
             };
         }
 
-        warn!(
-            "address 0x{addr:08x} is outside known machine regions for profile {} and will be treated as non-cacheable unknown",
-            self.name,
-        );
+        if self.warned_unknown_addresses.insert(addr) {
+            warn!(
+                "address 0x{addr:08x} is outside known machine regions for profile {} and will be treated as non-cacheable unknown",
+                self.name,
+            );
+        }
 
         ClassifiedAddress {
             region_name: "unknown".to_string(),
