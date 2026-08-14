@@ -293,15 +293,16 @@ run: $(BIN) git_commit_sim
 #table(
   columns: (1.25fr, 1fr),
   [*指标*], [*数值*],
-  [area], [14,972.87 µm²],
+  [area], [18,236.16 µm²],
   [budget], [23,000 µm²],
-  [utilization], [65.1%],
-  [cells], [7,253],
-  [WNS], [3.38 ns],
-  [derived Fmax], [151 MHz],
-  [data_reg2reg Fmax], [920 MHz],
+  [utilization], [79.3%],
+  [cells], [8,380],
+  [WNS], [3.362 ns],
+  [derived Fmax], [150 MHz],
+  [data_reg2reg Fmax], [888 MHz],
 )
 
+- Judged under the Nangate45 PDK.
 - 当前已从“凭感觉优化”转向“前后端共同驱动”
 - 候选方向：CSR 多读口简化 / 写回 mux 裁剪 / 共享加法器
 - 这里讲的是“候选”，不是“已经完成的优化”
