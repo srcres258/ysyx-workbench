@@ -265,14 +265,15 @@ run: $(BIN) git_commit_sim
 #table(
   columns: (1.2fr, 1fr),
   [*指标*], [*数值*],
-  [cycles], [32,418,542],
-  [instret], [990,316],
-  [IPC], [0.0305],
-  [Stall%], [93.9%],
-  [IF wait_resp], [11,102,170],
-  [MEM wait_resp], [7,729,865],
+  [cycles], [13,152,485,800],
+  [instret], [508,873,647],
+  [IPC], [0.0387],
+  [Stall%], [92.3%],
+  [IF wait_resp], [5,366,735,324],
+  [MEM wait_resp], [908,702,694],
 )
 
+- Based on `microbench` (`train` scale)
 - 分层 performance counters 通过 `PerfSignalCollector` / `PerfMonitor` 汇总（当前 `123` 个事件）
 - `RUN_CONFIG_PERF=on` 开启
 - `perf.json` 与 `perf.txt` 是当前仓库的真实输出
