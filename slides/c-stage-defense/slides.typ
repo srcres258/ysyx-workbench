@@ -539,6 +539,15 @@ PLACEHOLDER — 题目收到后再填入
 // - Answer: cache 参数与面积 / 关键路径预算之间的权衡。
 //
 
+#centered-slide[
+  = 谢谢
+  == 恳请各位助教老师批评指正！
+]
+
+#centered-slide[
+  = 附录
+]
+
 == 附录：CSR 与异常寄存器表
 
 #table(
