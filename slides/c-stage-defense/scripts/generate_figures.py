@@ -12,6 +12,22 @@ ASSETS = ROOT / "slides" / "c-stage-defense" / "assets"
 PERF = ROOT / "npc" / "build" / "perf" / "perf.json"
 SYNTH = ROOT / "npc" / "build" / "synth" / "synth_summary.json"
 
+FONT_SIZES = {
+    "title": 24,
+    "subtitle": 14,
+    "label": 15,
+    "small": 13,
+    "mono": 12,
+}
+
+DEFAULT_LINE_HEIGHTS = {
+    "title": 30,
+    "subtitle": 20,
+    "label": 19,
+    "small": 21,
+    "mono": 18,
+}
+
 
 def load_json(path: Path) -> dict:
     return json.loads(path.read_text())
@@ -54,15 +70,29 @@ def svg_doc(width: int, height: int, body: str) -> str:
 </svg>'''
 
 
+def text_lines(s: str) -> list[str]:
+    lines = s.splitlines()
+    return lines or [""]
+
+
+def resolved_line_height(cls: str, line_height: int | None = None) -> int:
+    if line_height is not None:
+        return line_height
+    return DEFAULT_LINE_HEIGHTS.get(cls, DEFAULT_LINE_HEIGHTS["small"])
+
+
+def text_height(s: str, cls="small", line_height: int | None = None) -> int:
+    lines = text_lines(s)
+    font_size = FONT_SIZES.get(cls, FONT_SIZES["small"])
+    return font_size + max(0, len(lines) - 1) * resolved_line_height(cls, line_height)
+
+
 def rect(x, y, w, h, klass, title, subtitle=None):
     body = [f'<rect class="{klass}" x="{x}" y="{y}" width="{w}" height="{h}"/>']
-    lines = title.split("\n")
-    ty = y + 24
-    for idx, line in enumerate(lines):
-        body.append(f'<text class="label" x="{x + w / 2}" y="{ty + idx * 19}" text-anchor="middle">{escape(line)}</text>')
+    body.append(text(x + w / 2, y + 24, title, "label", "middle", line_height=19))
     if subtitle:
-        sy = y + h - 18
-        body.append(f'<text class="small" x="{x + w / 2}" y="{sy}" text-anchor="middle">{escape(subtitle)}</text>')
+        sy = y + h - 18 - text_height(subtitle, "small") + FONT_SIZES["small"]
+        body.append(text(x + w / 2, sy, subtitle, "small", "middle"))
     return "\n  ".join(body)
 
 
@@ -70,8 +100,29 @@ def arrow(x1, y1, x2, y2, klass="arrow"):
     return f'<line class="{klass}" x1="{x1}" y1="{y1}" x2="{x2}" y2="{y2}"/>'
 
 
-def text(x, y, s, cls="small", anchor="start"):
-    return f'<text class="{cls}" x="{x}" y="{y}" text-anchor="{anchor}">{escape(s)}</text>'
+def text(x, y, s, cls="small", anchor="start", line_height=22):
+    lines = text_lines(s)
+    line_height = resolved_line_height(cls, line_height)
+    if len(lines) <= 1:
+        return f'<text class="{cls}" x="{x}" y="{y}" text-anchor="{anchor}">{escape(s)}</text>'
+    spans = [f'<tspan x="{x}" y="{y}">{escape(lines[0])}</tspan>']
+    for line in lines[1:]:
+        spans.append(f'<tspan x="{x}" dy="{line_height}">{escape(line)}</tspan>')
+    return f'<text class="{cls}" text-anchor="{anchor}">' + "".join(spans) + '</text>'
+
+
+def text_width(s: str, cls="small") -> int:
+    font_size = FONT_SIZES.get(cls, FONT_SIZES["small"])
+
+    def char_width(ch: str) -> float:
+        if ch.isspace():
+            return font_size * 0.35
+        if ord(ch) < 128:
+            return font_size * 0.62
+        return font_size * 1.0
+
+    widths = [sum(char_width(ch) for ch in line) for line in text_lines(s)]
+    return math.ceil(max(widths, default=0))
 
 
 def bar_chart(title, items, max_value, width=1200, height=700, kind="cycle"):
@@ -250,16 +301,21 @@ def perf_svg(perf: dict) -> str:
         ("MEM", perf["state.memory.cycle"], "#f59e0b"),
         ("WB", perf["state.writeback.cycle"], "#fbbf24"),
     ]
+    left_margin = 50
+    label_gap = 24
+    stage_label_right = left_margin + max(text_width(name, 'label') for name, _, _ in items)
+    stage_bar_x = stage_label_right + label_gap
+    stage_bar_w = 650
     body = []
     body.append(text(40, 40, '前端证据链：stage 归因 + stall 归因', 'title'))
     body.append(text(40, 67, '来源：npc/build/perf/perf.json（最新 perf run）', 'subtitle'))
     maxv = max(v for _, v, _ in items)
-    x, y = 80, 110
+    x, y = stage_bar_x, 110
     body.append(text(50, y - 18, 'Stage cycles', 'label'))
     for i, (name, value, color) in enumerate(items):
         yy = y + i * 54
-        body.append(text(50, yy + 19, name, 'label', 'end'))
-        bw = 650 * value / maxv
+        body.append(text(stage_label_right, yy + 19, name, 'label', 'end'))
+        bw = stage_bar_w * value / maxv
         body.append(f'<rect x="{x}" y="{yy}" width="{bw:.1f}" height="26" rx="7" ry="7" fill="{color}"/>')
         body.append(text(x + bw + 12, yy + 19, f'{value:,}', 'mono'))
     body.append(text(40, 410, 'Stall breakdown', 'label'))
@@ -271,11 +327,13 @@ def perf_svg(perf: dict) -> str:
         ('muldiv_busy', perf['stall.muldiv.busy.cycle'], '#94a3b8'),
     ]
     stall_total = perf['core.stall.cycle']
-    sx, sy = 80, 440
+    stall_label_right = left_margin + max(text_width(name, 'small') for name, _, _ in stall_items)
+    sx, sy = stall_label_right + label_gap, 440
+    stall_bar_w = 650
     for i, (name, value, color) in enumerate(stall_items):
         yy = sy + i * 36
-        body.append(text(50, yy + 18, name, 'small', 'end'))
-        bw = 650 * (value / stall_total if stall_total else 0)
+        body.append(text(stall_label_right, yy + 18, name, 'small', 'end'))
+        bw = stall_bar_w * (value / stall_total if stall_total else 0)
         body.append(f'<rect x="{sx}" y="{yy}" width="{bw:.1f}" height="20" rx="6" ry="6" fill="{color}"/>')
         body.append(text(sx + bw + 12, yy + 15, f'{value:,} ({value / stall_total * 100:.1f}%)', 'mono'))
     return svg_doc(1200, 640, "\n  ".join(body))
@@ -286,12 +344,17 @@ def backend_svg(synth: dict) -> str:
     area = synth['area_um2']
     budget = synth['area_budget_um2']
     util = area / budget * 100 if budget else 0
-    body.append(rect(60, 110, 500, 190, 'box', 'Area vs budget', f'{area:.2f} µm² / {budget} µm²  ({util:.1f}%)'))
+    area_summary = f'{area:.2f} µm² / {budget} µm²  ({util:.1f}%)'
+    body.append(rect(60, 110, 500, 190, 'box', 'Area vs budget', area_summary))
     body.append(f'<rect x="100" y="190" width="420" height="34" rx="8" ry="8" fill="#e5e7eb"/>')
     body.append(f'<rect x="100" y="190" width="{420 * util / 100:.1f}" height="34" rx="8" ry="8" fill="#2563eb"/>')
     body.append(text(100, 170, '预算利用率', 'label'))
-    body.append(text(100, 255, 'WNS 3.38 ns  →  Fmax 151 MHz', 'label'))
-    body.append(text(100, 282, 'data_reg2reg Fmax 920 MHz；reg2reg 在当前报表中为 N/A', 'small'))
+    footer_y = 110 + 190 - 18
+    detail_text = 'data_reg2reg Fmax 920 MHz；reg2reg 在当前报表中为 N/A'
+    detail_y = footer_y - text_height(area_summary, 'small') - 10
+    label_y = detail_y - text_height(detail_text, 'small') - 10
+    body.append(text(100, label_y, 'WNS 3.38 ns  →  Fmax 151 MHz', 'label'))
+    body.append(text(100, detail_y, detail_text, 'small'))
     body.append(rect(600, 110, 540, 190, 'box', 'Area by cell class', 'sequential dominates the mapped netlist'))
     classes = synth['area_by_cell_class']
     rows = [('sequential', classes['sequential']['area_um2'], '#2563eb'), ('combinational', classes['combinational']['area_um2'], '#60a5fa'), ('mux', classes['mux']['area_um2'], '#f59e0b'), ('buffer/inverter', classes['buffer/inverter']['area_um2'], '#94a3b8')]
