@@ -98,9 +98,11 @@
 
       hardeningDisable = [ "all" ];
 
-      packages = [
-        pkgs.verilator
-      ] ++ pkgs.lib.optionals hasIeda [
+      packages = (with pkgs; [
+        verilator
+        typst
+        texliveBasic
+      ]) ++ pkgs.lib.optionals hasIeda [
         ieda
       ];
 

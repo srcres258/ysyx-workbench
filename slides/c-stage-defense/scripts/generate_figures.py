@@ -220,38 +220,6 @@ def architecture_soc_svg() -> str:
     return svg_doc(1200, 500, "\n  ".join(body))
 
 
-def microarch_svg() -> str:
-    body = [text(40, 40, 'NPC 微架构：单发射、顺序执行、多周期状态机', 'title'), text(40, 66, '五个阶段用于生命周期描述和性能归因，不等价于五级流水线并行。', 'subtitle')]
-    body.append(rect(70, 135, 150, 78, 'soft', 'PC / Next-PC', '执行控制'))
-    body.append(rect(260, 135, 140, 78, 'box', 'IFU', '取指 FSM'))
-    body.append(rect(440, 135, 140, 78, 'box', 'IDU', '译码 / 读寄存器'))
-    body.append(rect(620, 135, 140, 78, 'box', 'EXU', 'ALU / 分支 / 地址'))
-    body.append(rect(800, 135, 160, 78, 'box', 'MEMU / LSU', 'AXI4 仲裁与访存'))
-    body.append(rect(1000, 135, 120, 78, 'box', 'WBU', '写回 / trap'))
-    body.append(arrow(220, 174, 260, 174))
-    body.append(arrow(400, 174, 440, 174))
-    body.append(arrow(580, 174, 620, 174))
-    body.append(arrow(760, 174, 800, 174))
-    body.append(arrow(960, 174, 1000, 174))
-    body.append(rect(70, 260, 160, 92, 'muted', 'Control FSM', 'executing · pc_r'))
-    body.append(rect(270, 260, 150, 92, 'box', 'GPR', '2R1W'))
-    body.append(rect(450, 260, 170, 92, 'box', 'CSR', 'mstatus / mtvec / mepc / mcause'))
-    body.append(rect(660, 260, 160, 92, 'box', 'PCTargetController', 'jump / branch / ecall / mret'))
-    body.append(rect(860, 260, 150, 92, 'soft', 'AXI4 Master', '唯一总线出口'))
-    body.append(rect(1040, 260, 110, 92, 'box', 'ysyxSoC', '外设总线'))
-    body.append(arrow(215, 300, 270, 300))
-    body.append(arrow(420, 300, 450, 300))
-    body.append(arrow(620, 300, 660, 300))
-    body.append(arrow(820, 300, 860, 300))
-    body.append(arrow(1010, 300, 1040, 300))
-    body.append(text(80, 395, '关键事实：', 'label'))
-    body.append(text(80, 421, '• IFU/IDU/EXU/MEMU/WBU 都是独立 FSM；', 'small'))
-    body.append(text(80, 444, '• executing=1 时串行推进；无并行流水寄存器；', 'small'))
-    body.append(text(80, 467, '• LSU 统一管理 IFetch 与数据访存；', 'small'))
-    body.append(text(80, 490, '• CSR / ecall / mret 已接入 RT-Thread 路径。', 'small'))
-    return svg_doc(1200, 560, "\n  ".join(body))
-
-
 def trap_svg() -> str:
     body = [text(40, 40, 'ecall → trap → mret：CSR / RT-Thread 支撑链', 'title')]
     xs = [60, 240, 420, 600, 780, 960]
@@ -383,7 +351,6 @@ def main() -> None:
         'architecture_1.svg': architecture_software_svg(),
         'architecture_2.svg': architecture_ref_svg(),
         'architecture_3.svg': architecture_soc_svg(),
-        'microarch.svg': microarch_svg(),
         'trap_flow.svg': trap_svg(),
         'build_flow.svg': build_flow_svg(),
         'perf_stage.svg': perf_svg(perf),

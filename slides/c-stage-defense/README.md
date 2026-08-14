@@ -9,6 +9,7 @@
 
 ```bash
 python3 slides/c-stage-defense/scripts/generate_figures.py
+slides/c-stage-defense/scripts/render_microarchitecture.sh
 typst compile slides/c-stage-defense/slides.typ slides/c-stage-defense/slides.pdf
 ```
 
@@ -19,12 +20,25 @@ typst compile slides/c-stage-defense/slides.typ slides/c-stage-defense/slides.pd
 
 ## 图形生成
 
-所有图表和架构图都由 `scripts/generate_figures.py` 从仓库当前数据生成：
+图形来源现在分为三类：
+
+- `scripts/generate_figures.py`：数据驱动 SVG 图表与非 TikZ 架构图
+- `microarchitecture.tex` + `scripts/render_microarchitecture.sh`：NPC 总体微架构 TikZ → SVG
+- `slides.typ`：最终 Typst 演示文稿整合
+
+`generate_figures.py` 读取仓库当前数据生成：
 
 - `npc/build/perf/perf.json`
 - `npc/build/synth/synth_summary.json`
 
-生成结果输出到 `assets/`。
+输出到 `assets/`。\
+NPC 总体微架构图单独由下列命令生成：
+
+```bash
+slides/c-stage-defense/scripts/render_microarchitecture.sh
+```
+
+当前环境使用 `xelatex` 生成 PDF，再由 `pdftocairo -svg` 渲染为 `assets/microarchitecture.svg`。如果未来 dev shell 提供 `dvisvgm`，也可以切回 `XeLaTeX → XDV → dvisvgm` 的同源流程。
 
 ## 占位页替换位置
 

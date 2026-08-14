@@ -108,11 +108,10 @@
 
 == 总体微架构
 
-#image("assets/microarch.svg", width: 90%)
+#image("assets/microarchitecture.svg", width: 98%)
 
-- 单发射、顺序执行、多周期状态机式 NPC
-- `IFU / IDU / EXU / MEMU / WBU` 都是独立 FSM
-- LSU 是唯一 AXI4 总线出口，统一管理取指与数据访存
+- `Top.pc_r` 只在 `WBU.done` 时经 `pcTargetOut` 提交下一条 PC，因此当前结构是 *single-instruction-in-flight*，不是传统五级并行流水
+- `IFU → I-cache → LSU` 与 `MEMU → LSU` 是两条独立访存 client path；`LSU` 是唯一对外 `AXI4 master` 出口
 
   // Speaker notes:
 // - Main point: 阶段名是生命周期描述，不代表并行流水线。
