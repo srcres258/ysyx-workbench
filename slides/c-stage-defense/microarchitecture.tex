@@ -7,7 +7,6 @@
 \definecolor{slate700}{HTML}{334155}
 \definecolor{slate500}{HTML}{64748B}
 \definecolor{slate300}{HTML}{CBD5E1}
-\definecolor{slate200}{HTML}{E2E8F0}
 \definecolor{slate100}{HTML}{F1F5F9}
 \definecolor{blue700}{HTML}{2563EB}
 \definecolor{blue100}{HTML}{DBEAFE}
@@ -19,26 +18,24 @@
 \begin{document}
 \begin{tikzpicture}[
   font=\sffamily,
-  node distance=8mm and 10mm,
   stage/.style={
     draw=slate700,
     rounded corners=3.5mm,
     fill=white,
     line width=0.95pt,
     minimum height=22mm,
-    minimum width=27mm,
+    minimum width=30mm,
     align=center,
     text=slate900,
     inner sep=3.2mm
   },
-  stagewide/.style={stage, minimum width=36mm},
   statebox/.style={
     draw=teal700,
     rounded corners=3.5mm,
     fill=teal100,
     line width=0.95pt,
     minimum height=17mm,
-    minimum width=30mm,
+    minimum width=34mm,
     align=center,
     inner sep=3mm,
     text=slate900
@@ -49,7 +46,7 @@
     fill=blue100,
     line width=1pt,
     minimum height=19mm,
-    minimum width=36mm,
+    minimum width=38mm,
     align=center,
     inner sep=3.2mm,
     text=slate900
@@ -60,175 +57,190 @@
     fill=slate100,
     line width=0.95pt,
     minimum height=18mm,
-    minimum width=32mm,
+    minimum width=33mm,
     align=center,
     inner sep=3mm,
     text=slate900
   },
-  subunit/.style={
-    draw=slate300,
-    rounded corners=2mm,
-    fill=slate100,
-    line width=0.7pt,
-    inner xsep=2.4mm,
-    inner ysep=1.4mm,
-    font=\scriptsize,
-    text=slate700,
-    align=center
-  },
   stageflow/.style={draw=slate900, line width=1.35pt, -{Stealth[length=2.2mm,width=1.6mm]}},
-  memflow/.style={draw=blue700, line width=1.1pt, {Stealth[length=2mm,width=1.45mm]}-{Stealth[length=2mm,width=1.45mm]}},
-  regflow/.style={draw=teal700, line width=1.05pt, -{Stealth[length=2mm,width=1.45mm]}},
-  controlflow/.style={draw=amber700, line width=1.2pt, -{Stealth[length=2.2mm,width=1.6mm]}},
-  tap/.style={draw=slate500, dashed, line width=0.8pt},
-  annotation/.style={font=\scriptsize, text=slate500, align=center},
-  sectionbox/.style={
-    draw=none,
-    rounded corners=4mm,
-    fill=slate100,
-    inner sep=4mm
-  },
-  sectionlabel/.style={font=\bfseries\small, text=slate700},
+  memflow/.style={draw=blue700, line width=1.12pt, -{Stealth[length=2mm,width=1.45mm]}},
+  regflow/.style={draw=teal700, line width=1.08pt, -{Stealth[length=2mm,width=1.45mm]}},
+  controlflow/.style={draw=amber700, line width=1.22pt, -{Stealth[length=2.2mm,width=1.6mm]}},
+  annotation/.style={font=\scriptsize, text=slate500, align=center, fill=white, inner sep=1pt},
+  sectiontitle/.style={font=\bfseries\small, text=slate700, fill=slate100, inner sep=1pt},
+  sectionrule/.style={draw=slate300, line width=0.7pt},
   boundary/.style={
     draw=slate700,
     rounded corners=5mm,
     fill=slate100,
     line width=1.2pt,
-    inner sep=6mm
+    inner sep=7mm
   },
-  banner/.style={
+  overallboundary/.style={
+    draw=slate300,
+    rounded corners=6mm,
+    line width=0.9pt,
+    fill=none,
+    inner sep=7mm
+  },
+  badge/.style={
     draw=amber700,
     rounded corners=3mm,
     fill=amber100,
     line width=0.95pt,
-    inner xsep=5mm,
-    inner ysep=2.5mm,
-    align=center,
+    inner xsep=4.5mm,
+    inner ysep=2mm,
     text=slate900,
-    font=\bfseries\small
+    font=\bfseries\scriptsize,
+    align=center
   }
 ]
 
-% Central lifecycle
-\node[stage, minimum width=29mm] (ifu) {
+% Row B — instruction lifecycle
+\node[stage, minimum width=31mm] (ifu) {
   {\bfseries IFU}\\[-1mm]
   {\scriptsize 5-state Fetch FSM}\\[-0.6mm]
   {\scriptsize PC $\rightarrow$ instruction}
 };
-\node[stage, minimum width=31mm, right=12mm of ifu] (idu) {
+\node[stage, minimum width=33mm, right=14mm of ifu] (idu) {
   {\bfseries IDU}\\[-1mm]
-  {\scriptsize 3-state Decode FSM}
+  {\scriptsize 3-state Decode FSM}\\[-0.6mm]
+  {\scriptsize ControlUnit \textperiodcentered{} ImmGen}
 };
-\node[stagewide, right=12mm of idu] (exu) {
+\node[stage, minimum width=42mm, right=14mm of idu] (exu) {
   {\bfseries EXU}\\[-1mm]
-  {\scriptsize 3-state Execute FSM}
+  {\scriptsize 3-state Execute FSM}\\[-0.6mm]
+  {\scriptsize ALU \textperiodcentered{} Comparator \textperiodcentered{} PC Target}
 };
-\node[stage, minimum width=34mm, right=12mm of exu] (memu) {
+\node[stage, minimum width=36mm, right=14mm of exu] (memu) {
   {\bfseries MEMU}\\[-1mm]
   {\scriptsize 7-state Memory FSM}\\[-0.6mm]
   {\scriptsize align / sign extension}
 };
-\node[stage, minimum width=33mm, right=12mm of memu] (wbu) {
+\node[stage, minimum width=35mm, right=14mm of memu] (wbu) {
   {\bfseries WBU}\\[-1mm]
   {\scriptsize 3-state Writeback FSM}\\[-0.6mm]
   {\scriptsize commit + PC update}
 };
 
-\draw[stageflow] (ifu.east) -- node[above, annotation] {\texttt{IF\_ID}} (idu.west);
-\draw[stageflow] (idu.east) -- node[above, annotation] {\texttt{ID\_EX}} (exu.west);
-\draw[stageflow] (exu.east) -- node[above, annotation] {\texttt{EX\_MEM}} (memu.west);
-\draw[stageflow] (memu.east) -- node[above, annotation] {\texttt{MEM\_WB}} (wbu.west);
-\node[annotation, above=5mm of exu] (bundle-note) {Decoupled valid / ready\\bundle payload = data + control};
-
-% Stage internals
-\node[subunit, anchor=south west] (idu-cu) at ($(idu.south west)+(2mm,2mm)$) {ControlUnit};
-\node[subunit, right=1.3mm of idu-cu] (idu-imm) {ImmGen};
-
-\node[subunit, anchor=south west] (exu-alu) at ($(exu.south west)+(2mm,2mm)$) {ALU};
-\node[subunit, right=1.2mm of exu-alu] (exu-comp) {Comparator};
-\node[subunit, right=1.2mm of exu-comp] (exu-pc) {PC Target\\seq / branch / jump / trap};
-
-% Architectural state
-\node[statebox, above=18mm of ifu, xshift=-10mm, minimum width=34mm] (pcstate) {
+% Row A — architectural state
+\node[statebox, above=25mm of ifu, minimum width=35mm] (pcstate) {
   {\bfseries PC register}\\[-1mm]
   {\scriptsize \texttt{pc\_r} + \texttt{executing}}
 };
-
-\node[statebox, above=18mm of idu, xshift=-6mm, minimum width=34mm] (gpr) {
+\node[statebox, above=25mm of idu, minimum width=35mm] (gpr) {
   {\bfseries GPR File}\\[-1mm]
   {\scriptsize 2R / 1W}
 };
-
-\node[statebox, above=18mm of exu, xshift=-6mm, minimum width=42mm] (csr) {
+\node[statebox, above=25mm of exu, minimum width=40mm] (csr) {
   {\bfseries CSR File}\\[-1mm]
   {\scriptsize 3R / 2W}\\[-0.6mm]
-  {\scriptsize mstatus \textperiodcentered{} mtvec \textperiodcentered{} mepc \textperiodcentered{} mcause \textperiodcentered{} mtval}
+  {\scriptsize mstatus \textperiodcentered{} mtvec \textperiodcentered{} mepc}\\[-0.6mm]
+  {\scriptsize mcause \textperiodcentered{} mtval}
 };
 
-\node[banner, above=8mm of bundle-note, xshift=2mm] (banner) {Single instruction in flight\\Multi-cycle stage FSMs --- not a 5-stage pipeline};
-
-% Memory subsystem
-\node[memorybox, below=19mm of ifu, minimum width=41mm] (icache) {
+% Row C / D — memory subsystem
+\node[memorybox, below=20mm of ifu, minimum width=43mm] (icache) {
   {\bfseries Instruction Cache}\\[-1mm]
   {\scriptsize blocking direct-mapped I\$}\\[-0.6mm]
   {\scriptsize 8 lines $\times$ 4 B = 32 B}\\[-0.6mm]
   {\scriptsize tag \textperiodcentered{} valid \textperiodcentered{} data}
 };
-
-\node[memorybox, below=19mm of memu, xshift=15mm, minimum width=56mm, minimum height=24mm] (lsu) {
+\node[memorybox, below=20mm of memu, xshift=28mm, minimum width=60mm, minimum height=24mm] (lsu) {
   {\bfseries LSU}\\[-1mm]
-  {\scriptsize single outstanding transaction}
+  {\scriptsize IFetch / MEM arbiter}\\[-0.6mm]
+  {\scriptsize align / split \textperiodcentered{} AXI FSM}
 };
-\node[subunit, anchor=south west] (lsu-arb) at ($(lsu.south west)+(2mm,2mm)$) {2$\rightarrow$1 arbiter};
-\node[subunit, right=1.1mm of lsu-arb] (lsu-align) {align / split};
-\node[subunit, right=1.1mm of lsu-align] (lsu-fsm) {12-state AXI FSM};
-
-\node[memorybox, below left=16mm and 4mm of lsu, minimum width=31mm] (clint) {
+\node[memorybox, below=18mm of lsu, xshift=-18mm, minimum width=33mm] (clint) {
   {\bfseries CLINT}\\[-1mm]
   {\scriptsize ACLINT MTIME}
 };
-
-\node[externalbox, right=12mm of lsu, minimum width=30mm] (axi) {
+\node[externalbox, right=18mm of lsu, minimum width=32mm] (axi) {
   {\bfseries AXI4 Master}\\[-1mm]
   {\scriptsize AR / R / AW / W / B}
 };
-
-\node[externalbox, right=10mm of axi, minimum width=37mm, minimum height=24mm] (soc) {
+\node[externalbox, right=18mm of axi, minimum width=40mm, minimum height=24mm] (soc) {
   {\bfseries ysyxSoC XBar}\\[-1mm]
   {\scriptsize Flash / PSRAM / SDRAM / MMIO}
 };
 
-% Primary connections
-\draw[controlflow] (pcstate.south) -- node[left, annotation] {executionInfo.pc} (ifu.north);
-\draw[memflow] (ifu.south) -- node[right, annotation] {cpuReq / cpuResp} (icache.north);
-\draw[memflow] (icache.east) -| node[pos=0.28, below, annotation] {lowerReq / lowerResp} (lsu.west);
-\draw[memflow] (memu.south) -- ++(0,-5mm) -| node[pos=0.35, above, annotation] {memReq / memResp} (lsu.north west);
-\draw[memflow] (memu.south) -- ++(0,-10mm) -| node[pos=0.42, below, annotation] {AXI4-Lite\\MTIME read} (clint.north east);
-\draw[memflow] (lsu.east) -- node[above, annotation] {\texttt{io.memBus}} (axi.west);
-\draw[stageflow] (axi.east) -- node[above, annotation] {single external memory path} (soc.west);
-
-% Register file / CSR paths
-\draw[regflow] (gpr.south) -- node[left, annotation] {rs1 / rs2\\2 read ports} (idu.north);
-\draw[regflow] (csr.south west) |- node[pos=0.28, left, annotation] {CSR / mepc / mtvec\\3R} (idu.north east);
-
-\coordinate (wb-gpr-turn) at ($(wbu.north)+(0,9mm)$);
-\coordinate (wb-csr-turn) at ($(wbu.north)+(0,5mm)$);
-\draw[regflow] (wbu.north west) |- node[pos=0.27, above, annotation] {rd writeback\\1 write port} (gpr.east);
-\draw[regflow] (wbu.north) |- node[pos=0.33, above, annotation] {CSR write / ecall trap state\\2W} (csr.east);
-
-% Global commit loop
-\coordinate (feedback-top) at ($(wbu.north)+(0,16mm)$);
-\draw[controlflow] (wbu.north east) |- node[pos=0.28, above, annotation] {commit: done + pcTargetOut} (pcstate.east);
-
-% Section backgrounds and boundary
+% Core boundary first so titles/lanes can reference it
 \begin{scope}[on background layer]
-  \node[sectionbox, fit=(banner)(pcstate)(gpr)(csr), label={[sectionlabel]north west:Architectural state / control}] (state-band) {};
-  \node[sectionbox, fit=(ifu)(idu)(exu)(memu)(wbu)(bundle-note), label={[sectionlabel]north west:Instruction lifecycle}] (lifecycle-band) {};
-  \node[sectionbox, fit=(icache)(lsu)(clint)(axi), label={[sectionlabel]north west:Memory subsystem}] (memory-band) {};
-  \node[boundary, fit=(banner)(pcstate)(gpr)(csr)(ifu)(idu)(exu)(memu)(wbu)(icache)(lsu)(clint)(axi), label={[sectionlabel]north west:NPC Core / \texttt{ysyx\_25070190}}] (core-boundary) {};
+  \node[boundary, fit=(pcstate)(gpr)(csr)(ifu)(idu)(exu)(memu)(wbu)(icache)(lsu)(clint)(axi)] (core-boundary) {};
+  \node[overallboundary, fit=(core-boundary)(soc)] (diagram-boundary) {};
 \end{scope}
 
-\node[annotation, below=2mm of core-boundary.south] {Functional RTL topology only --- DPI / perf observability intentionally omitted from the main datapath view};
+% Explicit section titles instead of fit labels
+\node[sectiontitle, anchor=north west] (core-title) at ($(core-boundary.north west)+(8mm,-5mm)$) {NPC Core / \texttt{ysyx\_25070190}};
+\node[badge, anchor=north east] (mode-badge) at ($(diagram-boundary.north east)+(-8mm,-4mm)$) {single instruction in flight\\multi-cycle FSM};
+
+\node[sectiontitle, anchor=west] (state-title) at ($(core-boundary.west)+(12mm,28mm)$) {Architectural state / control};
+\draw[sectionrule] ($(state-title.east)+(3mm,0)$) -- ($(core-boundary.east)+(-10mm,28mm)$);
+
+\node[sectiontitle, anchor=west] (life-title) at ($(core-boundary.west)+(12mm,3mm)$) {Instruction lifecycle};
+\draw[sectionrule] ($(life-title.east)+(3mm,0)$) -- ($(core-boundary.east)+(-10mm,3mm)$);
+
+\node[sectiontitle, anchor=west] (mem-title) at ($(core-boundary.west)+(12mm,-31mm)$) {Memory subsystem};
+\draw[sectionrule] ($(mem-title.east)+(3mm,0)$) -- ($(core-boundary.east)+(-10mm,-31mm)$);
+
+% Logical ports and routing lanes
+\coordinate (idu-gpr-in) at ($(idu.north)+(-8mm,0)$);
+\coordinate (idu-csr-in) at ($(idu.north)+(8mm,0)$);
+
+\coordinate (memu-lsu-port) at ($(memu.south)+(-7mm,0)$);
+\coordinate (memu-clint-port) at ($(memu.south)+(7mm,0)$);
+\coordinate (lsu-data-in) at ($(lsu.north)+(-12mm,0)$);
+\coordinate (clint-data-in) at ($(clint.north)+(0,0)$);
+\coordinate (csr-read-lane) at ($(csr.south)+(0,-8mm)$);
+
+\coordinate (wbu-fanout) at ($(wbu.north)+(0,3mm)$);
+\coordinate (gpr-write-lane-start) at ($(wbu-fanout)+(0,5mm)$);
+\coordinate (csr-write-lane-start) at ($(wbu-fanout)+(0,11mm)$);
+\coordinate (pc-feedback-lane-start) at ($(wbu-fanout)+(0,17mm)$);
+
+\coordinate (gpr-write-lane-end) at ($(gpr.north |- gpr-write-lane-start)$);
+\coordinate (csr-write-lane-end) at ($(csr.north |- csr-write-lane-start)$);
+\coordinate (pc-feedback-lane-end) at ($(pcstate.east |- pc-feedback-lane-start)$);
+
+\coordinate (memu-lsu-lane) at ($(memu-lsu-port)+(0,-7mm)$);
+\coordinate (memu-clint-lane) at ($(memu-clint-port)+(0,-12mm)$);
+
+% Main stage row
+\draw[stageflow] (ifu.east) -- node[midway, above, annotation] {\texttt{IF\_ID}} (idu.west);
+\draw[stageflow] (idu.east) -- node[midway, above, annotation] {\texttt{ID\_EX}} (exu.west);
+\draw[stageflow] (exu.east) -- node[midway, above, annotation] {\texttt{EX\_MEM}} (memu.west);
+\draw[stageflow] (memu.east) -- node[midway, above, annotation] {\texttt{MEM\_WB}} (wbu.west);
+\node[annotation, above=6mm of exu] (bundle-note) {Decoupled valid / ready};
+
+% Architectural-state reads
+\draw[controlflow] (pcstate.south) -- node[midway, left, annotation] {executionInfo.pc} (ifu.north);
+\draw[regflow] (gpr.south) -- node[midway, left, annotation] {rs1 / rs2\\2 read ports} (idu-gpr-in);
+\draw[regflow] (csr.south) -- (csr-read-lane);
+\draw[regflow] (csr-read-lane) -- node[midway, above, annotation] {CSR / mepc / mtvec\\3R} ($(idu-csr-in |- csr-read-lane)$);
+\draw[regflow] ($(idu-csr-in |- csr-read-lane)$) -- (idu-csr-in);
+
+% Feedback lanes — three explicit corridors
+\draw[regflow] (wbu.north) -- (wbu-fanout) -- (gpr-write-lane-start) -- node[midway, above, annotation] {rd writeback} (gpr-write-lane-end) -- (gpr.north);
+\draw[regflow] (wbu.north) -- (wbu-fanout) -- (csr-write-lane-start) -- node[midway, above, annotation] {CSR write / ecall state} (csr-write-lane-end) -- (csr.north);
+\draw[controlflow] (wbu.north) -- (wbu-fanout) -- (pc-feedback-lane-start) -- node[midway, above, annotation] {commit: done + pcTargetOut} (pc-feedback-lane-end) -- (pcstate.east);
+
+% Memory subsystem
+\draw[memflow] (ifu.south) -- node[midway, right, annotation] {cpu req / resp} (icache.north);
+\draw[memflow] (icache.east) -- node[midway, above, annotation] {lower req / resp} (lsu.west);
+
+\draw[memflow] (memu-lsu-port) -- (memu-lsu-lane);
+\draw[memflow] (memu-lsu-lane) -- node[midway, above, annotation] {mem req / resp} ($(lsu-data-in |- memu-lsu-lane)$);
+\draw[memflow] ($(lsu-data-in |- memu-lsu-lane)$) -- (lsu-data-in);
+
+\draw[memflow] (memu-clint-port) -- (memu-clint-lane);
+\draw[memflow] (memu-clint-lane) -- node[midway, above, annotation] {AXI4-Lite / MTIME} ($(clint-data-in |- memu-clint-lane)$);
+\draw[memflow] ($(clint-data-in |- memu-clint-lane)$) -- (clint-data-in);
+
+\draw[memflow] (lsu.east) -- node[midway, above, annotation] {\texttt{io.memBus}} (axi.west);
+\draw[stageflow] (axi.east) -- node[midway, above, annotation] {Top.master} (soc.west);
+
+% Footer note
+\node[annotation, below=2mm of diagram-boundary.south] {Functional RTL topology only --- DPI / perf observability omitted from the main datapath view};
 
 \end{tikzpicture}
 \end{document}
