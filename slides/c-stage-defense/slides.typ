@@ -40,7 +40,9 @@
   - 工程构建与验证
   - 考核题目与个人特色
 
-- 当前进度：B3 性能瓶颈分析完成；第一版 blocking I-cache RTL 与 cache-specific perf observability 已就位
+- 当前进度
+  - #link("https://ysyx.oscc.cc/docs/2306/basic/1.9.html")[B3] 性能瓶颈分析完成
+  - 第一版 blocking I-cache RTL 与 cache-specific perf observability 已就位
 
   // Speaker notes:
 // - Main point: 先把整套协同闭环讲清，再讲 NPC 和数据驱动优化。
