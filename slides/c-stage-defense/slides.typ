@@ -20,9 +20,9 @@
   = “一生一芯”C 阶段结业考核
   == 从功能正确到数据驱动的 NPC 微结构优化
 
-  RV32 NPC · Chisel · Verilator · NEMU · AM · ysyxSoC · perf · synth / STA
+  RV32E NPC · Chisel · Verilator · NEMU · AM · ysyxSoC · perf · synth / STA
 
-  姓名：TBD · 学号：TBD · 日期：2026-07-31
+  胡皓文 · ysyx_25070190 · 2026-08-14
 
   // Speaker notes:
 // - Main point: 这不是通用 RISC-V 介绍，而是当前仓库的真实实现与优化证据。
@@ -586,7 +586,7 @@ run: $(BIN) git_commit_sim
 
     #v(0.12cm)
     #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
-      #text(weight: "bold", size: 11.6pt)[Caller-saved / callee-saved 与 trap 的区别]
+      #text(weight: "bold", size: 11.6pt)[Caller-saved / callee-saved 与 trap 的区别]\
       #text(size: 9.2pt)[在 RV32E / ILP32E 下，`a0-a5`、`t0-t2` 是 caller-saved，`s0-s1` 是 callee-saved。]
       #text(size: 9.2pt)[但 trap 可以发生在普通代码*毫无准备*的时刻，所以 CTE 不能只像普通函数那样保 `s*`；它必须保存足够完整的 architectural context，恢复后程序才能继续。]
     ]
@@ -675,7 +675,7 @@ run: $(BIN) git_commit_sim
 
     #v(0.12cm)
     #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
-      #text(weight: "bold", size: 11.8pt)[本题最大的难点]
+      #text(weight: "bold", size: 11.8pt)[本题最大的难点]\
       #text(size: 9.3pt)[真正难的不是写一个 `ecall` 或 `schedule()`，而是把 *三层状态表示* 对齐：]
       #set text(size: 9.2pt)
       - `Context` 的 C 结构布局
@@ -686,7 +686,7 @@ run: $(BIN) git_commit_sim
 
     #v(0.12cm)
     #box(width: 100%, inset: 9pt, fill: rgb("#eff6ff"), stroke: 1.6pt + rgb("#2563eb"), radius: 8pt)[
-      #text(weight: "bold", size: 11.4pt)[Closing sentence]
+      #text(weight: "bold", size: 11.4pt)[Closing sentence]\
       #text(size: 9.2pt)[`ECALL` 提供陷入机制；`CTE` 抽象 `Event + Context`；scheduler 决定恢复谁；`trap.S + mret` 完成真正的机器状态切换。]
     ]
   ],
