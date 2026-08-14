@@ -447,48 +447,256 @@ run: $(BIN) git_commit_sim
 
 == 考核题目
 
-PLACEHOLDER — 考核前三天收到题目后替换
+#text(size: 10.5pt, fill: rgb("#475569"))[*User → AM → NEMU → AM → User* · 当前仓库里的 `yield-os` 不是“直接调用 schedule() 切线程”，而是一次 cooperative trap round-trip。]
 
-题目：
-[收到邮件后填写]
-
-问题背景：
-[占位]
-
-需要说明的核心机制：
-1. [...]
-2. [...]
-3. [...]
-
-涉及模块：
-[...]
-
-验证方法：
-[测试 / 波形 / DiffTest / assertion]
+#grid(
+  columns: (1.18fr, 0.82fr),
+  gutter: 0.18cm,
+  [
+    #image("assets/yield_flow.svg", width: 100%)
+  ],
+  [
+    #grid(
+      rows: (0.95fr, 1.05fr),
+      gutter: 0.14cm,
+      [
+        #box(width: 100%, inset: 8pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+          #text(weight: "bold", size: 11.8pt)[Program behavior]
+          #set text(size: 9.2pt)
+          - `yield-os` 只有两个 `PCB` / `Context`
+          - 两个执行流都跑同一个 `f(void *arg)`
+          - `arg = 1` 打印 `A`，`arg = 2` 打印 `B`
+          - 每轮打印后主动 `yield()`，*不依赖 timer interrupt*
+          - 所以这是一个 *cooperative context switching* 示例
+        ]
+      ],
+      [
+        #box(width: 100%, inset: 10pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+          #text(weight: "bold", size: 11.8pt)[Code evidence]
+          #set text(font: "DejaVu Sans Mono", size: 8.4pt)
+          ```c
+          cte_init(schedule);
+          pcb[0].cp = kcontext(..., f, (void *)1L);
+          pcb[1].cp = kcontext(..., f, (void *)2L);
+          yield();
+          ```
+          #set text(font: "Noto Sans CJK SC", size: 8.9pt)
+          `schedule(prev)` 的真实语义也很克制：先 `current->cp = prev`，再切到另一个 `PCB`，最后只返回 `current->cp`。
+        ]
+      ],
+    )
+  ],
+)
 
   // Speaker notes:
-// - Main point: 这里保持完全可替换，不虚构题目。
-// - Time: 15 s
-// - Likely question: 还没收到题目时讲什么？
-// - Answer: 这页直接说明占位即可。
+// - Main point: 第一页先把“故事主线”讲对：yield-os 的切换入口不是 scheduler，而是 yield() 触发的 ecall/trap。
+// - Time: 75 s
+// - Likely question: 这是不是抢占式调度？
+// - Answer: 不是，这里没有 timer interrupt，完全靠线程自己在打印后主动 yield。
 //
 
-== 题目实现与验证
+== Context switch：scheduler 选择状态，trap.S 恢复状态
 
-PLACEHOLDER — 题目收到后再填入
+#text(size: 10.5pt, fill: rgb("#475569"))[*Machine-state switch* · `schedule()` 决定“恢复谁”，但真正让 CPU 从 A 变成 B 的动作发生在 `trap.S` 的 `mv sp, a0` 与 `mret`。]
 
-- 关键代码
-- 时序图
-- 波形
-- 测试结果
-- 遇到的问题
-- 结论
+#grid(
+  columns: (1.25fr, 0.95fr),
+  gutter: 0.18cm,
+  [#image("assets/context_switch.svg", width: 100%)],
+  [
+    #grid(
+      rows: (1fr, 1fr, 0.62fr),
+      gutter: 0.14cm,
+      [
+        #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+          #text(weight: "bold", size: 11.6pt)[`kcontext()` 先造 Context]
+          #set text(font: "DejaVu Sans Mono", size: 8.5pt)
+          ```c
+          ctx->mstatus = 0x1800;
+          ctx->mepc    = (uintptr_t) entry;
+          ctx->gpr[10] = (uintptr_t) arg;
+          ```
+          #set text(font: "Noto Sans CJK SC", size: 9.1pt)
+          这不是直接调用 `f()`；而是在栈顶人工构造一份“未来会被 restore 的 CPU 现场”。
+        ]
+      ],
+      [
+        #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+          #text(weight: "bold", size: 11.6pt)[`schedule(prev)` 只返回下一份状态]
+          #set text(font: "DejaVu Sans Mono", size: 8.5pt)
+          ```c
+          current->cp = prev;
+          current = current == &pcb[0] ? &pcb[1] : &pcb[0];
+          return current->cp;
+          ```
+          #set text(font: "Noto Sans CJK SC", size: 9.1pt)
+          首次 `yield()` 时 `current = &pcb_boot`，所以先从 boot context 跳到 `pcb[0]`；之后才在 `pcb[0] / pcb[1]` 之间交替。
+        ]
+      ],
+      [
+        #box(width: 100%, inset: 9pt, fill: rgb("#eff6ff"), stroke: 1.6pt + rgb("#2563eb"), radius: 8pt)[
+          #text(weight: "bold", size: 11.4pt)[Conclusion]\
+          #text(size: 9.3pt)[scheduler chooses the next `Context *`; `trap.S` performs the actual machine-state switch.]
+        ]
+      ],
+    )
+  ],
+)
 
   // Speaker notes:
-// - Main point: 这页是后填内容，不应在当前阶段编造结果。
-// - Time: 15 s
-// - Likely question: 为什么保留空白页？
-// - Answer: 为了答辩时直接替换，不破坏整体结构。
+// - Main point: 第二页要回答“CPU 到底在哪一刻从线程 A 变成线程 B”。答案不是 schedule()，而是 restore 源从 A 的 Context 改成 B 的 Context。
+// - Time: 80 s
+// - Likely question: 为什么第一次 yield 之后不会回到 main？
+// - Answer: 因为返回路径不再由 main 的调用栈决定，而是由 scheduler 返回的 Context 和随后 mret 使用的 mepc 决定。
+//
+
+== RISC-V ABI：Context 为何能恢复成一个正常 C 函数
+
+#text(size: 10.5pt, fill: rgb("#475569"))[*ABI boundary inside trap handling* · 当前仓库同时支持 `riscv32-nemu` (ILP32) 与 `riscv32e-nemu` (ILP32E)；机制相同，`yield tag` 所在寄存器随 `__riscv_e` 分支变化。]
+
+#grid(
+  columns: (1.05fr, 0.95fr),
+  gutter: 0.18cm,
+  [
+    #table(
+      columns: (0.7fr, 1.7fr),
+      align: left,
+      [*Register / rule*], [*yield-os 里真正怎么用*],
+      [`a0`], [`kcontext()` 把 `arg` 放进 `gpr[10]`；第一次 restore 后，`f(void *arg)` 看到的第一个参数就来自 `a0`],
+      [`a0`], [`mv a0, sp` 把当前 `Context *` 作为 `__am_irq_handle` 参数；函数返回后 `a0` 又变成“下一份 `Context *`”],
+      [`ra` + `ret`], [普通函数调用靠 `ra` 返回；这是 C ABI 的常规控制流],
+      [`mepc` + `mret`], [trap return 不是 `ret`；它从 `mepc` 恢复 PC，属于 privilege / exception return],
+      [`sp`], [每个 PCB 有独立 stack；切 Context 不只是换 PC，而是把 stack + register state 一起切走],
+    )
+  ],
+  [
+    #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.6pt)[Why `yield` uses different registers]
+      #set text(font: "DejaVu Sans Mono", size: 8.7pt)
+      ```c
+      #ifdef __riscv_e
+        li a5, -1; ecall
+      #else
+        li a7, -1; ecall
+      #endif
+      ```
+      #set text(font: "Noto Sans CJK SC", size: 9.1pt)
+      RV32E 只有 `x0..x15`，所以没有 `a7/x17`；当前实现就把 yield tag 放在 `a5/x15`。因此 `a5 / a7 = -1` 是 *AM convention*，不是 RISC-V ABI 或 privileged ISA 对 yield 的规定。
+    ]
+
+    #v(0.12cm)
+    #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.6pt)[Caller-saved / callee-saved 与 trap 的区别]
+      #text(size: 9.2pt)[在 RV32E / ILP32E 下，`a0-a5`、`t0-t2` 是 caller-saved，`s0-s1` 是 callee-saved。]
+      #text(size: 9.2pt)[但 trap 可以发生在普通代码*毫无准备*的时刻，所以 CTE 不能只像普通函数那样保 `s*`；它必须保存足够完整的 architectural context，恢复后程序才能继续。]
+    ]
+
+    #v(0.12cm)
+    #box(width: 100%, inset: 9pt, fill: rgb("#eff6ff"), stroke: 1.6pt + rgb("#2563eb"), radius: 8pt)[
+      #text(weight: "bold", size: 11.4pt)[One-sentence bridge]\
+      #text(size: 9.2pt)[普通 ABI 告诉我们“函数如何接参数 / 返回值”；Context restore 则让这套 ABI 在另一个 execution flow 上重新成立。]
+    ]
+  ],
+)
+
+  // Speaker notes:
+// - Main point: ABI 这一页不要讲“32 个寄存器百科”，而是只讲 yield-os 真正用到的 a0 / ra / sp / a5|a7。
+// - Time: 70 s
+// - Likely question: a5 = -1 是 ABI 规定的吗？
+// - Answer: 不是，这是当前 AM 对 EVENT_YIELD 的软件约定；ECALL 只是 trap 机制本身。
+//
+
+== AM CTE 与 NEMU：把 ECALL 变成 Event + Context
+
+#text(size: 10.5pt, fill: rgb("#475569"))[*Mechanism → Abstraction → Policy* · `ECALL` 提供陷入机制，`CTE` 把它变成 `Event + Context`，`scheduler` 只提供“恢复谁”的策略。]
+
+#grid(
+  columns: (1fr, 1fr),
+  gutter: 0.18cm,
+  [
+    #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.8pt)[CTE 三个入口]
+      #set text(size: 9.3pt)
+      - `cte_init(handler)`：`csrw mtvec, __am_asm_trap`，同时把 `user_handler = schedule`
+      - `yield()`：写入 `a5` / `a7 = -1`，然后 `ecall`
+      - `kcontext()`：在栈上构造第一份可被 restore 的 `Context`
+      #v(0.08cm)
+      #text(weight: "bold", size: 11.2pt)[`__am_asm_trap` 做的事]
+      #set text(font: "DejaVu Sans Mono", size: 8.4pt)
+      ```asm
+      mv a0, sp
+      call __am_irq_handle
+      mv sp, a0
+      ...
+      mret
+      ```
+      #set text(font: "Noto Sans CJK SC", size: 9.1pt)
+      前两行把“当前 Context * → 下一 Context *”穿过 ABI 边界，最后由 `mret` 恢复控制流。
+    ]
+
+    #v(0.12cm)
+    #box(width: 100%, inset: 9pt, fill: rgb("#fff7ed"), stroke: 1.4pt + rgb("#ea580c"), radius: 8pt)[
+      #text(weight: "bold", size: 11.6pt)[Why `mepc += 4`]
+      #set text(font: "DejaVu Sans Mono", size: 8.6pt)
+      ```text
+      ECALL @ 0x100
+        ↓ trap
+      mepc = 0x100
+
+      if unchanged:
+        mret -> 0x100 -> ECALL again
+
+      AM fix:
+        c->mepc += 4
+      ```
+      #set text(font: "Noto Sans CJK SC", size: 9.0pt)
+      当前 `riscv32-nemu` / `riscv32e-nemu` 路径里执行的都是固定 `4 B` 指令，所以这里直接加 `4`，避免回到同一条 `ecall` 形成 trap loop。
+    ]
+  ],
+  [
+    #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.8pt)[NEMU 当前实现的真实边界]
+      #set text(font: "DejaVu Sans Mono", size: 8.4pt)
+      ```c
+      // ecall
+      s->dnpc = isa_raise_intr(..., s->pc);
+
+      // isa_raise_intr
+      cpu.csr[CSR_MEPC]   = epc;
+      cpu.csr[CSR_MCAUSE] = NO;
+      return cpu.csr[CSR_MTVEC];
+
+      // mret
+      return cpu.csr[CSR_MEPC];
+      ```
+      #set text(font: "Noto Sans CJK SC", size: 9.1pt)
+      当前教学 NEMU 主要实现的是支撑 CTE 所需的 subset：`ecall` 把 `mepc/mcause/mtvec` 这条链接起来，`mret` 主要是 `PC ← mepc`。完整 privileged ISA 还会定义 `MPP / MPIE / MIE` 等状态迁移，这里没有全部展开实现。
+    ]
+
+    #v(0.12cm)
+    #box(width: 100%, inset: 9pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.8pt)[本题最大的难点]
+      #text(size: 9.3pt)[真正难的不是写一个 `ecall` 或 `schedule()`，而是把 *三层状态表示* 对齐：]
+      #set text(size: 9.2pt)
+      - `Context` 的 C 结构布局
+      - `trap.S` 的栈帧 / offset / `mv sp, a0`
+      - RISC-V architectural state（`gpr[] / mepc / mstatus / mcause`）
+      #text(size: 9.2pt)[一旦这些 offset 或语义边界对不上，就会出现恢复错寄存器、错 `mepc`、栈损坏、甚至“看起来 schedule 对了但控制流还是飞掉”的问题。]
+    ]
+
+    #v(0.12cm)
+    #box(width: 100%, inset: 9pt, fill: rgb("#eff6ff"), stroke: 1.6pt + rgb("#2563eb"), radius: 8pt)[
+      #text(weight: "bold", size: 11.4pt)[Closing sentence]
+      #text(size: 9.2pt)[`ECALL` 提供陷入机制；`CTE` 抽象 `Event + Context`；scheduler 决定恢复谁；`trap.S + mret` 完成真正的机器状态切换。]
+    ]
+  ],
+)
+
+  // Speaker notes:
+// - Main point: 最后一页把四个考点收束成“机制 / 抽象 / 策略”的链路，并且明确指出当前 NEMU 是教学化 subset，不夸大 privileged ISA 覆盖面。
+// - Time: 85 s
+// - Likely question: NEMU 的 privileged ISA 实现完整吗？
+// - Answer: 不是。当前代码里 ecall/isa_raise_intr/mret 只实现支撑 CTE 所需的核心控制流，像 MPP/MPIE/MIE 的完整状态机并没有全部展开。
 //
 
 == 个人特色展示

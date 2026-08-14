@@ -238,6 +238,66 @@ def trap_svg() -> str:
     return svg_doc(1200, 430, "\n  ".join(body))
 
 
+def yield_flow_svg() -> str:
+    body = [
+        text(40, 40, 'yield-os：一次 yield 如何穿过 User → AM → NEMU', 'title'),
+        text(40, 67, '以当前仓库的真实代码为准：yield 通过 ecall 进入 CTE，保存 architectural state，scheduler 只返回下一份 Context*，真正的切换在 trap.S 的 restore + mret。', 'subtitle'),
+    ]
+
+    lanes = [
+        (110, 72, '#f8fafc', '#cbd5e1', 'yield-os / user program'),
+        (192, 88, '#eff6ff', '#bfdbfe', 'AM API'),
+        (290, 98, '#fff7ed', '#fdba74', 'RISC-V / NEMU trap'),
+        (398, 104, '#f8fafc', '#cbd5e1', 'AM CTE / trap entry'),
+        (512, 88, '#eff6ff', '#bfdbfe', 'yield-os scheduler'),
+        (610, 102, '#f8fafc', '#cbd5e1', 'restore + resume'),
+    ]
+    for y, h, fill, stroke, label in lanes:
+        body.append(f'<rect x="34" y="{y}" width="1132" height="{h}" rx="14" ry="14" fill="{fill}" stroke="{stroke}" stroke-width="1.1"/>')
+        body.append(text(58, y + 30, label, 'label'))
+
+    body.append(rect(250, 122, 760, 48, 'box', 'f(A) / f(B)  →  yield()', None))
+    body.append(rect(250, 212, 760, 54, 'soft', 'yield(): RV32E 用 a5=-1；RV32I 用 a7=-1；然后 ecall', '-1 是 AM software convention；ECALL 才是 trap mechanism'))
+
+    body.append(f'<rect x="250" y="312" width="760" height="54" rx="12" ry="12" fill="#fff7ed" stroke="#ea580c" stroke-width="1.5"/>')
+    body.append(text(630, 336, 'NEMU / architectural trap', 'label', 'middle'))
+    body.append(text(630, 358, 'mepc ← ECALL PC    mcause ← 11 (ECALL from M-mode)    PC ← mtvec', 'mono', 'middle', line_height=18))
+
+    body.append(f'<rect x="250" y="420" width="340" height="58" rx="12" ry="12" fill="#f8fafc" stroke="#334155" stroke-width="1.5"/>')
+    body.append(text(420, 444, 'Context snapshot', 'label', 'middle'))
+    body.append(text(420, 466, 'gpr[]  |  mcause  |  mstatus  |  mepc', 'mono', 'middle', line_height=18))
+    body.append(f'<rect x="640" y="420" width="370" height="58" rx="12" ry="12" fill="#eff6ff" stroke="#2563eb" stroke-width="1.5"/>')
+    body.append(text(825, 444, '__am_irq_handle()', 'label', 'middle'))
+    body.append(text(825, 466, 'decode EVENT_YIELD  →  call schedule(ev, prev)', 'small', 'middle'))
+
+    body.append(rect(250, 528, 760, 56, 'soft', 'current->cp = prev  →  pick next PCB  →  return current->cp', 'first yield: pcb_boot → pcb[0]；after that: pcb[0] ↔ pcb[1]'))
+
+    body.append(f'<rect x="250" y="632" width="220" height="56" rx="12" ry="12" fill="#fff7ed" stroke="#ea580c" stroke-width="1.7"/>')
+    body.append(text(360, 656, 'mv sp, a0', 'label', 'middle'))
+    body.append(text(360, 678, 'switch trap frame source', 'small', 'middle'))
+    body.append(f'<rect x="510" y="632" width="500" height="56" rx="12" ry="12" fill="#f8fafc" stroke="#334155" stroke-width="1.5"/>')
+    body.append(text(760, 656, 'restore mstatus / mepc → pop GPR → mret', 'label', 'middle'))
+    body.append(text(760, 678, 'resume the selected execution flow (stack + PC together)', 'small', 'middle'))
+
+    body.append(arrow(630, 170, 630, 212, 'thin'))
+    body.append(text(648, 196, 'ordinary call', 'small'))
+    body.append(f'<line x1="630" y1="266" x2="630" y2="312" stroke="#ea580c" stroke-width="3.0" marker-end="url(#arrow)"/>')
+    body.append(text(648, 292, 'ECALL trap', 'small'))
+    body.append(f'<line x1="630" y1="366" x2="630" y2="420" stroke="#ea580c" stroke-width="3.0" marker-end="url(#arrow)"/>')
+    body.append(text(648, 398, 'PC ← mtvec', 'small'))
+    body.append(arrow(825, 478, 825, 528, 'thin'))
+    body.append(text(842, 506, 'return next Context *', 'small'))
+    body.append(f'<line x1="630" y1="584" x2="630" y2="632" stroke="#2563eb" stroke-width="2.6" marker-end="url(#arrow)"/>')
+    body.append(text(648, 614, 'Context * dataflow', 'small'))
+    body.append(f'<line x1="760" y1="688" x2="760" y2="744" stroke="#ea580c" stroke-width="3.0" marker-end="url(#arrow)"/>')
+    body.append(text(778, 720, 'MRET', 'small'))
+    body.append(f'<path d="M 1010 660 C 1110 660, 1128 540, 1128 238 C 1128 144, 1038 144, 1010 144" stroke="#64748b" stroke-width="1.5" fill="none" stroke-dasharray="7 5" marker-end="url(#arrow)"/>')
+    body.append(text(1048, 612, 'next round', 'small'))
+
+    body.append(text(60, 740, '箭头语义：细实线 = 普通调用；粗橙色 = trap / mret；蓝色 = Context* 数据流。', 'small'))
+    return svg_doc(1200, 780, "\n  ".join(body))
+
+
 def build_flow_svg() -> str:
     body = [text(40, 40, 'Makefile 调用关系：include 与递归 make 的真实路径', 'title')]
     body.append(rect(50, 120, 185, 70, 'box', 'root Makefile', 'tracer / git_commit'))
@@ -258,6 +318,49 @@ def build_flow_svg() -> str:
     body.append(text(70, 362, '• platform/ysyxsoc.mk → make -C npc run；platform/npc.mk → standalone NPC；', 'small'))
     body.append(text(70, 385, '• microbench 仅有 3 行：NAME、SRCS、include $(AM_HOME)/Makefile。', 'small'))
     return svg_doc(1200, 420, "\n  ".join(body))
+
+
+def context_switch_svg() -> str:
+    body = [
+        text(40, 40, 'Context switch：scheduler 选择状态，trap.S 恢复状态', 'title'),
+        text(40, 67, '视觉焦点放在 `mv sp, a0`：scheduler 只决定“恢复哪一份 Context”，trap.S 才真正把机器状态和 execution stack 从 A 切到 B。', 'subtitle'),
+    ]
+
+    body.append(f'<rect x="70" y="120" width="270" height="430" rx="14" ry="14" fill="#f8fafc" stroke="#334155" stroke-width="1.4"/>')
+    body.append(f'<rect x="860" y="120" width="270" height="430" rx="14" ry="14" fill="#f8fafc" stroke="#334155" stroke-width="1.4"/>')
+    body.append(text(205, 152, 'PCB A', 'label', 'middle'))
+    body.append(text(995, 152, 'PCB B', 'label', 'middle'))
+
+    for x, tag, arg in [(95, 'Context A', 'mepc = f\na0 = 1'), (885, 'Context B', 'mepc = f\na0 = 2')]:
+        body.append(f'<rect x="{x}" y="182" width="220" height="228" rx="12" ry="12" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.1"/>')
+        body.append(text(x + 110, 206, 'private stack', 'label', 'middle'))
+        body.append(f'<line x1="{x+22}" y1="236" x2="{x+198}" y2="236" stroke="#94a3b8" stroke-width="1" stroke-dasharray="5 4"/>')
+        body.append(text(x + 110, 256, 'call frames / locals', 'small', 'middle'))
+        body.append(f'<rect x="{x+22}" y="292" width="176" height="96" rx="10" ry="10" fill="#eff6ff" stroke="#2563eb" stroke-width="1.3"/>')
+        body.append(text(x + 110, 316, tag, 'label', 'middle'))
+        body.append(text(x + 110, 342, 'gpr[]\nmcause\nmstatus', 'mono', 'middle', line_height=18))
+        body.append(text(x + 110, 378, arg, 'mono', 'middle', line_height=18))
+
+    body.append(rect(455, 176, 290, 82, 'soft', 'schedule(prev)', 'store prev; pick the other PCB; return next Context *'))
+    body.append(rect(495, 294, 210, 54, 'warn', 'a0 = next Context *', 'return value back to trap.S'))
+    body.append(f'<rect x="450" y="392" width="300" height="82" rx="12" ry="12" fill="#fff7ed" stroke="#ea580c" stroke-width="1.6"/>')
+    body.append(text(600, 434, 'mv sp, a0', 'label', 'middle'))
+    body.append(text(600, 458, 'BEFORE: sp → Context A', 'small', 'middle'))
+    body.append(text(600, 480, 'AFTER:  sp → Context B', 'small', 'middle'))
+
+    body.append(rect(430, 504, 340, 68, 'box', 'restore mstatus / mepc → pop GPR → mret', 'PC ← next.mepc；a0 ← next.a0'))
+
+    body.append(arrow(315, 340, 455, 220))
+    body.append(text(368, 274, 'prev', 'small'))
+    body.append(f'<line x1="745" y1="220" x2="885" y2="340" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow)"/>')
+    body.append(text(760, 274, 'next', 'small'))
+    body.append(f'<line x1="600" y1="348" x2="600" y2="392" stroke="#2563eb" stroke-width="2.5" marker-end="url(#arrow)"/>')
+    body.append(f'<line x1="750" y1="544" x2="885" y2="380" stroke="#ea580c" stroke-width="2.8" marker-end="url(#arrow)"/>')
+
+    body.append(text(94, 610, 'kcontext() 先人工造出 trap frame：mepc=entry, a0=arg, mstatus=0x1800。', 'small'))
+    body.append(text(94, 636, '因此它不是直接调用 f()；第一次 mret 才让这个 C 函数真正拿到 CPU。', 'small'))
+    body.append(text(94, 670, 'sp 的切换焦点只有一句：scheduler returns a Context *; trap.S switches to it with `mv sp, a0`.', 'small'))
+    return svg_doc(1200, 730, "\n  ".join(body))
 
 
 def perf_svg(perf: dict) -> str:
@@ -352,7 +455,9 @@ def main() -> None:
         'architecture_2.svg': architecture_ref_svg(),
         'architecture_3.svg': architecture_soc_svg(),
         'trap_flow.svg': trap_svg(),
+        'yield_flow.svg': yield_flow_svg(),
         'build_flow.svg': build_flow_svg(),
+        'context_switch.svg': context_switch_svg(),
         'perf_stage.svg': perf_svg(perf),
         'backend_area.svg': backend_svg(synth),
     }

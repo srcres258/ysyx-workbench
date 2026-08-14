@@ -14,7 +14,7 @@ Context* __am_irq_handle(Context *c) {
 #else
         if (((int) c->gpr[17]) == -1) {
 #endif
-          // a1 寄存器是 -1, 表明是 yield
+          // a5 (RV32E) / a7 (RV32I) == -1 denotes AM EVENT_YIELD
           ev.event = EVENT_YIELD;
         } else {
           ev.event = EVENT_SYSCALL;

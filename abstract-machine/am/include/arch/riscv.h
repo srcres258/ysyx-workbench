@@ -8,7 +8,7 @@
 #endif
 
 struct Context {
-  // TODO: fix the order of these members to match trap.S
+  // Layout matches trap.S: gpr[], mcause, mstatus, mepc.
   uintptr_t gpr[NR_REGS], mcause, mstatus, mepc;
 };
 
