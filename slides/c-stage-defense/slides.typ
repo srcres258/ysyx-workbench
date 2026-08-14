@@ -28,7 +28,7 @@
 // - Main point: 这不是通用 RISC-V 介绍，而是当前仓库的真实实现与优化证据。
 // - Time: 20 s
 // - Likely question: 现在到底处于什么阶段？
-// - Answer: C6 之后，已进入 B1/B2/B3，正在做局部性分析与 I-cache 初步定调。
+// - Answer: C6 之后，已进入 B1/B2/B3；第一版 blocking I-cache RTL 已接入，正在用 locality + perf 准备下一步 DSE。
 //
 ]
 
@@ -39,13 +39,13 @@
 - 工程构建与验证
 - 考核题目与个人特色
 
-- 当前进度：B3 性能瓶颈分析完成，局部性分析与 I-cache 初步定调中
+- 当前进度：B3 性能瓶颈分析完成；第一版 blocking I-cache RTL 与 cache-specific perf observability 已就位
 
   // Speaker notes:
 // - Main point: 先把整套协同闭环讲清，再讲 NPC 和数据驱动优化。
 // - Time: 30 s
 // - Likely question: 为什么不直接讲 cache？
-// - Answer: 因为现在已经有 locality 数据在收敛 I-cache 候选，不能只写成抽象的下一步。
+// - Answer: 因为现在不只是“想做 cache”，而是已经有 locality 证据、真实 RTL 和 cache-specific perf 观测链路。
 //
 
 == 一生一芯软硬件协同架构（1/3）
@@ -188,6 +188,8 @@ run: $(BIN) git_commit_sim
 - `make -C npc run` → `chisel-gen` → Mill/Chisel → generated SV → Verilator → C++ binary → `IMG`
 - `make -C npc perf` → 先 synth，再重建 DPI-on 模拟器，再跑 microbench，再聚合 perf
 - 运行模式：standalone / ysyxSoC
+  - standalone mode: 用于 NPC 微架构快速迭代与演示
+  - ysyxSoC mode: NPC + ysyxSoC 完整硬件平台 RTL simulation
 
   // Speaker notes:
 // - Main point: perf 流是串行化的，不能拿 DPI-free RTL 直接做性能结论。
@@ -225,7 +227,7 @@ run: $(BIN) git_commit_sim
   [MEM wait_resp], [7,729,865],
 )
 
-- 109 个 counter 通过 `PerfSignalCollector` / `PerfMonitor` 汇总
+- 分层 performance counters 通过 `PerfSignalCollector` / `PerfMonitor` 汇总（当前 `123` 个事件）
 - `RUN_CONFIG_PERF=on` 开启
 - `perf.json` 与 `perf.txt` 是当前仓库的真实输出
 
@@ -265,48 +267,137 @@ run: $(BIN) git_commit_sim
 // - Answer: 先释放面积，再为后续 I-cache 留预算。
 //
 
-== 局部性分析与 I-cache 初步定调
+// NOTE: slides use current RTL semantics rather than stale docs.
 
-- C6 / B1 / B2 / B3 已完成，进入 I-cache 候选收敛
-- NPC 后端已完成取指与访存局部性分析
-- microbench 的 address-time / reuse interval / spatial utilization / miss-rate curve 已经把设计空间摊开
-- `cache_sweep` 首轮最佳点：4KB / 64B / 4-way，miss rate 0.32%
+== 从访存轨迹中发现 Instruction Locality
 
-// #box(width: 100%, height: 2.6cm, stroke: 1.5pt + rgb("#94a3b8"), radius: 6pt)[
-//   #align(center + horizon)[
-//     #text(size: 20pt, weight: "bold")[Locality Analysis / I-cache Initial Tuning]
-//   ]
-// ]
+#text(size: 10.5pt, fill: rgb("#475569"))[*Evidence → Opportunity* · 仅看 “instruction cache 值不值得做”，不把 locality-only sweep 当成最终 architecture 结论。]
 
-- Current process: Locality Analysis / I-cache Initial Tuning
+#grid(
+  columns: (1fr, 1fr, 1fr),
+  gutter: 0.14cm,
+  [
+    #box(width: 100%, inset: 8pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.5pt)[Hot address regions]
+      #image("solid-assets/address_time_ifetch.png", width: 100%)
+      #text(size: 9.6pt)[*Question:* instruction fetch 会不会反复回到少数地址段？]\
+      #text(size: 9.6pt)[*Conclusion:* 会。measured IFetch trace 长时间停留在少数热点带。]
+    ]
+  ],
+  [
+    #box(width: 100%, inset: 8pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.5pt)[Working-set locality]
+      #image("solid-assets/working_set_over_time.png", width: 100%)
+      #text(size: 9.6pt)[*Question:* 活跃 footprint 是否明显小于字节级完整映像？]\
+      #text(size: 9.6pt)[*Conclusion:* 是。按 cache line 聚合后更小、更平滑，热点集合明显收敛。]
+    ]
+  ],
+  [
+    #box(width: 100%, inset: 8pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 11.5pt)[Spatial opportunity]
+      #image("solid-assets/spatial_line_utilization.png", width: 100%)
+      #text(size: 9.6pt)[*Question:* 相邻 instruction 将来是否值得一起抓进同一 line？]\
+      #text(size: 9.6pt)[*Conclusion:* 值得。line size 到 `64 B` 时利用率仍接近满载。]
+    ]
+  ],
+)
 
-- 64B line utilization 98.1%，说明大 line 依然不浪费
-- 结论：I-cache 先从高 locality 热路径定 line size / capacity，再落 RTL 验证
-- 下一步补充 itrace / basic-block 热点分析
+#v(0.12cm)
+#box(width: 100%, inset: 9pt, fill: rgb("#eff6ff"), stroke: 1.6pt + rgb("#2563eb"), radius: 8pt)[
+  #text(weight: "bold", size: 12pt)[Conclusion]\
+  #text(size: 11pt)[局部性分析不是直接给出“最佳 cache 参数”，而是证明：当前 workload 的 instruction supply 确实存在值得硬件利用的重复 fetch 结构。]\
+  #text(size: 9.2pt, fill: rgb("#64748b"))[Locality-only sweep ≠ final cache choice; refill cost, traffic, area, timing, and total miss time still belong to the next step.]
+]
 
   // Speaker notes:
-// - Main point: locality sweep 已经给出 I-cache 的首轮候选和数量级。
-// - Time: 60 s
-// - Likely question: 为什么这个 I-cache 方向可信？
-// - Answer: 因为 hit rate、line utilization 和 reuse distance 三类证据都指向同一结论。
+// - Main point: 为什么值得做 I-cache？不是因为“cache 通常有用”，而是 perf 已经告诉我们 instruction supply 是主要 stall 来源，而 PC trace / working-set / spatial evidence 说明这些 fetch 不是完全随机的。
+// - Time: 55 s
+// - Likely question: 为什么不直接把 locality sweep 的最低 miss-rate 当成最终参数？
+// - Answer: 因为 miss rate 只覆盖一个维度，后面还要结合 refill cost、lower-memory traffic、area、timing 和 total miss time 一起看。
 
-== Locality state
+== 从 Locality Insight 到真实 I-cache RTL
 
-`microbench` 程序 (`test` 规模)
+#text(size: 10.5pt, fill: rgb("#475569"))[*Implementation → Observation → Next* · I-cache 已经不是“下一步”，而是当前 NPC 顶层里真实接在 `IFU` 和 `LSU` 之间的 RTL module。]
 
 #v(0.12cm)
 #grid(
-  columns: (1fr, 1fr, 1fr),
-  gutter: 0.12cm, 
-  image("solid-assets/address_time_ifetch.png", width: 100%),
-  image("solid-assets/address_time_data.png", width: 100%),
-  image("solid-assets/reuse_interval.png", width: 100%),
-  image("solid-assets/spatial_line_utilization.png", width: 100%),
-  image("solid-assets/cache_miss_rate_curve.png", width: 100%),
-  image("solid-assets/working_set_over_time.png", width: 100%),
-  image("solid-assets/stride_distribution.png", width: 100%),
-  image("solid-assets/region_cache_value.png", width: 100%)
+  rows: (0.75fr, 1fr),
+  [
+    #grid(
+      columns: (1.45fr, 1fr),
+      gutter: 0.2cm,
+      [
+        #box(width: 100%, inset: 10pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+            #text(weight: "bold", size: 12pt)[Request path in the current RTL]
+            #set text(font: "DejaVu Sans Mono", size: 9.2pt)
+
+            ```
+            PC
+              ↓
+            IFU
+              │ cpuReq
+              ▼
+            I-cache (tag / valid / data)
+              ├─ hit                → cpuResp
+              ├─ miss (cacheable)   → lowerReq / lowerResp → refill → cpuResp
+              └─ bypass             → lowerReq / lowerResp → forward → cpuResp
+            ```
+
+            blocking rule: state != idle 时不接收新请求
+            lower-memory side: single outstanding transaction only
+            #set text(font: "Noto Sans CJK SC", size: 9.1pt)
+            #v(0.08cm)
+            #text(size: 9.1pt)[当前是 *blocking frontend*：hit 直接返回；miss / bypass 都会占住前端直到 lower memory 响应。]
+            #text(size: 9.1pt)[当前 line size 只有 `4 B`，第一版 RTL 先把“重复 PC 命中”做成真实可测行为。]
+          ]
+      ],
+      [
+        #box(width: 100%, inset: 8pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+          #text(weight: "bold", size: 12pt)[Current RTL]
+          #set text(size: 9pt)
+          #table(
+            columns: (1fr, 1.15fr),
+            align: left,
+            [*Capacity*], [32 B (`8 × 4 B`)],
+            [*Line size*], [4 B (`1` instruction / line)],
+            [*Associativity*], [1-way (direct-mapped)],
+            [*Replacement*], [index conflict → overwrite],
+            [*Frontend*], [blocking, single outstanding],
+            [*Refill*], [single-word, one lower req per line],
+            [*Cacheable*], [Flash / PSRAM / SDRAM],
+            [*Bypass*], [MROM / SRAM / MMIO / unknown],
+          )
+        ]
+
+      ],
+    )
+  ],
+  [
+    #box(width: 100%, inset: 8pt, fill: rgb("#f8fafc"), stroke: 1.2pt + rgb("#cbd5e1"), radius: 8pt)[
+      #text(weight: "bold", size: 12pt)[Observable behavior now]
+      #set text(size: 9.2pt)
+      - `icache.request / hit / miss / bypass`
+      - `icache.lower_req / lower_resp / refill`
+      - `icache.refill_word / miss_wait / total_miss_time`
+      - counters are part of a hierarchical perf table with `123` current events
+      #set text(font: "DejaVu Sans Mono", size: 9.6pt)
+      #v(0.06cm)
+      #text(weight: "bold", size: 10pt, font: "Noto Sans CJK SC")[10-second hit / miss story]
+      0x3000_0000  → miss   → lower req/resp → line valid
+      0x3000_0000  → hit    → served by cache
+      0x3000_0004  → new line (current RTL line = 4 B)
+      #set text(font: "Noto Sans CJK SC", size: 10pt)
+      #v(0.04cm)
+      #text(size: 9.2pt)[Next: 让 CacheSim / DSE 回答“下一版 cache 应该长成什么样”。]
+    ]
+  ]
 )
+
+// Speaker notes:
+// - Main point: 现在到底实现了什么？答案是：一个 direct-mapped、4 B line、8 entries、blocking、single-outstanding 的第一版 I-cache，cacheable 区域只包含 Flash / PSRAM / SDRAM，其余一律 bypass。
+// - Time: 65 s
+// - Likely question: 为什么不直接把 locality sweep 的 64 B line 候选做成当前 RTL？
+// - Answer: 因为当前第一版 RTL 的目标是先建立真实 hit/miss/bypass/refill 观测链路；更宽 line 是否值得，要再结合 refill traffic、miss penalty、area、timing 与 total miss time 做下一轮判断。
 
 == 考核题目
 
@@ -358,7 +449,7 @@ PLACEHOLDER — 题目收到后再填入
 
 方向 B：工具 / 优化 / Bug
 
-- 前端性能观测：109 项计数器按 `core / state / stall / inst / mem / trap` 分层；在 microbench 上退休了 `202,571,599` 条指令，`IPC = 0.0327`，`93.4%` 周期都落在 stall 里
+- 前端性能观测：分层 counters 目前累计到 `123` 个事件；在 microbench 上退休了 `202,571,599` 条指令，`IPC = 0.0327`，`93.4%` 周期都落在 stall 里
 - 后端综合链路：`make synth` / `synth-search` / `synth-exp-*` / `synth-flow-diff`，当前 `100 MHz` 约束下做到 `150 MHz` 的 `Fmax`，`WNS = +3.36 ns`、`TNS = 0`
 - 报告阅读顺序：先看面积预算 `14,761.4 / 23,000 µm² = 64.2%`，再看 `Top Contributors`、`Cell Class`、`High-Fanout Nets`、`Constraint Coverage`
 - 结论落点：把“哪里慢、哪里大、哪里不闭合”翻成微结构动作，比如 `ifetch wait_resp = 47.6%`、`mem wait_resp = 9.0%`，优先补流水和优化访存组织
@@ -391,7 +482,7 @@ PLACEHOLDER — 题目收到后再填入
 
 1. 建立了 AM、NEMU、NPC 与 ysyxSoC 的完整协同闭环
 2. NPC 已支持复杂软件运行，并具备系统化的性能观测能力
-3. 已从“凭感觉优化”转向“前后端数据共同驱动”，局部性分析正在收敛 I-cache 候选
+3. 已从“凭感觉优化”转向“前后端数据共同驱动”，并把 locality insight 落成了第一版可观测的 I-cache RTL
 
 正确性决定“能不能运行”，性能证据决定“下一步该优化什么”。
 
