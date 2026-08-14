@@ -34,10 +34,11 @@
 
 == 目录与当前进度
 
-- 项目协同架构
-- NPC 微架构
-- 工程构建与验证
-- 考核题目与个人特色
+- 目录
+  - 项目协同架构
+  - NPC 微架构
+  - 工程构建与验证
+  - 考核题目与个人特色
 
 - 当前进度：B3 性能瓶颈分析完成；第一版 blocking I-cache RTL 与 cache-specific perf observability 已就位
 
@@ -54,6 +55,7 @@
 
 - AM 把应用和机器实现解耦
 - 这一层决定“程序怎么写”而不是“硬件怎么搭”
+  - （软件层与硬件层解耦）
 
   // Speaker notes:
 // - Main point: 先讲软件层与 AM 边界。
@@ -142,13 +144,40 @@ when(prevStageData.ecallEnable) {
 
 == 顶层连接（Chisel）
 
+Chisel 顶层做的不是“把几个 stage 摆在一起”，而是把 *阶段内部结果 → stage bundle → 共享访存接口* 这条链路真正接起来。
+
 ```scala
 val ifu = Module(new IFUnit(xLen))
 val idu = Module(new IDUnit(xLen))
+val exu = Module(new EXUnit(xLen))
+val memu = Module(new MEMUnit(xLen))
+val wbu = Module(new WBUnit(xLen))
+val lsu = Module(new LoadAndStoreUnit(xLen))
+
 DecoupledIOConnect(ifu.io.nextStage, idu.io.prevStage, DecoupledIOConnect.Pipeline)
+DecoupledIOConnect(idu.io.nextStage, exu.io.prevStage, DecoupledIOConnect.Pipeline)
+DecoupledIOConnect(exu.io.nextStage, memu.io.prevStage, DecoupledIOConnect.Pipeline)
+DecoupledIOConnect(memu.io.nextStage, wbu.io.prevStage, DecoupledIOConnect.Pipeline)
+lsu.io.memBus <> master
 ```
 
-- `npc/vsrc-chisel/src/main/scala/top/srcres258/ysyx/npc/Top.scala`
+- 五个 stage 各自是独立 FSM，通过 `IF_ID_Bundle / ID_EX_Bundle / EX_MEM_Bundle / MEM_WB_Bundle` 串起来，每一段都只把“这一拍算完的结果”交给下一段
+- 数据流可以看一个代表例子：`ALU.io.alu` 不会直接跑到 Top，而是先进入 `EX_MEM_Bundle.aluOutput`，再进入 `MEM_WB_Bundle.aluOutput`，最后才由 `WBU` 选择写回 `gprWritePort.writeData`
+- 控制流走的是同一条路：`EXU` 先产出 `pcTarget`，经过 `EX_MEM_Bundle` 和 `MEM_WB_Bundle` 传到 `WBU.io.pcTargetOut`，Top 再在 `done` 时回写 `pc_r`
+- 所以这一页最想强调的结论其实只有一句：执行单元的结果先在 stage 之间层层传递，*不会直接跳到顶层端口*
+
+#pagebreak()
+
+== 顶层连接（Chisel） (cont'd)
+
+- 真正暴露成 SoC 总线接口的，*只有* 访存请求：
+  - `IFU` 发的是 `lsuIfetchReq`，不是 AXI
+  - `MEMU` 发的是 `lsuMemReq`，也不是 AXI
+  - `LSU` 仲裁之后才驱动 `io.memBus.ar/aw/w/...`，所以它是 *唯一 AXI4 master 出口*
+- 离开 CPU 以后，这条访存路径一路串上去：`LSU.io.memBus` → `Top.master` → `ysyx_25070190.io_master` → `CPU.masterNode` → `ysyxSoCASIC` 的 `xbar`
+- 这里名字能直接对上。因为 Top 用 `desiredName = "ysyx_25070190"` 生成 Verilog，而 `ysyxSoC/src/CPU.scala` 又用同名 `BlackBox` 去实例化它；所以 SoC 看到的 AXI4 顶层引脚，本质上就是这条 LSU 访存路径被摊平后的结果。（Chisel特性重命名Top module，#link("https://ysyx.oscc.cc/docs/2306/basic/1.11.html")[B5]讲义提及）
+
+- 关键文件：`npc/vsrc-chisel/.../Top.scala`、`stage/IFUnit.scala`、`stage/EXUnit.scala`、`stage/MEMUnit.scala`、`stage/WBUnit.scala`、`LoadAndStoreUnit.scala`、`ysyxSoC/src/CPU.scala`
 
   // Speaker notes:
 // - Main point: 顶层由 Chisel 组合各个 stage，而不是黑盒拼接。
