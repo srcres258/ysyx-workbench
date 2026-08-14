@@ -214,31 +214,39 @@ run: $(BIN) git_commit_sim
 
 == 一次 NPC 构建运行的时序
 
-- `make -C npc run` → `chisel-gen` → Mill/Chisel → generated SV → Verilator → C++ binary → `IMG`
-- `make -C npc perf` → 先 synth，再重建 DPI-on 模拟器，再跑 microbench，再聚合 perf
-- 运行模式：standalone / ysyxSoC
-  - standalone mode: 用于 NPC 微架构快速迭代与演示
-  - ysyxSoC mode: NPC + ysyxSoC 完整硬件平台 RTL simulation
+1. NPC 自己的三个入口：
+  - `make -C npc run` → `chisel-gen` → Mill/Chisel → generated SV → Verilator → `npc-runner` → 用 `IMG=<bin>` 启动仿真
+  - `make -C npc synth` → `chisel-clean` → `chisel-gen RUN_CONFIG_DPI=off` → `scripts/synth.sh` → `make -C yosys-sta syn sta` → 产出 `synth_summary.json / optimization_hotspots.txt`
+  - `make -C npc perf` → 先 synth 固定 RTL 快照，再重建 DPI-on 模拟器，跑 microbench，最后聚合 `perf.json`
+2. AM 平台怎么把程序送进 NPC：
+  - 共同前半段都是 `源文件 → .o → ELF → objcopy 得到 .bin → insert-arg.py 写 mainargs`
+  - `ARCH=riscv32e-npc` 走 `abstract-machine/scripts/platform/npc.mk`：最后递归执行 `make -C npc run IMG=<bin> RUN_CONFIG_SIM_MODE=standalone`
+  - `ARCH=riscv32e-ysyxsoc` 走 `abstract-machine/scripts/platform/ysyxsoc.mk`：最后同样递归执行 `make -C npc run IMG=<bin>`，但不显式传 `SIM_MODE`，因此落到默认的 `ysyxsoc` SoC 模式
+3. 总结：两条 AM 路径的关键区别不在“前面怎么编译 C 程序”，而在“最后把同一个程序交给 bare NPC 还是交给 `ysyxSoCFull` 整个平台去跑”
 
   // Speaker notes:
-// - Main point: perf 流是串行化的，不能拿 DPI-free RTL 直接做性能结论。
-// - Time: 55 s
+// - Main point: 这一页要说明两件事：NPC 自己有 run / synth / perf 三条入口；AM 平台最终都会把程序变成 bin，再递归进 NPC 仿真。
+// - Time: 65 s
 // - Likely question: 为什么 perf 先 synth？
-// - Answer: 因为要把性能数据和后端数据放在同一份 RTL 快照上比较。
+// - Answer: 因为要把性能数据和后端数据放在同一份 RTL 快照上比较；而 standalone 和 ysyxsoc 的差别，则是在最后选择哪个仿真顶层。
 //
 
 == 定量优化方法论
 
 - `执行时间 = 动态指令数 × CPI × 单周期时间`
-- 动态指令数来自程序与编译
-- CPI / IPC 反映微结构
-- 单周期时间来自综合与 STA
+- 在这套 NPC 里，这不是纸面公式：动态指令数看 `instret`，CPI / IPC 看 `perf.json`，单周期时间看综合后的 `WNS / Fmax`
+- 真正决定优化顺序的不是“哪个点看起来能改”，而是 Amdahl 定律：`Speedup = 1 / ((1 - f) + f / S)`，先抓占比最大的那一段时间 `f`
+- 对当前 RTL 来说，最大的 `f` 不是算术单元，而是 *instruction supply* 和访存等待：所以后面才会先看 `ifetch wait_resp`、`mem wait_resp`、locality 和 I-cache
+- 这也把优化分成两类：
+  - *降 CPI*：减少等待和结构冲突，比如 I-cache、LSU 访存组织、共享存储口仲裁、store 路径串行开销
+  - *降单周期时间 / 省面积*：缩短关键路径、为后续结构留预算，比如 CSR 读口简化、写回 mux 裁剪、共享加法器、stage payload 压缩
+- 所以我现在的做法不是“看到哪就改哪”，而是先用 perf 找出大头，再用 synth / STA 判断这些改动值不值得、代价有多大
 
   // Speaker notes:
-// - Main point: 不能只盯着 IPC，也不能只盯着综合频率。
-// - Time: 45 s
+// - Main point: 公式只负责告诉我“时间由哪三部分组成”，Amdahl 负责告诉我“现在先改哪一部分最值”。
+// - Time: 60 s
 // - Likely question: 你为什么不只看仿真周期？
-// - Answer: 因为真正的优化要同时看前端 CPI 和后端时序。
+// - Answer: 因为真正的优化要同时看前端 CPI、后端时序，以及这两个方向之间的面积代价和收益上限。
 //
 
 == 前端性能证据链
