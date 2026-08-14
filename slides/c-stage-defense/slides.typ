@@ -112,8 +112,16 @@
 
 #image("assets/microarchitecture.svg", width: 98%)
 
-- `Top.pc_r` 只在 `WBU.done` 时经 `pcTargetOut` 提交下一条 PC，因此当前结构是 *single-instruction-in-flight*，不是传统五级并行流水
-- `IFU → I-cache → LSU` 与 `MEMU → LSU` 是两条独立访存 client path；`LSU` 是唯一对外 `AXI4 master` 出口
+#pagebreak()
+
+== 总体微架构 (cont'd)
+
+- 当前 NPC 仍然是多周期阶段式结构：`IFU / IDU / EXU / MEMU / WBU` 五个阶段通过 `IF_ID / ID_EX / EX_MEM / MEM_WB` 串接，`Top.pc_r` 只有在 `WBU.done` 时才更新到下一条 PC，因此一次只推进一条指令，还没有进入并行流水阶段
+- 主链路上的信息是逐阶段传递的：`IDU` 完成译码并读取寄存器，`EXU` 完成运算、比较和目标 PC 计算，`MEMU` 处理访存结果，`WBU` 统一完成寄存器写回和 PC 更新
+- 上方状态部件对应处理器的核心状态保存：`GPR File` 负责通用寄存器读写，`CSR File` 负责 `mstatus / mtvec / mepc / mcause / mtval` 等控制状态；当前 RTL 配置下，`GPR File` 为 `2R/1W` 的 16×32 实现，`CSR File` 为 `3R/2W`
+- 下方访存结构分成两条入口：`IFU → I-cache → LSU` 负责取指，`MEMU → LSU` 负责 load/store，`MEMU → CLINT` 负责 `mtime` 等本地定时器访问；其中 `LSU` 是 CPU 对外连接 SoC 总线的唯一出口
+- 当前已经接入一版指令 Cache，采用阻塞式、直接映射结构，容量为 `8 lines × 4 B = 32 B`；数据侧还没有独立 D-cache，因此 load/store 仍然通过共享 `LSU` 访问外部存储系统
+- 因而这张图的重点不是展示复杂流水控制，而是说明当前 NPC 已经形成了完整的“取指—译码—执行—访存—写回”闭环，以及与 I-cache、CLINT、SoC 总线之间的真实连接关系
 
   // Speaker notes:
 // - Main point: 阶段名是生命周期描述，不代表并行流水线。
