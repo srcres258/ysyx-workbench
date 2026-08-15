@@ -102,6 +102,7 @@
         verilator
         typst
         texliveBasic
+        touying
       ]) ++ pkgs.lib.optionals hasIeda [
         ieda
       ];
